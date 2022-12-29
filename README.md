@@ -1,11 +1,20 @@
-# padiff
-**P**addle and **P**ytorch model **Auto**matically **Diff** precision tools.
+# PaDiff
+**P**addle **Auto**matically **Diff** precision toolkits.
 
-##
+## Installation
+PaDiff v0.1 版本将于近期发布，届时可通过如下命令安装：
+```
+pip install padiff
+```
 
+尝鲜版或开发者推荐如下命令安装：
+```
+pip install -e .
+```
 ## 使用说明
 
--   autodiff使用接口与参数说明
+
+-   autodiff 使用接口与参数说明
 
     接口函数签名：`autodiff(layer, module, example_inp, auto_weights=True, options={})`
 
@@ -212,3 +221,15 @@ autodiff(layer, module, inp, auto_weights=True, options={'atol': 1e-4})
                  File pptest.py: 57    <module>
                         autodiff(layer, module, inp, auto_weights=True, options={'atol': 1e-4})
         ```
+## 调试建议
+
+如果遇到了 autodiff 函数提示某个 layer 没有对齐，可以考虑如下几个 debug 建议：
+
+- 如果报告不是上述的Success或者是Failed，那么说明模型没有满足预定的假设。可以结合 报错信息 进行分析。常见问题是：Torch 模型和 Paddle 模型没有满足Layer定义的一一对应假设。可以通过 print 两个模型来进行假设验证，一个满足一一对应的例子应该如下图（Layer的名字可以不用相同）![e11cd8bfbcdaf5e19a3894cecd22d212](https://user-images.githubusercontent.com/16025309/209917443-e5c21829-f4a6-4bdf-a621-b123c11e83d6.jpg)
+
+
+- 如果显示精度有diff，先分析Paddle和Torch的调用栈，找到对应的源码并分析他们在逻辑上是否是对应的Layer，如果不是对应的Layer，那么说明 Torch 模型和 Paddle 模型没有满足Layer定义的一一对应假设。如图 <img width="875" alt="3d569899c42f69198f398540dec89012" src="https://user-images.githubusercontent.com/16025309/209917231-717c8e88-b3d8-41bc-b6a9-0330d0d9ed50.png">
+
+- 如果不是上述的问题，那么可以考虑进行debug，比如构造最小复现样例或者是pdb调试等等。
+
+- 如果上述无法解决您的问题，或者认为找不到问题，可以考虑给本仓库提一个Issue。
