@@ -22,7 +22,7 @@ import torch
 from .report import (Report, check_forward_and_backward, current_report,
                      report_guard)
 from .stack_info import *
-from .utils import (build_log_dir, clean_log_dir, for_each_grad_tensor,
+from .utils import (clean_log_dir, for_each_grad_tensor, reset_log_dir,
                     torch_mean)
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
@@ -48,7 +48,7 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
     paddle.set_device("cpu")
     module = module.to("cpu")
 
-    build_log_dir()
+    reset_log_dir()
 
     _preprocess(layer, module, example_inp, auto_weights, options)
 

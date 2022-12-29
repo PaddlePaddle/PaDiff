@@ -236,7 +236,7 @@ class TreeView:
 diff_log_path = os.path.join(sys.path[0], "diff_log")
 
 
-def build_log_dir():
+def reset_log_dir():
     diff_log_path = os.path.join(sys.path[0], "diff_log")
     if os.path.exists(diff_log_path):
         shutil.rmtree(diff_log_path)
