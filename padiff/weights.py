@@ -14,7 +14,6 @@
 
 import os
 import os.path as osp
-import shutil
 import sys
 from itertools import zip_longest
 
@@ -28,7 +27,8 @@ from .utils import map_for_each_sublayer
 
 def process_each_weight(process_name, layer, module, options={}):
     yaml_path = osp.join(osp.dirname(__file__), "configs", "assign_weight.yaml")
-    assign_yaml = yaml.safe_load(open(yaml_path, "r"))
+    with open(yaml_path, "r") as yaml_file:
+        assign_yaml = yaml.safe_load(yaml_file)
 
     yamls = {
         "assign_yaml": assign_yaml,
@@ -175,11 +175,6 @@ def process_each_weight(process_name, layer, module, options={}):
             "Invalid fn type, not such fn called `{}`".format(process_name)
         )
 
-    diff_log_path = os.path.join(sys.path[0], "diff_log")
-    if os.path.exists(diff_log_path):
-        shutil.rmtree(diff_log_path)
-    os.makedirs(diff_log_path)
-
     for paddle_sublayer, torch_submodule in zip_longest(
         layer.sublayers(True), module.modules(), fillvalue=None
     ):
@@ -201,14 +196,14 @@ def process_each_weight(process_name, layer, module, options={}):
                 yamls,
             )
 
-    if not os.listdir(diff_log_path):
-        os.rmdir(diff_log_path)
-    else:
-        if process_name == "check_weight_grad":
-            print(
-                "Differences in weight or grad !!!\n"
-                "Check reports at `{}`\n".format(diff_log_path)
-            )
+    if process_name == "check_weight_grad" and (
+        _weight_check is False or _grad_check is False
+    ):
+        diff_log_path = os.path.join(sys.path[0], "diff_log")
+        print(
+            "Differences in weight or grad !!!\n"
+            "Check reports at `{}`\n".format(diff_log_path)
+        )
 
     if process_name == "check_weight_grad":
         return _weight_check, _grad_check

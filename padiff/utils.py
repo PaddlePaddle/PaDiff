@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import shutil
+import sys
 import warnings
 from collections import namedtuple
 from itertools import zip_longest
@@ -228,3 +231,30 @@ class TreeView:
 
         for item in _traversal_backward(self.root):
             yield item
+
+
+diff_log_path = os.path.join(sys.path[0], "diff_log")
+
+
+def build_log_dir():
+    diff_log_path = os.path.join(sys.path[0], "diff_log")
+    if os.path.exists(diff_log_path):
+        shutil.rmtree(diff_log_path)
+    os.makedirs(diff_log_path)
+
+
+def clean_log_dir():
+    if not os.listdir(diff_log_path):
+        os.rmdir(diff_log_path)
+
+
+def torch_mean(inp):
+    if isinstance(inp, torch.Tensor):
+        return inp.mean()
+
+    means = []
+    for t in for_each_tensor(inp):
+        means.append(t[0].mean())
+    loss = torch.stack(means).mean()
+
+    return loss
