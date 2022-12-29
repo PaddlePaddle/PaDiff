@@ -22,8 +22,8 @@ import torch
 from .report import (Report, check_forward_and_backward, current_report,
                      report_guard)
 from .stack_info import *
-from .utils import (clean_log_dir, for_each_grad_tensor, reset_log_dir,
-                    torch_mean)
+from .utils import (clean_log_dir, for_each_grad_tensor, max_diff,
+                    reset_log_dir, tensors_mean)
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
 
@@ -60,7 +60,7 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
                 torch_input = torch.as_tensor(example_inp)
                 torch_input.requires_grad = True
                 torch_output = module(torch_input)
-                loss = torch_mean(torch_output)
+                loss = tensors_mean(torch_output, "torch")
                 loss.backward()
             except Exception as e:
                 raise RuntimeError(
@@ -75,7 +75,7 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
                 paddle_input = paddle.to_tensor(example_inp)
                 paddle_input.stop_gradient = False
                 paddle_output = layer(paddle_input)
-                loss = paddle.mean(paddle_output)
+                loss = tensors_mean(paddle_output, "paddle")
                 loss.backward()
             except Exception as e:
                 raise RuntimeError(
@@ -84,11 +84,7 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
                     )
                 )
 
-    print(
-        "Max output diff is {}\n".format(
-            numpy.abs(paddle_output.numpy() - torch_output.detach().numpy()).max()
-        )
-    )
+    print("Max output diff is {}\n".format(max_diff(paddle_output, torch_output)))
 
     weight_check, grad_check = check_weight_grad(layer, module, options)
     ret = check_forward_and_backward(torch_report, paddle_report, options)

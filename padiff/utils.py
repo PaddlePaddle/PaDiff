@@ -19,6 +19,7 @@ import warnings
 from collections import namedtuple
 from itertools import zip_longest
 
+import numpy as np
 import paddle
 import torch
 from paddle.fluid.layers.utils import flatten
@@ -248,13 +249,40 @@ def clean_log_dir():
         os.rmdir(diff_log_path)
 
 
-def torch_mean(inp):
-    if isinstance(inp, torch.Tensor):
+def tensors_mean(inp, mode):
+    if isinstance(inp, torch.Tensor) or isinstance(inp, paddle.Tensor):
         return inp.mean()
 
-    means = []
-    for t in for_each_tensor(inp):
-        means.append(t[0].mean())
-    loss = torch.stack(means).mean()
+    if mode == "torch":
+        means = []
+        for t in for_each_tensor(inp):
+            means.append(t[0].mean())
+        loss = torch.stack(means).mean()
+        return loss
+    elif mode == "paddle":
+        means = []
+        for t in for_each_tensor(inp):
+            means.append(t[0].mean())
+        loss = paddle.stack(means).mean()
+        return loss
+    else:
+        raise RuntimeError(
+            "unrecognized mode `{}`, expected: `torch` or `paddle`".format(mode)
+        )
 
-    return loss
+
+def max_diff(paddle_output, torch_output):
+    p_values = []
+    t_values = []
+    for t in for_each_tensor(paddle_output):
+        p_values.append(t[0])
+    for t in for_each_tensor(torch_output):
+        t_values.append(t[0])
+
+    _max_diff = 0
+    for (pt, tt) in zip(p_values, t_values):
+        temp = np.abs(tt.detach().numpy() - pt.numpy()).max()
+        if temp > _max_diff:
+            _max_diff = temp
+
+    return _max_diff
