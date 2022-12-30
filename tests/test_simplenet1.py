@@ -77,7 +77,7 @@ class TestCaseName(unittest.TestCase):
                 module,
                 inp,
                 auto_weights=True,
-                options={"atol": 1e-4, "compare_mode": "mean"},
+                options={"atol": 1e-4, "compare_mode": "strict"},
             )
             is True
         ), "Failed. expected success."
@@ -96,7 +96,7 @@ class TestCaseName(unittest.TestCase):
                 module,
                 inp,
                 auto_weights=False,
-                options={"atol": 1e-4, "compare_mode": "mean"},
+                options={"atol": 1e-4, "compare_mode": "strict"},
             )
             is False
         ), "Success. expected failed."
