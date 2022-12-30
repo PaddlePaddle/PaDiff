@@ -67,5 +67,16 @@ class EqualAction(Action):
         atol = cfg.get("atol", 1e-7)
         torch_tensors = torch_item.compare_tensors()
         paddle_tensors = paddle_item.compare_tensors()
+        compare_mode = cfg.get("compare_mode", "strict")
         for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):
-            np.testing.assert_allclose(tt.detach().numpy(), pt.numpy(), atol=atol)
+            if compare_mode == "strict":
+                np.testing.assert_allclose(tt.detach().numpy(), pt.numpy(), atol=atol)
+            elif compare_mode == "mean":
+                mean_diff = np.abs(np.mean(tt.detach().numpy() - pt.numpy()))
+                assert mean_diff < atol
+            else:
+                raise RuntimeError(
+                    "compare_mode `{}` is not supported, use `strict` or `mean` instead".format(
+                        compare_mode
+                    )
+                )

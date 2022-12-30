@@ -71,6 +71,16 @@ class TestCaseName(unittest.TestCase):
             autodiff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
             is True
         ), "Failed. expected success."
+        assert (
+            autodiff(
+                layer,
+                module,
+                inp,
+                auto_weights=True,
+                options={"atol": 1e-4, "compare_mode": "mean"},
+            )
+            is True
+        ), "Failed. expected success."
 
     def test_failed(self):
         layer = SimpleLayer()
@@ -78,6 +88,16 @@ class TestCaseName(unittest.TestCase):
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         assert (
             autodiff(layer, module, inp, auto_weights=False, options={"atol": 1e-4})
+            is False
+        ), "Success. expected failed."
+        assert (
+            autodiff(
+                layer,
+                module,
+                inp,
+                auto_weights=False,
+                options={"atol": 1e-4, "compare_mode": "mean"},
+            )
             is False
         ), "Success. expected failed."
 

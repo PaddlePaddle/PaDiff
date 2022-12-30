@@ -19,10 +19,18 @@ pip install -e .
     接口函数签名：`autodiff(layer, module, example_inp, auto_weights=True, options={})`
 
     -   layer：传入paddle模型
+
     -   module：传入torch模型
+
     -   inp：传入输入数据
+
     -   auto_weights: 是否使用随机数值统一初始化paddle与torch模型，默认为True
-    -   options：一个传递参数的字典，目前支持在字典中传入 'atol' 参数
+
+    -   options：一个传递参数的字典
+
+        -   "atol": 精度对齐的误差上限
+
+        -   "compare_mode": 精度对齐模式，"strict"为默认值，表示对Tensor进行逐数据对齐，"mean"表示使用Tensor间误差的均值作为对齐标准，仅要求 mean(a-b) < atol
 
 -   注意事项与用例代码：
 
@@ -74,7 +82,7 @@ class SimpleModule(torch.nn.Module):
 layer = SimpleLayer()
 module = SimpleModule()
 inp = paddle.rand((100, 100)).numpy().astype("float32")
-autodiff(layer, module, inp, auto_weights=True, options={'atol': 1e-4})
+autodiff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'compare_mode': 'strict'})
 ```
 
 -   autodiff的输出信息：
