@@ -46,15 +46,18 @@ def process_each_weight(process_name, layer, module, options={}):
         assign_config = yamls["assign_yaml"].get(
             paddle_sublayer.__class__.__name__, None
         )
-        atol = options.get("atol", 1e-7)
-        settings = {"atol": atol}
+        settings = {
+            "atol": options.get("atol", 1e-7),
+            "transpose": False,
+            "compare_mode": options.get("compare_mode", "mean"),
+        }
 
         if assign_config is not None:
             assert (
                 torch_submodule.__class__.__name__ == assign_config["torch"]
             ), "Not correspond, check your __init__ to make sure every sublayer is corresponded."
         if assign_config is None or param_name not in assign_config["param"]:
-            settings["transpose"] = False
+            pass
         else:
             if assign_config["param"][param_name] == "transpose":
                 settings["transpose"] = True
@@ -143,8 +146,28 @@ def process_each_weight(process_name, layer, module, options={}):
         weight_log_path = os.path.join(sys.path[0], "diff_log", "weight_diff.log")
         grad_log_path = os.path.join(sys.path[0], "diff_log", "grad_diff.log")
 
-        if not numpy.allclose(p_param, t_param, atol=settings["atol"]):
-            _weight_check = False
+        if settings["compare_mode"] == "strict":
+            _weight_check = (
+                True
+                if numpy.allclose(p_param, t_param, atol=settings["atol"])
+                else False
+            )
+            _grad_check = (
+                True if numpy.allclose(p_grad, t_grad, atol=settings["atol"]) else False
+            )
+        elif settings["compare_mode"] == "mean":
+            weight_diff = numpy.abs(numpy.mean(p_param - t_param))
+            _weight_check = True if weight_diff < settings["atol"] else False
+            grad_diff = numpy.abs(numpy.mean(p_grad - t_grad))
+            _grad_check = True if grad_diff < settings["atol"] else False
+        else:
+            raise RuntimeError(
+                "compare_mode `{}` is not supported, use `strict` or `mean` instead".format(
+                    settings["compare_mode"]
+                )
+            )
+
+        if _weight_check is False:
             with open(weight_log_path, "a") as f:
                 f.write(
                     "After training, weight value is different for param `{}`.\n"
@@ -154,8 +177,7 @@ def process_each_weight(process_name, layer, module, options={}):
                     )
                 )
 
-        if not numpy.allclose(p_grad, t_grad, atol=settings["atol"]):
-            _grad_check = False
+        if _grad_check is False:
             with open(grad_log_path, "a") as f:
                 f.write(
                     "After training, grad value is different for param `{}`.\n"
