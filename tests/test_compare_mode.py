@@ -63,23 +63,35 @@ class SimpleModule(torch.nn.Module):
 
 
 class TestCaseName(unittest.TestCase):
-    def test_success(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
-        inp = paddle.rand((100, 100)).numpy().astype("float32")
-        assert (
-            autodiff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
-            is True
-        ), "Failed. expected success."
+    def test_check_weight_grad(self):
+        def compare_modes_behavior():
+            layer = SimpleLayer()
+            module = SimpleModule()
+            inp = paddle.rand((100, 100)).numpy().astype("float32")
+            atol = 1e-5
 
-    def test_failed(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
-        inp = paddle.rand((100, 100)).numpy().astype("float32")
-        assert (
-            autodiff(layer, module, inp, auto_weights=False, options={"atol": 1e-4})
-            is False
-        ), "Success. expected failed."
+            mean_res = autodiff(
+                layer,
+                module,
+                inp,
+                auto_weights=True,
+                options={"atol": atol, "compare_mode": "mean"},
+            )
+            strict_res = autodiff(
+                layer,
+                module,
+                inp,
+                auto_weights=True,
+                options={"atol": atol, "compare_mode": "strict"},
+            )
+
+            return mean_res == True and strict_res == False
+
+        for i in range(5):
+            if compare_modes_behavior():
+                return
+
+        raise Exception("Compare `mean` and `strict` failed")
 
 
 if __name__ == "__main__":
