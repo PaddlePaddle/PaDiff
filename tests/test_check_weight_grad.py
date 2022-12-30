@@ -18,6 +18,7 @@ import paddle
 import torch
 
 from padiff import autodiff
+from padiff.utils import reset_log_dir
 from padiff.weights import check_weight_grad
 
 
@@ -75,6 +76,7 @@ class TestCaseName(unittest.TestCase):
         ), "Failed. expected success."
 
         module.zero_grad()
+        reset_log_dir()
         weight_check, grad_check = check_weight_grad(
             layer, module, options={"atol": 1e-4}
         )
@@ -90,6 +92,7 @@ class TestCaseName(unittest.TestCase):
 
         for param in module.parameters():
             param.data = param * 2
+        reset_log_dir()
         weight_check, grad_check = check_weight_grad(
             layer, module, options={"atol": 1e-4}
         )
