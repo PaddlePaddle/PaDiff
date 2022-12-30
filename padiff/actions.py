@@ -67,7 +67,7 @@ class EqualAction(Action):
         atol = cfg.get("atol", 1e-7)
         torch_tensors = torch_item.compare_tensors()
         paddle_tensors = paddle_item.compare_tensors()
-        compare_mode = cfg.get("compare_mode", "strict")
+        compare_mode = cfg.get("compare_mode", "mean")
         for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):
             if compare_mode == "strict":
                 np.testing.assert_allclose(tt.detach().numpy(), pt.numpy(), atol=atol)

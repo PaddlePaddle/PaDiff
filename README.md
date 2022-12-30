@@ -30,7 +30,7 @@ pip install -e .
 
         -   "atol": 精度对齐的误差上限
 
-        -   "compare_mode": 精度对齐模式，"strict"为默认值，表示对Tensor进行逐数据对齐，"mean"表示使用Tensor间误差的均值作为对齐标准，仅要求 mean(a-b) < atol
+        -   "compare_mode": 精度对齐模式，默认值为"mean"，表示使用Tensor间误差的均值作为对齐标准，要求 mean(a-b) < atol；另一个可选项为"strict"，表示对Tensor进行逐数据的对齐检查
 
 -   注意事项与用例代码：
 

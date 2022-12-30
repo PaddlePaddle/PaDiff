@@ -49,7 +49,7 @@ def process_each_weight(process_name, layer, module, options={}):
         settings = {
             "atol": options.get("atol", 1e-7),
             "transpose": False,
-            "compare_mode": options.get("compare_mode", "strict"),
+            "compare_mode": options.get("compare_mode", "mean"),
         }
 
         if assign_config is not None:
