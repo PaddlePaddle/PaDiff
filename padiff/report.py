@@ -157,13 +157,13 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
     print("FAILED !!!")
     if grad:
         print(
-            "    Diff found in `Backward Stagy` in step: {}, net_id is {} vs {}".format(
+            "    Diff found in `Backward Stage` in step: {}, net_id is {} vs {}".format(
                 step_idx, paddle_item.net_id, torch_item.net_id
             )
         )
     else:
         print(
-            "    Diff found in `Forward  Stagy` in step: {}, net_id is {} vs {}".format(
+            "    Diff found in `Forward  Stage` in step: {}, net_id is {} vs {}".format(
                 step_idx, paddle_item.net_id, torch_item.net_id
             )
         )
