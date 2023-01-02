@@ -19,15 +19,21 @@ import numpy
 import paddle
 import torch
 
-from .report import (Report, check_forward_and_backward, current_report,
-                     report_guard)
-from .stack_info import *
-from .utils import (clean_log_dir, for_each_grad_tensor, max_diff,
-                    reset_log_dir, tensors_mean)
+from .report import Report, check_forward_and_backward, current_report, report_guard
+from .stack_info import extract_frame_summary
+from .utils import (
+    clean_log_dir,
+    for_each_grad_tensor,
+    max_diff,
+    reset_log_dir,
+    tensors_mean,
+)
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
 
-def autodiff(layer, module, example_inp, auto_weights=True, options={}):
+def autodiff(
+    layer, module, example_inp, auto_weights=True, layer_module_map=None, options={}
+):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
@@ -36,6 +42,7 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
         module (torch.nn.Module):
         example_inp (numpy.array):
         auto_weights (boolean, optional):
+        layer_module_map (dict, optional):
         options (dict, optional):
             atol
     Returns:
@@ -50,7 +57,7 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
 
     reset_log_dir()
 
-    _preprocess(layer, module, example_inp, auto_weights, options)
+    _preprocess(layer, module, example_inp, auto_weights, layer_module_map, options)
 
     torch_report = Report("torch")
     paddle_report = Report("paddle")
@@ -58,7 +65,8 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
         with _register_torch_hooker(module):
             try:
                 torch_input = torch.as_tensor(example_inp)
-                torch_input.requires_grad = True
+                if torch_input.dtype == torch.float32:
+                    torch_input.requires_grad = True
                 torch_output = module(torch_input)
                 loss = tensors_mean(torch_output, "torch")
                 loss.backward()
@@ -73,7 +81,8 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
         with _register_paddle_hooker(layer):
             try:
                 paddle_input = paddle.to_tensor(example_inp)
-                paddle_input.stop_gradient = False
+                if paddle_input.dtype == paddle.float32:
+                    paddle_input.stop_gradient = False
                 paddle_output = layer(paddle_input)
                 loss = tensors_mean(paddle_output, "paddle")
                 loss.backward()
@@ -134,7 +143,7 @@ def _register_torch_hooker(module):
         h.remove()
 
 
-def _preprocess(layer, module, example_inp, auto_weights, options):
+def _preprocess(layer, module, example_inp, auto_weights, layer_module_map, options):
     remove_inplace(layer, module)
     if auto_weights:
-        assign_weight(layer, module)
+        assign_weight(layer, module, layer_module_map)

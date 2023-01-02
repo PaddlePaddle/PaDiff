@@ -25,7 +25,7 @@ import yaml
 from .utils import map_for_each_sublayer
 
 
-def process_each_weight(process_name, layer, module, options={}):
+def process_each_weight(process_name, layer, module, layer_module_map=None, options={}):
     yaml_path = osp.join(osp.dirname(__file__), "configs", "assign_weight.yaml")
     with open(yaml_path, "r") as yaml_file:
         assign_yaml = yaml.safe_load(yaml_file)
@@ -175,26 +175,53 @@ def process_each_weight(process_name, layer, module, options={}):
             "Invalid fn type, not such fn called `{}`".format(process_name)
         )
 
-    for paddle_sublayer, torch_submodule in zip_longest(
-        layer.sublayers(True), module.modules(), fillvalue=None
-    ):
-        if paddle_sublayer is None or torch_submodule is None:
-            raise RuntimeError(
-                "Torch and Paddle return difference number of sublayers. Check your model."
-            )
-        for (name, paddle_param), torch_param in zip(
-            paddle_sublayer.named_parameters("", False),
-            torch_submodule.parameters(False),
+    if layer_module_map:
+        new_layer = []
+        new_module = []
+
+        for key, val in layer_module_map.items():
+            if isinstance(key, torch.nn.Module):
+                new_module.append(key)
+                if isinstance(val, list):
+                    new_layer.append(paddle.nn.LayerList(val))
+                else:
+                    new_layer.append(val)
+            elif isinstance(key, paddle.nn.Layer):
+                new_layer.append(key)
+                if isinstance(val, list):
+                    new_module.append(torch.nn.ModuleList(val))
+                else:
+                    new_module.append(val)
+            else:
+                raise RuntimeError(
+                    "The key in layer_module_map should be one of `torch.nn.Module` or `paddle.nn.Layer`"
+                )
+        layers = new_layer
+        modules = new_module
+
+        for paddle_sublayer, torch_submodule in zip(layers, modules):
+            pass
+    else:
+        for paddle_sublayer, torch_submodule in zip_longest(
+            layer.sublayers(True), module.modules(), fillvalue=None
         ):
-            _process_runner(
-                process_family[process_name],
-                paddle_sublayer,
-                torch_submodule,
-                name,
-                paddle_param,
-                torch_param,
-                yamls,
-            )
+            if paddle_sublayer is None or torch_submodule is None:
+                raise RuntimeError(
+                    "Torch and Paddle return difference number of sublayers. Check your model."
+                )
+            for (name, paddle_param), torch_param in zip(
+                paddle_sublayer.named_parameters("", False),
+                torch_submodule.parameters(False),
+            ):
+                _process_runner(
+                    process_family[process_name],
+                    paddle_sublayer,
+                    torch_submodule,
+                    name,
+                    paddle_param,
+                    torch_param,
+                    yamls,
+                )
 
     if process_name == "check_weight_grad" and (
         _weight_check is False or _grad_check is False
@@ -209,8 +236,8 @@ def process_each_weight(process_name, layer, module, options={}):
         return _weight_check, _grad_check
 
 
-def assign_weight(layer, module):
-    process_each_weight("assign_weight", layer, module)
+def assign_weight(layer, module, layer_module_map):
+    process_each_weight("assign_weight", layer, module, layer_module_map)
 
 
 def check_weight_grad(layer, module, options):
