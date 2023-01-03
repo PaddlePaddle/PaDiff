@@ -290,3 +290,18 @@ def max_diff(paddle_output, torch_output):
 
 def log(*args):
     print("[AutoDiff]", *args)
+
+
+def compare_tensor(tensor1, tensor2, atol=1e-7, compare_mode="mean"):
+
+    if compare_mode == "strict":
+        return np.allclose(tensor1, tensor2, atol=atol)
+    elif compare_mode == "mean":
+        mean_diff = np.abs(np.mean(tensor1 - tensor2))
+        return bool(mean_diff < atol)
+    else:
+        raise RuntimeError(
+            "compare_mode `{}` is not supported, use `strict` or `mean` instead".format(
+                compare_mode
+            )
+        )

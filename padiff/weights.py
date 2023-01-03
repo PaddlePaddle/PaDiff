@@ -22,7 +22,7 @@ import paddle
 import torch
 import yaml
 
-from .utils import log, map_for_each_sublayer
+from .utils import log, map_for_each_sublayer, compare_tensor
 
 
 def process_each_weight(process_name, layer, module, options={}):
@@ -146,26 +146,15 @@ def process_each_weight(process_name, layer, module, options={}):
         weight_log_path = os.path.join(sys.path[0], "diff_log", "weight_diff.log")
         grad_log_path = os.path.join(sys.path[0], "diff_log", "grad_diff.log")
 
-        if settings["compare_mode"] == "strict":
-            _weight_check = (
-                True
-                if numpy.allclose(p_param, t_param, atol=settings["atol"])
-                else False
-            )
-            _grad_check = (
-                True if numpy.allclose(p_grad, t_grad, atol=settings["atol"]) else False
-            )
-        elif settings["compare_mode"] == "mean":
-            weight_diff = numpy.abs(numpy.mean(p_param - t_param))
-            _weight_check = True if weight_diff < settings["atol"] else False
-            grad_diff = numpy.abs(numpy.mean(p_grad - t_grad))
-            _grad_check = True if grad_diff < settings["atol"] else False
-        else:
-            raise RuntimeError(
-                "compare_mode `{}` is not supported, use `strict` or `mean` instead".format(
-                    settings["compare_mode"]
-                )
-            )
+        _weight_check = compare_tensor(
+            p_param,
+            t_param,
+            atol=settings["atol"],
+            compare_mode=settings["compare_mode"],
+        )
+        _grad_check = compare_tensor(
+            p_grad, t_grad, atol=settings["atol"], compare_mode=settings["compare_mode"]
+        )
 
         if _weight_check is False:
             with open(weight_log_path, "a") as f:

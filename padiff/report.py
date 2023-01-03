@@ -68,7 +68,7 @@ class ReportItem:
     def _gen_input_grads(self):
         if self.type == "forward":
             return None
-        assert input is not None, "Backward while input is None, not expected."
+        assert self.input is not None, "Backward while input is None, not expected."
 
         return [None for i in for_each_grad_tensor(self.input)]
 
