@@ -24,14 +24,14 @@ class SimpleLayer(paddle.nn.Layer):
     def __init__(self):
         super(SimpleLayer, self).__init__()
         self.embedder = paddle.nn.Embedding(3, 16)
-        self.lstm1 = paddle.nn.LSTMCell(16, 32)
-        self.lstm2 = paddle.nn.LSTMCell(16, 32)
+        self.lstm1 = paddle.nn.LSTMCell(16, 8)
+        self.lstm2 = paddle.nn.LSTMCell(8, 8)
 
     def forward(self, sequence):
         inputs = self.embedder(sequence)
-        encoder_output, encoder_state = self.lstm1(inputs)
-        encoder_output, encoder_state = self.lstm2(encoder_output, encoder_state)
-        return encoder_output, encoder_state
+        encoder_output, _ = self.lstm1(inputs)
+        encoder_output, _ = self.lstm2(encoder_output)
+        return encoder_output
 
 
 class SimpleModule(torch.nn.Module):
@@ -40,14 +40,14 @@ class SimpleModule(torch.nn.Module):
         self.embedder = torch.nn.Embedding(3, 16)
         self.lstm = torch.nn.LSTM(
             input_size=16,
-            hidden_size=32,
+            hidden_size=8,
             num_layers=2,
         )
 
     def forward(self, sequence):
         inputs = self.embedder(sequence)
-        encoder_output, encoder_state = self.lstm(inputs)
-        return encoder_output, encoder_state
+        encoder_output, _ = self.lstm(inputs)
+        return encoder_output
 
 
 class TestCaseName(unittest.TestCase):
@@ -55,12 +55,9 @@ class TestCaseName(unittest.TestCase):
         layer = SimpleLayer()
         module = SimpleModule()
 
-        lstm_torch = torch.nn.LSTM(input_size=16, hidden_size=32, num_layers=2)
-        lstm_paddle = [paddle.nn.LSTMCell(16, 32), paddle.nn.LSTMCell(16, 32)]
-
         layer_module_map = {
-            torch.nn.Embedding(3, 16): paddle.nn.Embedding(3, 16),
-            lstm_torch: lstm_paddle,
+            module.embedder: layer.embedder,
+            module.lstm: [layer.lstm1, layer.lstm2],
         }
 
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")

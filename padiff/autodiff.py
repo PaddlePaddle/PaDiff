@@ -95,7 +95,9 @@ def autodiff(
 
     print("Max output diff is {}\n".format(max_diff(paddle_output, torch_output)))
 
-    weight_check, grad_check = check_weight_grad(layer, module, options)
+    weight_check, grad_check = check_weight_grad(
+        layer, module, layer_module_map, options
+    )
     ret = check_forward_and_backward(torch_report, paddle_report, options)
     ret = ret and weight_check and grad_check
 

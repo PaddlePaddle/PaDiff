@@ -176,31 +176,55 @@ def process_each_weight(process_name, layer, module, layer_module_map=None, opti
         )
 
     if layer_module_map:
-        new_layer = []
-        new_module = []
-
         for key, val in layer_module_map.items():
             if isinstance(key, torch.nn.Module):
-                new_module.append(key)
-                if isinstance(val, list):
-                    new_layer.append(paddle.nn.LayerList(val))
-                else:
-                    new_layer.append(val)
+                torch_submodule = key
+                paddle_sublayer = val
             elif isinstance(key, paddle.nn.Layer):
-                new_layer.append(key)
-                if isinstance(val, list):
-                    new_module.append(torch.nn.ModuleList(val))
-                else:
-                    new_module.append(val)
+                paddle_sublayer = key
+                torch_submodule = val
             else:
                 raise RuntimeError(
                     "The key in layer_module_map should be one of `torch.nn.Module` or `paddle.nn.Layer`"
                 )
-        layers = new_layer
-        modules = new_module
 
-        for paddle_sublayer, torch_submodule in zip(layers, modules):
-            pass
+            if isinstance(paddle_sublayer, list):
+                paddle_params = []
+                for p in paddle_sublayer:
+                    param_list = [
+                        (name, paddle_param)
+                        for name, paddle_param in p.named_parameters("", False)
+                    ]
+                    paddle_params.extend(param_list)
+            else:
+                paddle_params = [
+                    (name, paddle_param)
+                    for name, paddle_param in paddle_sublayer.named_parameters(
+                        "", False
+                    )
+                ]
+
+            if isinstance(torch_submodule, list):
+                torch_params = []
+                for t in torch_submodule:
+                    param_list = [torch_param for torch_param in t.parameters(False)]
+                    torch_params.extend(param_list)
+            else:
+                torch_params = torch_submodule.parameters(False)
+
+            for (name, paddle_param), torch_param in zip(
+                paddle_params,
+                torch_params,
+            ):
+                _process_runner(
+                    process_family[process_name],
+                    paddle_sublayer,
+                    torch_submodule,
+                    name,
+                    paddle_param,
+                    torch_param,
+                    yamls,
+                )
     else:
         for paddle_sublayer, torch_submodule in zip_longest(
             layer.sublayers(True), module.modules(), fillvalue=None
@@ -240,8 +264,10 @@ def assign_weight(layer, module, layer_module_map):
     process_each_weight("assign_weight", layer, module, layer_module_map)
 
 
-def check_weight_grad(layer, module, options):
-    w_check, g_check = process_each_weight("check_weight_grad", layer, module, options)
+def check_weight_grad(layer, module, layer_module_map, options):
+    w_check, g_check = process_each_weight(
+        "check_weight_grad", layer, module, layer_module_map, options
+    )
     return w_check, g_check
 
 
