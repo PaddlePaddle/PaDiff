@@ -16,8 +16,14 @@ import contextlib
 
 from .actions import get_action
 from .stack_info import print_frames
-from .utils import (TableView, TreeView, clone_tensors, for_each_grad_tensor,
-                    for_each_tensor)
+from .utils import (
+    TableView,
+    TreeView,
+    clone_tensors,
+    for_each_grad_tensor,
+    for_each_tensor,
+    log,
+)
 
 
 class Counter:
@@ -211,7 +217,7 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
             print_info(paddle_item, torch_item, e, idx, grad=False)
             return False
 
-    print("forward {} steps compared.".format(len(paddle_fwd_items)))
+    log("forward {} steps compared.".format(len(paddle_fwd_items)))
 
     # backward check
     # backward_map map from id(paddle_backward_item) to torch_backward_item
@@ -231,8 +237,8 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
             print_info(paddle_item, torch_item, e, idx, grad=True)
             return False
 
-    print("bacward {} steps compared.".format(len(backward_items)))
+    log("bacward {} steps compared.".format(len(backward_items)))
 
     # total status
-    print("SUCCESS !!!")
+    log("SUCCESS !!!")
     return True

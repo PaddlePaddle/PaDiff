@@ -19,11 +19,16 @@ import numpy
 import paddle
 import torch
 
-from .report import (Report, check_forward_and_backward, current_report,
-                     report_guard)
+from .report import Report, check_forward_and_backward, current_report, report_guard
 from .stack_info import *
-from .utils import (clean_log_dir, for_each_grad_tensor, max_diff,
-                    reset_log_dir, tensors_mean)
+from .utils import (
+    clean_log_dir,
+    for_each_grad_tensor,
+    log,
+    max_diff,
+    reset_log_dir,
+    tensors_mean,
+)
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
 
@@ -44,6 +49,8 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
     assert isinstance(layer, paddle.nn.Layer), "Invalid Argument."
     assert isinstance(module, torch.nn.Module), "Invalid Argument."
     assert isinstance(example_inp, numpy.ndarray), "Invalid Argument."
+
+    log("Start autodiff, may need a while to generate reports...")
 
     paddle.set_device("cpu")
     module = module.to("cpu")

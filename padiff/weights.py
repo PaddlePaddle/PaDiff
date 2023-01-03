@@ -22,7 +22,7 @@ import paddle
 import torch
 import yaml
 
-from .utils import map_for_each_sublayer
+from .utils import log, map_for_each_sublayer
 
 
 def process_each_weight(process_name, layer, module, options={}):
@@ -237,6 +237,8 @@ def assign_weight(layer, module):
 
 def check_weight_grad(layer, module, options):
     w_check, g_check = process_each_weight("check_weight_grad", layer, module, options)
+    if w_check and g_check:
+        log("weight and weight.grad is compared.")
     return w_check, g_check
 
 
