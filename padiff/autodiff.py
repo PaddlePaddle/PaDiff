@@ -20,10 +20,11 @@ import paddle
 import torch
 
 from .report import Report, check_forward_and_backward, current_report, report_guard
-from .stack_info import extract_frame_summary
+from .stack_info import *
 from .utils import (
     clean_log_dir,
     for_each_grad_tensor,
+    log,
     max_diff,
     reset_log_dir,
     tensors_mean,
@@ -51,6 +52,8 @@ def autodiff(
     assert isinstance(layer, paddle.nn.Layer), "Invalid Argument."
     assert isinstance(module, torch.nn.Module), "Invalid Argument."
     assert isinstance(example_inp, numpy.ndarray), "Invalid Argument."
+
+    log("Start autodiff, may need a while to generate reports...")
 
     paddle.set_device("cpu")
     module = module.to("cpu")
@@ -93,7 +96,7 @@ def autodiff(
                     )
                 )
 
-    print("Max output diff is {}\n".format(max_diff(paddle_output, torch_output)))
+    log("Max output diff is {}\n".format(max_diff(paddle_output, torch_output)))
 
     weight_check, grad_check = check_weight_grad(
         layer, module, layer_module_map, options

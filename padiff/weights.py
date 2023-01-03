@@ -22,7 +22,7 @@ import paddle
 import torch
 import yaml
 
-from .utils import map_for_each_sublayer
+from .utils import log, map_for_each_sublayer, compare_tensor
 
 
 def process_each_weight(process_name, layer, module, layer_module_map=None, options={}):
@@ -46,15 +46,18 @@ def process_each_weight(process_name, layer, module, layer_module_map=None, opti
         assign_config = yamls["assign_yaml"].get(
             paddle_sublayer.__class__.__name__, None
         )
-        atol = options.get("atol", 1e-7)
-        settings = {"atol": atol}
+        settings = {
+            "atol": options.get("atol", 1e-7),
+            "transpose": False,
+            "compare_mode": options.get("compare_mode", "mean"),
+        }
 
         if assign_config is not None:
             assert (
                 torch_submodule.__class__.__name__ == assign_config["torch"]
             ), "Not correspond, check your __init__ to make sure every sublayer is corresponded."
         if assign_config is None or param_name not in assign_config["param"]:
-            settings["transpose"] = False
+            pass
         else:
             if assign_config["param"][param_name] == "transpose":
                 settings["transpose"] = True
@@ -143,8 +146,17 @@ def process_each_weight(process_name, layer, module, layer_module_map=None, opti
         weight_log_path = os.path.join(sys.path[0], "diff_log", "weight_diff.log")
         grad_log_path = os.path.join(sys.path[0], "diff_log", "grad_diff.log")
 
-        if not numpy.allclose(p_param, t_param, atol=settings["atol"]):
-            _weight_check = False
+        _weight_check = compare_tensor(
+            p_param,
+            t_param,
+            atol=settings["atol"],
+            compare_mode=settings["compare_mode"],
+        )
+        _grad_check = compare_tensor(
+            p_grad, t_grad, atol=settings["atol"], compare_mode=settings["compare_mode"]
+        )
+
+        if _weight_check is False:
             with open(weight_log_path, "a") as f:
                 f.write(
                     "After training, weight value is different for param `{}`.\n"
@@ -154,8 +166,7 @@ def process_each_weight(process_name, layer, module, layer_module_map=None, opti
                     )
                 )
 
-        if not numpy.allclose(p_grad, t_grad, atol=settings["atol"]):
-            _grad_check = False
+        if _grad_check is False:
             with open(grad_log_path, "a") as f:
                 f.write(
                     "After training, grad value is different for param `{}`.\n"
@@ -268,6 +279,8 @@ def check_weight_grad(layer, module, layer_module_map, options):
     w_check, g_check = process_each_weight(
         "check_weight_grad", layer, module, layer_module_map, options
     )
+    if w_check and g_check:
+        log("weight and weight.grad is compared.")
     return w_check, g_check
 
 

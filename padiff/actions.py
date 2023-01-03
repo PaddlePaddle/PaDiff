@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
+from .utils import compare_tensor
+import torch
+import paddle
 
 
 class ActionPool:
@@ -54,6 +56,11 @@ class Action:
 @global_actions.register
 class EqualAction(Action):
     def match(self, torch_net, paddle_net):
+        try:
+            assert isinstance(torch_net, torch.nn.Module)
+            assert isinstance(paddle_net, paddle.nn.Layer)
+        except:
+            return False
         return True
 
     @property
@@ -65,7 +72,16 @@ class EqualAction(Action):
         NOTE:
         """
         atol = cfg.get("atol", 1e-7)
+        compare_mode = cfg.get("compare_mode", "mean")
         torch_tensors = torch_item.compare_tensors()
         paddle_tensors = paddle_item.compare_tensors()
         for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):
-            np.testing.assert_allclose(tt.detach().numpy(), pt.numpy(), atol=atol)
+            assert (
+                compare_tensor(
+                    tt.detach().numpy(),
+                    pt.numpy(),
+                    atol=atol,
+                    compare_mode=compare_mode,
+                )
+                == True
+            )
