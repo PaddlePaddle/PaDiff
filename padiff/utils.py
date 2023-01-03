@@ -286,3 +286,7 @@ def max_diff(paddle_output, torch_output):
             _max_diff = temp
 
     return _max_diff
+
+
+def log(*args):
+    print("[AutoDiff]", *args)
