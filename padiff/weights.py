@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import sys
 import os.path as osp
 from itertools import zip_longest
 
