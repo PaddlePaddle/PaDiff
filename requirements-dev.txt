@@ -1,5 +1,5 @@
-paddlepaddle>=2.3.0,<2.4.0
-torch==1.12.0
+paddlepaddle>=2.4.1
+torch>=1.12.0
 pre-commit
 pytest
 parameterized
