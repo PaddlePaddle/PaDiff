@@ -138,8 +138,8 @@ def process_each_weight(process_name, layer, module, options={}):
             t_param = numpy.transpose(t_param)
             t_grad = numpy.transpose(t_grad)
 
-        weight_log_path = os.path.join(os.getcwd(), "diff_log", "weight_diff.log")
-        grad_log_path = os.path.join(os.getcwd(), "diff_log", "grad_diff.log")
+        weight_log_path = os.path.join(sys.path[0], "diff_log", "weight_diff.log")
+        grad_log_path = os.path.join(sys.path[0], "diff_log", "grad_diff.log")
 
         _weight_check = compare_tensor(
             p_param,
@@ -195,7 +195,7 @@ def process_each_weight(process_name, layer, module, options={}):
             )
 
     if process_name == "check_weight_grad" and (_weight_check is False or _grad_check is False):
-        diff_log_path = os.path.join(os.getcwd(), "diff_log")
+        diff_log_path = os.path.join(sys.path[0], "diff_log")
         print("Differences in weight or grad !!!\n" "Check reports at `{}`\n".format(diff_log_path))
 
     if process_name == "check_weight_grad":

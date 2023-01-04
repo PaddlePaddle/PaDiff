@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import sys
 import shutil
 import warnings
 from collections import namedtuple
@@ -221,7 +222,7 @@ class TreeView:
             yield item
 
 
-diff_log_path = os.path.join(os.getcwd(), "diff_log")
+diff_log_path = os.path.join(sys.path[0], "diff_log")
 
 
 def reset_log_dir():
