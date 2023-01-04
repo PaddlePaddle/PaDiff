@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .autodiff import autodiff
+import re
+import subprocess
+import sys
 
-__all__ = ["autodiff"]
+modified_files = subprocess.check_output("git diff --name-only develop".split()).decode("utf-8").split()
 
-__version__ = "0.0.1"
+valid_dirs = "|".join(sys.argv[1:])
+regex = re.compile(rf"^({valid_dirs}).*?\.py$")
 
-from . import configs
+relevant_modified_files = [x for x in modified_files if regex.match(x)]
+print(" ".join(relevant_modified_files), end="")
