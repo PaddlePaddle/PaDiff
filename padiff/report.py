@@ -160,20 +160,20 @@ def current_report():
 
 
 def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
-    print("FAILED !!!")
+    log("FAILED !!!")
     if grad:
-        print(
+        log(
             "    Diff found in `Backward Stagy` in step: {}, net_id is {} vs {}".format(
                 step_idx, paddle_item.net_id, torch_item.net_id
             )
         )
     else:
-        print(
+        log(
             "    Diff found in `Forward  Stagy` in step: {}, net_id is {} vs {}".format(
                 step_idx, paddle_item.net_id, torch_item.net_id
             )
         )
-    print(
+    log(
         "    Type of layer is  : {} vs {}".format(
             type(torch_item.net), type(paddle_item.net)
         )

@@ -37,12 +37,12 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
     Given example inputs, automatically find the first layer with precision diff.
 
     Args:
-        layer (paddle.nn.Layer):
-        module (torch.nn.Module):
-        example_inp (numpy.array):
-        auto_weights (boolean, optional):
+        layer (paddle.nn.Layer): paddle layer that needs compare
+        module (torch.nn.Module): torch module that needs compare
+        example_inp (numpy.array): input data for models
+        auto_weights (boolean, optional): uniformly init the parameters of models
         options (dict, optional):
-            atol
+            atol, compare_mode
     Returns:
         True for success, False for failed.
     """
@@ -56,7 +56,6 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
     module = module.to("cpu")
 
     reset_log_dir()
-
     _preprocess(layer, module, example_inp, auto_weights, options)
 
     torch_report = Report("torch")
