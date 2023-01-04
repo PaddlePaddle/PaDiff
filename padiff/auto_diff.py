@@ -32,7 +32,7 @@ from .utils import (
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
 
-def autodiff(layer, module, example_inp, auto_weights=True, options={}):
+def auto_diff(layer, module, example_inp, auto_weights=True, options={}):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
@@ -50,7 +50,7 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
     assert isinstance(module, torch.nn.Module), "Invalid Argument."
     assert isinstance(example_inp, numpy.ndarray), "Invalid Argument."
 
-    log("Start autodiff, may need a while to generate reports...")
+    log("Start auto_diff, may need a while to generate reports...")
 
     paddle.set_device("cpu")
     module = module.to("cpu")

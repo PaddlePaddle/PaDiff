@@ -17,7 +17,7 @@ import unittest
 import paddle
 import torchvision
 
-from padiff import autodiff
+from padiff import auto_diff
 
 
 class TestCaseName(unittest.TestCase):
@@ -32,7 +32,7 @@ class TestCaseName(unittest.TestCase):
         module = torchvision.models.resnet50()
         inp = paddle.rand((10, 3, 224, 224)).numpy().astype("float32")
         assert (
-            autodiff(layer, module, inp, auto_weights=True, options={"atol": 5e-2})
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 5e-2})
             is True
         ), "Failed. expected success."
 
