@@ -71,13 +71,9 @@ def map_for_each_weight(fn, layer, module):
     """
     Automatically fill weights by randn.
     """
-    for paddle_sublayer, torch_submodule in zip_longest(
-        layer.sublayers(True), module.modules(), fillvalue=None
-    ):
+    for paddle_sublayer, torch_submodule in zip_longest(layer.sublayers(True), module.modules(), fillvalue=None):
         if paddle_sublayer is None or torch_submodule is None:
-            raise RuntimeError(
-                "Torch and Paddle return difference number of sublayers. Check your model."
-            )
+            raise RuntimeError("Torch and Paddle return difference number of sublayers. Check your model.")
         for (name, paddle_param), torch_param in zip(
             paddle_sublayer.named_parameters("", False),
             torch_submodule.parameters(False),
@@ -89,9 +85,7 @@ def map_for_each_sublayer(fn, layer, module):
     """
     Automatically fill weights by randn.
     """
-    for paddle_sublayer, torch_submodule in zip(
-        layer.sublayers(True), module.modules()
-    ):
+    for paddle_sublayer, torch_submodule in zip(layer.sublayers(True), module.modules()):
         fn(paddle_sublayer, torch_submodule)
 
 
@@ -121,16 +115,12 @@ def is_sublayer(father_net, child_net):
     """
     return True if child_net is the DIRECTL children of father_net.
     """
-    if isinstance(father_net, torch.nn.Module) and isinstance(
-        child_net, torch.nn.Module
-    ):
+    if isinstance(father_net, torch.nn.Module) and isinstance(child_net, torch.nn.Module):
         for child in father_net.children():
             if id(child) == id(child_net):
                 return True
         return False
-    elif isinstance(father_net, paddle.nn.Layer) and isinstance(
-        child_net, paddle.nn.Layer
-    ):
+    elif isinstance(father_net, paddle.nn.Layer) and isinstance(child_net, paddle.nn.Layer):
         for _, child in father_net.named_children():
             if id(child) == id(child_net):
                 return True
@@ -152,9 +142,7 @@ class TableView:
             if key(item) not in self.view:
                 self.view[key(item)] = [item]
             else:
-                warnings.warn(
-                    "Warning: duplicate key is found, use list + pop strategy."
-                )
+                warnings.warn("Warning: duplicate key is found, use list + pop strategy.")
                 self.view[key(item)].append(item)
 
     def __getitem__(self, key):
@@ -235,10 +223,10 @@ class TreeView:
 
 
 diff_log_path = os.path.join(sys.path[0], "diff_log")
+diff_log_path = "./diff_log"
 
 
 def reset_log_dir():
-    diff_log_path = os.path.join(sys.path[0], "diff_log")
     if os.path.exists(diff_log_path):
         shutil.rmtree(diff_log_path)
     os.makedirs(diff_log_path)
@@ -266,9 +254,7 @@ def tensors_mean(inp, mode):
         loss = paddle.stack(means).mean()
         return loss
     else:
-        raise RuntimeError(
-            "unrecognized mode `{}`, expected: `torch` or `paddle`".format(mode)
-        )
+        raise RuntimeError("unrecognized mode `{}`, expected: `torch` or `paddle`".format(mode))
 
 
 def max_diff(paddle_output, torch_output):
@@ -300,8 +286,4 @@ def compare_tensor(tensor1, tensor2, atol=1e-7, compare_mode="mean"):
         mean_diff = np.abs(np.mean(tensor1 - tensor2))
         return bool(mean_diff < atol)
     else:
-        raise RuntimeError(
-            "compare_mode `{}` is not supported, use `strict` or `mean` instead".format(
-                compare_mode
-            )
-        )
+        raise RuntimeError("compare_mode `{}` is not supported, use `strict` or `mean` instead".format(compare_mode))
