@@ -232,9 +232,9 @@ def reset_log_dir():
 
 
 def clean_log_dir():
-    if os.path.exists(diff_log_path):
-        if not os.listdir(diff_log_path):
-            os.rmdir(diff_log_path)
+    os.rmdir(diff_log_path)
+    # if not os.listdir(diff_log_path):
+    #     os.rmdir(diff_log_path)
 
 
 def tensors_mean(inp, mode):

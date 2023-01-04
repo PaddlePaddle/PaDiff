@@ -34,7 +34,7 @@ lint:
 test: unit-test
 
 unit-test:
-	PYTHONPATH=/home/runner/work/PaDiff pytest \
+	PYTHONPATH=$(shell pwd) pytest \
 		-n auto --cov padiff \
 		--cov-report xml:coverage.xml
 
