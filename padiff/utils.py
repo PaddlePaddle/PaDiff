@@ -14,7 +14,6 @@
 
 import os
 import shutil
-import sys
 import warnings
 from collections import namedtuple
 from itertools import zip_longest
@@ -222,8 +221,7 @@ class TreeView:
             yield item
 
 
-diff_log_path = os.path.join(sys.path[0], "diff_log")
-diff_log_path = "./diff_log"
+diff_log_path = os.path.join(os.getcwd(), "diff_log")
 
 
 def reset_log_dir():
