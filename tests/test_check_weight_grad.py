@@ -71,34 +71,28 @@ class TestCaseName(unittest.TestCase):
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         assert (
-            autodiff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
-            is True
+            autodiff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
         ), "Failed. expected success."
 
         module.zero_grad()
         reset_log_dir()
-        weight_check, grad_check = check_weight_grad(
-            layer, module, options={"atol": 1e-4}
-        )
+        weight_check, grad_check = check_weight_grad(layer, module, options={"atol": 1e-4})
         assert weight_check is True, "Weight params should be same"
         assert grad_check is False, "Grad should be different"
 
         layer = SimpleLayer()
         module = SimpleModule()
         assert (
-            autodiff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
-            is True
+            autodiff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
         ), "Failed. expected success."
 
         for param in module.parameters():
             param.data = param * 2
         reset_log_dir()
-        weight_check, grad_check = check_weight_grad(
-            layer, module, options={"atol": 1e-4}
-        )
+        weight_check, grad_check = check_weight_grad(layer, module, options={"atol": 1e-4})
         assert weight_check is False, "Weight params should be different"
         assert grad_check is True, "Grad should be same"
 
 
-if __name__ == "__main__":
-    unittest.main()
+# if __name__ == "__main__":
+#     unittest.main()
