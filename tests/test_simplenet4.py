@@ -73,8 +73,7 @@ class TestCaseName(unittest.TestCase):
         module = SimpleModule()
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
-            is True
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
         ), "Failed. expected success."
 
     def test_failed(self):
@@ -82,8 +81,7 @@ class TestCaseName(unittest.TestCase):
         module = SimpleModule()
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
-            is False
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is False
         ), "Success. expected failed."
 
 
