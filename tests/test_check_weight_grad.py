@@ -14,6 +14,7 @@
 
 import unittest
 
+
 import paddle
 import torch
 
@@ -71,8 +72,7 @@ class TestCaseName(unittest.TestCase):
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
-            is True
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
         ), "Failed. expected success."
 
         module.zero_grad()

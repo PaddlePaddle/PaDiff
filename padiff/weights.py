@@ -22,6 +22,7 @@ import paddle
 import torch
 import yaml
 
+
 from .utils import log, map_for_each_sublayer, compare_tensor
 
 
@@ -78,13 +79,9 @@ def process_each_weight(process, layer, module, options={}):
             settings,
         )
 
-    for paddle_sublayer, torch_submodule in zip_longest(
-        layer.sublayers(True), module.modules(), fillvalue=None
-    ):
+    for paddle_sublayer, torch_submodule in zip_longest(layer.sublayers(True), module.modules(), fillvalue=None):
         if paddle_sublayer is None or torch_submodule is None:
-            raise RuntimeError(
-                "Torch and Paddle return difference number of sublayers. Check your model."
-            )
+            raise RuntimeError("Torch and Paddle return difference number of sublayers. Check your model.")
         for (name, paddle_param), torch_param in zip(
             paddle_sublayer.named_parameters("", False),
             torch_submodule.parameters(False),
