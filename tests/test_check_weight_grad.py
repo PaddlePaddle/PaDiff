@@ -77,25 +77,20 @@ class TestCaseName(unittest.TestCase):
 
         module.zero_grad()
         reset_log_dir()
-        weight_check, grad_check = check_weight_grad(
-            layer, module, options={"atol": 1e-4}
-        )
+        weight_check, grad_check = check_weight_grad(layer, module, options={"atol": 1e-4})
         assert weight_check is True, "Weight params should be same"
         assert grad_check is False, "Grad should be different"
 
         layer = SimpleLayer()
         module = SimpleModule()
         assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
-            is True
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
         ), "Failed. expected success."
 
         for param in module.parameters():
             param.data = param * 2
         reset_log_dir()
-        weight_check, grad_check = check_weight_grad(
-            layer, module, options={"atol": 1e-4}
-        )
+        weight_check, grad_check = check_weight_grad(layer, module, options={"atol": 1e-4})
         assert weight_check is False, "Weight params should be different"
         assert grad_check is True, "Grad should be same"
 

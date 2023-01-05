@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import os
-import os.path as osp
 import sys
+import os.path as osp
 from itertools import zip_longest
 
 import numpy
@@ -52,9 +52,7 @@ def process_each_weight(process, layer, module, options={}):
         paddle_param,
         torch_param,
     ):
-        assign_config = yamls["assign_yaml"].get(
-            paddle_sublayer.__class__.__name__, None
-        )
+        assign_config = yamls["assign_yaml"].get(paddle_sublayer.__class__.__name__, None)
         settings = {
             "atol": options.get("atol", 1e-7),
             "transpose": False,
@@ -149,9 +147,7 @@ def assign_weight(layer, module):
         np_value = paddle.randn(paddle_param.shape).numpy()
         paddle.assign(paddle.to_tensor(np_value), paddle_param)
         if settings["transpose"]:
-            torch_param.data = torch.as_tensor(numpy.transpose(np_value)).type(
-                torch_param.dtype
-            )
+            torch_param.data = torch.as_tensor(numpy.transpose(np_value)).type(torch_param.dtype)
         else:
             torch_param.data = torch.as_tensor(np_value).type(torch_param.dtype)
 
@@ -205,9 +201,7 @@ def check_weight_grad(layer, module, options):
             atol=settings["atol"],
             compare_mode=settings["compare_mode"],
         )
-        _grad_check = compare_tensor(
-            p_grad, t_grad, atol=settings["atol"], compare_mode=settings["compare_mode"]
-        )
+        _grad_check = compare_tensor(p_grad, t_grad, atol=settings["atol"], compare_mode=settings["compare_mode"])
 
         if _weight_check is False:
             with open(weight_log_path, "a") as f:
