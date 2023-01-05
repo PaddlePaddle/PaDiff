@@ -17,7 +17,7 @@ import unittest
 import paddle
 import torch
 
-from padiff import autodiff
+from padiff import auto_diff
 
 """
 测试 不同的 `forward顺序`，但是具有同样的 `定义顺序`
@@ -57,8 +57,7 @@ class TestCase(unittest.TestCase):
         module = SimpleModule()
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         assert (
-            autodiff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
-            is True
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
         ), "Failed, expect success."
 
 

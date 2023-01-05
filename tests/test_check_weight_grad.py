@@ -14,10 +14,11 @@
 
 import unittest
 
+
 import paddle
 import torch
 
-from padiff import autodiff
+from padiff import auto_diff
 from padiff.utils import reset_log_dir
 from padiff.weights import check_weight_grad
 
@@ -71,7 +72,7 @@ class TestCaseName(unittest.TestCase):
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         assert (
-            autodiff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
         ), "Failed. expected success."
 
         module.zero_grad()
@@ -83,7 +84,7 @@ class TestCaseName(unittest.TestCase):
         layer = SimpleLayer()
         module = SimpleModule()
         assert (
-            autodiff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
         ), "Failed. expected success."
 
         for param in module.parameters():

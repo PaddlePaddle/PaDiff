@@ -31,17 +31,17 @@ from .utils import (
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
 
-def autodiff(layer, module, example_inp, auto_weights=True, options={}):
+def auto_diff(layer, module, example_inp, auto_weights=True, options={}):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
     Args:
-        layer (paddle.nn.Layer):
-        module (torch.nn.Module):
-        example_inp (numpy.array):
-        auto_weights (boolean, optional):
+        layer (paddle.nn.Layer): paddle layer that needs compare
+        module (torch.nn.Module): torch module that needs compare
+        example_inp (numpy.array): input data for models
+        auto_weights (boolean, optional): uniformly init the parameters of models
         options (dict, optional):
-            atol
+            atol, compare_mode
     Returns:
         True for success, False for failed.
     """
@@ -49,13 +49,12 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
     assert isinstance(module, torch.nn.Module), "Invalid Argument."
     assert isinstance(example_inp, numpy.ndarray), "Invalid Argument."
 
-    log("Start autodiff, may need a while to generate reports...")
+    log("Start auto_diff, may need a while to generate reports...")
 
     paddle.set_device("cpu")
     module = module.to("cpu")
 
     reset_log_dir()
-
     _preprocess(layer, module, example_inp, auto_weights, options)
 
     torch_report = Report("torch")

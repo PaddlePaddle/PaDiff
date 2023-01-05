@@ -14,10 +14,11 @@
 
 import unittest
 
+
 import paddle
 import torch
 
-from padiff import autodiff
+from padiff import auto_diff
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -70,14 +71,14 @@ class TestCaseName(unittest.TestCase):
             inp = paddle.rand((100, 100)).numpy().astype("float32")
             atol = 1e-5
 
-            mean_res = autodiff(
+            mean_res = auto_diff(
                 layer,
                 module,
                 inp,
                 auto_weights=True,
                 options={"atol": atol, "compare_mode": "mean"},
             )
-            strict_res = autodiff(
+            strict_res = auto_diff(
                 layer,
                 module,
                 inp,

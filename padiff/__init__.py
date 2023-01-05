@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .autodiff import autodiff
+from .auto_diff import auto_diff
 
-__all__ = ["autodiff"]
+__all__ = ["auto_diff"]
 
 __version__ = "0.0.1"
 

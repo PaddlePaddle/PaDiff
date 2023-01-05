@@ -159,10 +159,12 @@ class TableView:
 
 class TreeView:
     """
-      wrap items as a tree structure:
-      [1, 2, 3, 4, 5, 6]
-      the last item is the root of the layers.
-      if the child is 2 and 5, then we can construct a tree:
+    This class is used to organize ReportItems in order of backward process
+
+    wrap items as a tree structure:
+    [1, 2, 3, 4, 5, 6]
+    the last item is the root of the layers.
+    if the child is 2 and 5, then we can construct a tree:
       6
       |---------|
       2         5
@@ -237,6 +239,10 @@ def clean_log_dir():
 
 
 def tensors_mean(inp, mode):
+    """
+    TODO(wuzhanfei): This function is used to calcu loss in same way for paddle layer and torch module
+    need to support real opt later
+    """
     if isinstance(inp, torch.Tensor) or isinstance(inp, paddle.Tensor):
         return inp.mean()
 
