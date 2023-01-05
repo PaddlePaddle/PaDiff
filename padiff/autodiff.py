@@ -22,7 +22,6 @@ import torch
 from .report import Report, check_forward_and_backward, current_report, report_guard
 from .stack_info import *
 from .utils import (
-    clean_log_dir,
     for_each_grad_tensor,
     log,
     max_diff,
@@ -97,7 +96,8 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
     ret = check_forward_and_backward(torch_report, paddle_report, options)
     ret = ret and weight_check and grad_check
 
-    clean_log_dir()
+    # TODO(linjieccc): pytest failed if log clean is enabled
+    # clean_log_dir()
     return ret
 
 
