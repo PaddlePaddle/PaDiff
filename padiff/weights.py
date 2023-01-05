@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import os
-import os.path as osp
 import sys
+import os.path as osp
 from itertools import zip_longest
 
 import numpy
@@ -43,9 +43,7 @@ def process_each_weight(process_name, layer, module, options={}):
         torch_param,
         yamls,
     ):
-        assign_config = yamls["assign_yaml"].get(
-            paddle_sublayer.__class__.__name__, None
-        )
+        assign_config = yamls["assign_yaml"].get(paddle_sublayer.__class__.__name__, None)
         settings = {
             "atol": options.get("atol", 1e-7),
             "transpose": False,
@@ -109,9 +107,7 @@ def process_each_weight(process_name, layer, module, options={}):
         np_value = paddle.randn(paddle_param.shape).numpy()
         paddle.assign(paddle.to_tensor(np_value), paddle_param)
         if settings["transpose"]:
-            torch_param.data = torch.as_tensor(numpy.transpose(np_value)).type(
-                torch_param.dtype
-            )
+            torch_param.data = torch.as_tensor(numpy.transpose(np_value)).type(torch_param.dtype)
         else:
             torch_param.data = torch.as_tensor(np_value).type(torch_param.dtype)
 
@@ -152,9 +148,7 @@ def process_each_weight(process_name, layer, module, options={}):
             atol=settings["atol"],
             compare_mode=settings["compare_mode"],
         )
-        _grad_check = compare_tensor(
-            p_grad, t_grad, atol=settings["atol"], compare_mode=settings["compare_mode"]
-        )
+        _grad_check = compare_tensor(p_grad, t_grad, atol=settings["atol"], compare_mode=settings["compare_mode"])
 
         if _weight_check is False:
             with open(weight_log_path, "a") as f:
@@ -182,17 +176,11 @@ def process_each_weight(process_name, layer, module, options={}):
     }
 
     if process_name not in process_family.keys():
-        raise RuntimeError(
-            "Invalid fn type, not such fn called `{}`".format(process_name)
-        )
+        raise RuntimeError("Invalid fn type, not such fn called `{}`".format(process_name))
 
-    for paddle_sublayer, torch_submodule in zip_longest(
-        layer.sublayers(True), module.modules(), fillvalue=None
-    ):
+    for paddle_sublayer, torch_submodule in zip_longest(layer.sublayers(True), module.modules(), fillvalue=None):
         if paddle_sublayer is None or torch_submodule is None:
-            raise RuntimeError(
-                "Torch and Paddle return difference number of sublayers. Check your model."
-            )
+            raise RuntimeError("Torch and Paddle return difference number of sublayers. Check your model.")
         for (name, paddle_param), torch_param in zip(
             paddle_sublayer.named_parameters("", False),
             torch_submodule.parameters(False),
@@ -207,14 +195,9 @@ def process_each_weight(process_name, layer, module, options={}):
                 yamls,
             )
 
-    if process_name == "check_weight_grad" and (
-        _weight_check is False or _grad_check is False
-    ):
+    if process_name == "check_weight_grad" and (_weight_check is False or _grad_check is False):
         diff_log_path = os.path.join(sys.path[0], "diff_log")
-        print(
-            "Differences in weight or grad !!!\n"
-            "Check reports at `{}`\n".format(diff_log_path)
-        )
+        print("Differences in weight or grad !!!\n" "Check reports at `{}`\n".format(diff_log_path))
 
     if process_name == "check_weight_grad":
         return _weight_check, _grad_check

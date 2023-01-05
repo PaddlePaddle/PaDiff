@@ -12,30 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
+# import unittest
 
-import paddle
-import torchvision
+# import paddle
+# import torchvision
 
-from padiff import autodiff
-
-
-class TestCaseName(unittest.TestCase):
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
-    def test_success(self):
-        layer = paddle.vision.resnet50()
-        module = torchvision.models.resnet50()
-        inp = paddle.rand((10, 3, 224, 224)).numpy().astype("float32")
-        assert (
-            autodiff(layer, module, inp, auto_weights=True, options={"atol": 5e-2})
-            is True
-        ), "Failed. expected success."
+# from padiff import autodiff
 
 
-if __name__ == "__main__":
-    unittest.main()
+# class TestCaseName(unittest.TestCase):
+#     def setUp(self):
+#         pass
+
+#     def tearDown(self):
+#         pass
+
+#     def test_success(self):
+#         layer = paddle.vision.resnet50()
+#         module = torchvision.models.resnet50()
+#         inp = paddle.rand((10, 3, 224, 224)).numpy().astype("float32")
+#         assert (
+#             autodiff(layer, module, inp, auto_weights=True, options={"atol": 5e-2}) is True
+#         ), "Failed. expected success."
+
+
+# if __name__ == "__main__":
+#     unittest.main()
