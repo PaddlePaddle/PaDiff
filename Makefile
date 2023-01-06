@@ -35,7 +35,7 @@ test: unit-test
 
 unit-test:
 	pytest \
-		--cov padiff \
+		-n logical --cov padiff \
 		--cov-report xml:coverage.xml
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
