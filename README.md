@@ -26,7 +26,7 @@ pip install -e .
 
 -   module：传入torch模型
 
--   inp：传入输入数据
+-   example_inp：传入输入的样例数据，样例数据包含 ( paddle_input, torch_input ) 的结构，其中paddle_input和torch_input是一个dict，包含了需要传入给对应的layer和module的name到value的映射，即最后调用时使用 layer(**paddle_input) 的形式。注意顺序，paddle在前torch在后。
 
 -   auto_weights: 是否使用随机数值统一初始化paddle与torch模型，默认为True
 
@@ -86,6 +86,8 @@ class SimpleModule(torch.nn.Module):
 layer = SimpleLayer()
 module = SimpleModule()
 inp = paddle.rand((100, 100)).numpy().astype("float32")
+inp = ({'x': paddle.to_tensor(inp)},  ## <-- 注意顺序，paddle_input, torch_input 的形式。
+       {'y': torch.as_tensor(inp) })
 auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'compare_mode': 'strict'})
 ```
 
