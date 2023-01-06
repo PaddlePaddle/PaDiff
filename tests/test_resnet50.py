@@ -15,6 +15,7 @@
 import unittest
 
 import paddle
+import torch
 import torchvision
 
 from padiff import auto_diff
