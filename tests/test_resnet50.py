@@ -31,6 +31,7 @@ class TestCaseName(unittest.TestCase):
         layer = paddle.vision.resnet50()
         module = torchvision.models.resnet50()
         inp = paddle.rand((10, 3, 224, 224)).numpy().astype("float32")
+        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert (
             auto_diff(layer, module, inp, auto_weights=True, options={"atol": 5e-2}) is True
         ), "Failed. expected success."
