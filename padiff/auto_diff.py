@@ -25,7 +25,6 @@ from .utils import (
     log,
     max_diff,
     reset_log_dir,
-    clean_log_dir,
     tensors_mean,
 )
 from .weights import assign_weight, check_weight_grad, remove_inplace
@@ -94,7 +93,8 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}):
     ret = check_forward_and_backward(torch_report, paddle_report, options)
     ret = ret and weight_check and grad_check
 
-    clean_log_dir()
+    # TODO(linjieccc): failed in concurrence mode
+    # clean_log_dir()
     return ret
 
 
