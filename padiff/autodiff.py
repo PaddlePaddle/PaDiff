@@ -65,7 +65,7 @@ def autodiff(
         with _register_torch_hooker(module):
             try:
                 torch_input = torch.as_tensor(example_inp)
-                if torch_input.dtype == torch.float32:
+                if torch_input.dtype in [torch.float16, torch.float32, torch.float64]:
                     torch_input.requires_grad = True
                 torch_output = module(torch_input)
                 loss = tensors_mean(torch_output, "torch")
@@ -81,7 +81,11 @@ def autodiff(
         with _register_paddle_hooker(layer):
             try:
                 paddle_input = paddle.to_tensor(example_inp)
-                if paddle_input.dtype == paddle.float32:
+                if paddle_input.dtype in [
+                    paddle.float16,
+                    paddle.float32,
+                    paddle.float64,
+                ]:
                     paddle_input.stop_gradient = False
                 paddle_output = layer(paddle_input)
                 loss = tensors_mean(paddle_output, "paddle")
@@ -127,6 +131,8 @@ def _register_paddle_hooker(layer):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     for idx, mod in enumerate(layer.sublayers(True)):
+        if isinstance(mod, paddle.nn.Sequential):
+            continue
         handle = mod.register_forward_post_hook(partial(layer_hook, idx=idx))
         remove_handles.append(handle)
     yield
@@ -138,6 +144,8 @@ def _register_paddle_hooker(layer):
 def _register_torch_hooker(module):
     remove_handles = []
     for idx, mod in enumerate(module.modules()):
+        if isinstance(mod, torch.nn.Sequential):
+            continue
         handle = mod.register_forward_hook(partial(layer_hook, idx=idx))
         remove_handles.append(handle)
     yield

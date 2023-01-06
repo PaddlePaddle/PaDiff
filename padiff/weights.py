@@ -178,53 +178,37 @@ def process_each_weight(process_name, layer, module, layer_module_map=None, opti
     if layer_module_map:
         for key, val in layer_module_map.items():
             if isinstance(key, torch.nn.Module):
-                torch_submodule = key
-                paddle_sublayer = val
+                if isinstance(key, torch.nn.Sequential):
+                    torch_modules = [t for t in key]
+                else:
+                    torch_modules = [key]
+                paddle_layers = val
             elif isinstance(key, paddle.nn.Layer):
-                paddle_sublayer = key
-                torch_submodule = val
+                if isinstance(key, paddle.nn.Sequential):
+                    paddle_layers = [p for p in key]
+                else:
+                    paddle_layers = [key]
+                torch_modules = val
             else:
                 raise RuntimeError(
                     "The key in layer_module_map should be one of `torch.nn.Module` or `paddle.nn.Layer`"
                 )
 
-            if isinstance(paddle_sublayer, list):
-                paddle_params = []
-                for p in paddle_sublayer:
-                    param_list = [
-                        (name, paddle_param)
-                        for name, paddle_param in p.named_parameters("", False)
-                    ]
-                    paddle_params.extend(param_list)
-            else:
-                paddle_params = [
-                    (name, paddle_param)
-                    for name, paddle_param in paddle_sublayer.named_parameters(
-                        "", False
+            for paddle_sublayer, torch_submodule in zip(paddle_layers, torch_modules):
+
+                for (name, paddle_param), torch_param in zip(
+                    paddle_sublayer.named_parameters("", False),
+                    torch_submodule.parameters(False),
+                ):
+                    _process_runner(
+                        process_family[process_name],
+                        paddle_sublayer,
+                        torch_submodule,
+                        name,
+                        paddle_param,
+                        torch_param,
+                        yamls,
                     )
-                ]
-
-            if isinstance(torch_submodule, list):
-                torch_params = []
-                for t in torch_submodule:
-                    param_list = [torch_param for torch_param in t.parameters(False)]
-                    torch_params.extend(param_list)
-            else:
-                torch_params = torch_submodule.parameters(False)
-
-            for (name, paddle_param), torch_param in zip(
-                paddle_params,
-                torch_params,
-            ):
-                _process_runner(
-                    process_family[process_name],
-                    paddle_sublayer,
-                    torch_submodule,
-                    name,
-                    paddle_param,
-                    torch_param,
-                    yamls,
-                )
     else:
         for paddle_sublayer, torch_submodule in zip_longest(
             layer.sublayers(True), module.modules(), fillvalue=None
