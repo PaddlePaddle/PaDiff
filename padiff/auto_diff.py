@@ -26,6 +26,7 @@ from .utils import (
     log,
     max_diff,
     reset_log_dir,
+    clean_log_dir,
     tensors_mean,
 )
 from .weights import assign_weight, check_weight_grad, remove_inplace
@@ -96,7 +97,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}):
     ret = ret and weight_check and grad_check
 
     # TODO(linjieccc): pytest failed if log clean is enabled
-    # clean_log_dir()
+    clean_log_dir()
     return ret
 
 
