@@ -15,7 +15,6 @@
 import contextlib
 from functools import partial
 
-import numpy
 import paddle
 import torch
 
@@ -39,7 +38,8 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}):
     Args:
         layer (paddle.nn.Layer): paddle layer that needs compare
         module (torch.nn.Module): torch module that needs compare
-        example_inp (numpy.array): input data for models
+        example_inp (paddle_input, torch_input): input data for paddle layer and torch module.
+            paddle_input and torch_input should be dict and send into net like `module(**input)`.
         auto_weights (boolean, optional): uniformly init the parameters of models
         options (dict, optional):
             atol, compare_mode
@@ -48,24 +48,24 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}):
     """
     assert isinstance(layer, paddle.nn.Layer), "Invalid Argument."
     assert isinstance(module, torch.nn.Module), "Invalid Argument."
-    assert isinstance(example_inp, numpy.ndarray), "Invalid Argument."
-
+    assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
     log("Start auto_diff, may need a while to generate reports...")
 
+    paddle_input, torch_input = example_inp
+    assert isinstance(paddle_input, dict), "Invalid Argument."
+    assert isinstance(torch_input, dict), "Invalid Argument."
     paddle.set_device("cpu")
     module = module.to("cpu")
 
     reset_log_dir()
-    _preprocess(layer, module, example_inp, auto_weights, options)
+    _preprocess(layer, module, auto_weights, options)
 
     torch_report = Report("torch")
     paddle_report = Report("paddle")
     with report_guard(torch_report):
         with _register_torch_hooker(module):
             try:
-                torch_input = torch.as_tensor(example_inp)
-                torch_input.requires_grad = True
-                torch_output = module(torch_input)
+                torch_output = module(**torch_input)
                 loss = tensors_mean(torch_output, "torch")
                 loss.backward()
             except Exception as e:
@@ -78,9 +78,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}):
     with report_guard(paddle_report):
         with _register_paddle_hooker(layer):
             try:
-                paddle_input = paddle.to_tensor(example_inp)
-                paddle_input.stop_gradient = False
-                paddle_output = layer(paddle_input)
+                paddle_output = layer(**paddle_input)
                 loss = tensors_mean(paddle_output, "paddle")
                 loss.backward()
             except Exception as e:
@@ -90,7 +88,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}):
                     )
                 )
 
-    log("Max output diff is {}\n".format(max_diff(paddle_output, torch_output)))
+    log("Max elementwise output diff is {}\n".format(max_diff(paddle_output, torch_output)))
 
     weight_check, grad_check = check_weight_grad(layer, module, options)
     ret = check_forward_and_backward(torch_report, paddle_report, options)
@@ -141,7 +139,7 @@ def _register_torch_hooker(module):
         h.remove()
 
 
-def _preprocess(layer, module, example_inp, auto_weights, options):
+def _preprocess(layer, module, auto_weights, options):
     remove_inplace(layer, module)
     if auto_weights:
         assign_weight(layer, module)
