@@ -117,13 +117,23 @@ def is_sublayer(father_net, child_net):
     """
     if isinstance(father_net, torch.nn.Module) and isinstance(child_net, torch.nn.Module):
         for child in father_net.children():
-            if id(child) == id(child_net):
-                return True
+            if isinstance(child, torch.nn.Sequential):
+                for _, _child in child.children():
+                    if id(_child) == id(child_net):
+                        return True
+            else:
+                if id(child) == id(child_net):
+                    return True
         return False
     elif isinstance(father_net, paddle.nn.Layer) and isinstance(child_net, paddle.nn.Layer):
         for _, child in father_net.named_children():
-            if id(child) == id(child_net):
-                return True
+            if isinstance(child, paddle.nn.Sequential):
+                for _, _child in child.named_children():
+                    if id(_child) == id(child_net):
+                        return True
+            else:
+                if id(child) == id(child_net):
+                    return True
         return False
     else:
         raise RuntimeError("father net is not Module / Layer")
