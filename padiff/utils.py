@@ -117,7 +117,7 @@ def is_sublayer(father_net, child_net):
     """
 
     def _is_sublayer_torch(father_net, child_net):
-        for _, child in father_net.children():
+        for child in father_net.children():
             if isinstance(child, torch.nn.Sequential):
                 if _is_sublayer_torch(child, child_net):
                     return True
