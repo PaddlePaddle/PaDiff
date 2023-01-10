@@ -97,13 +97,19 @@ def process_each_weight(process, layer, module, layer_map, options={}):
                     torch_modules = _remove_sequential(key, torch.nn.Sequential)
                 else:
                     torch_modules = [key]
-                paddle_layers = _remove_sequential(val, paddle.nn.Sequential)
+                if isinstance(val, list):
+                    paddle_layers = _remove_sequential(val, paddle.nn.Sequential)
+                else:
+                    paddle_layers = _remove_sequential([val], paddle.nn.Sequential)
             elif isinstance(key, paddle.nn.Layer):
                 if isinstance(key, paddle.nn.Sequential):
                     paddle_layers = _remove_sequential(key, paddle.nn.Sequential)
                 else:
                     paddle_layers = [key]
-                torch_modules = _remove_sequential(val, torch.nn.Sequential)
+                if isinstance(val, list):
+                    torch_modules = _remove_sequential(val, torch.nn.Sequential)
+                else:
+                    torch_modules = _remove_sequential([val], torch.nn.Sequential)
             else:
                 raise RuntimeError("The key in layer_map should be one of `torch.nn.Module` or `paddle.nn.Layer`")
 
