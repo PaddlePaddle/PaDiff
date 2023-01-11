@@ -26,11 +26,12 @@ from .utils import (
     max_diff,
     reset_log_dir,
     tensors_mean,
+    traversal_layers,
 )
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
 
-def auto_diff(layer, module, example_inp, auto_weights=True, layer_map=None, options={}):
+def auto_diff(layer, module, example_inp, auto_weights=True, layer_map={}, options={}):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
@@ -40,7 +41,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, layer_map=None, opt
         example_inp (paddle_input, torch_input): input data for paddle layer and torch module.
             paddle_input and torch_input should be dict and send into net like `module(**input)`.
         auto_weights (boolean, optional): uniformly init the parameters of models
-        layer_map (dict, option): manually map paddle layer and torch module.
+        layer_map (dict, optional): manually map paddle layer and torch module.
         options (dict, optional):
             atol, compare_mode
     Returns:
@@ -63,7 +64,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, layer_map=None, opt
     torch_report = Report("torch")
     paddle_report = Report("paddle")
     with report_guard(torch_report):
-        with _register_torch_hooker(module):
+        with _register_torch_hooker(module, layer_map):
             try:
                 torch_output = module(**torch_input)
                 loss = tensors_mean(torch_output, "torch")
@@ -76,7 +77,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, layer_map=None, opt
                 )
 
     with report_guard(paddle_report):
-        with _register_paddle_hooker(layer):
+        with _register_paddle_hooker(layer, layer_map):
             try:
                 paddle_output = layer(**paddle_input)
                 loss = tensors_mean(paddle_output, "paddle")
@@ -117,13 +118,13 @@ def layer_hook(module, input, output, idx):
 
 
 @contextlib.contextmanager
-def _register_paddle_hooker(layer):
+def _register_paddle_hooker(layer, layer_map):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
-    for mod in layer.sublayers(True):
-        if isinstance(mod, paddle.nn.Sequential):
-            continue
+    paddle_layers = [layer]
+    traversal_layers(paddle_layers, layer, layer_map)
+    for mod in paddle_layers:
         handle = mod.register_forward_post_hook(partial(layer_hook, idx=idx))
         remove_handles.append(handle)
         idx += 1
@@ -133,12 +134,12 @@ def _register_paddle_hooker(layer):
 
 
 @contextlib.contextmanager
-def _register_torch_hooker(module):
+def _register_torch_hooker(module, layer_map):
     remove_handles = []
     idx = 0
-    for mod in module.modules():
-        if isinstance(mod, torch.nn.Sequential):
-            continue
+    torch_modules = [module]
+    traversal_layers(torch_modules, module, layer_map)
+    for mod in torch_modules:
         handle = mod.register_forward_hook(partial(layer_hook, idx=idx))
         remove_handles.append(handle)
         idx += 1

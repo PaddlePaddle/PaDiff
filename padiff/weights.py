@@ -15,7 +15,6 @@
 import os
 import sys
 import os.path as osp
-from itertools import zip_longest
 
 import numpy
 import paddle
@@ -23,7 +22,7 @@ import torch
 import yaml
 
 
-from .utils import log, map_for_each_sublayer, compare_tensor
+from .utils import log, map_for_each_sublayer, compare_tensor, traversal_layers
 
 
 def process_each_weight(process, layer, module, layer_map, options={}):
@@ -91,64 +90,30 @@ def process_each_weight(process, layer, module, layer_map, options={}):
             settings,
         )
 
-    if layer_map:
+    paddle_layers = [layer]
+    torch_modules = [module]
 
-        def _remove_sequential(org_layers, layer_type):
-            layers = []
-            for l in org_layers:
-                if isinstance(l, layer_type):
-                    layers.extend(_remove_sequential(l, layer_type))
-                else:
-                    layers.append(l)
-            return layers
+    traversal_layers(paddle_layers, layer, layer_map)
+    traversal_layers(torch_modules, module, layer_map)
 
-        for key, val in layer_map.items():
-            val = [val] if not isinstance(val, list) else val
-            if isinstance(key, torch.nn.Module):
-                if isinstance(key, torch.nn.Sequential):
-                    torch_modules = _remove_sequential(key, torch.nn.Sequential)
-                else:
-                    torch_modules = [key]
-                paddle_layers = _remove_sequential(val, paddle.nn.Sequential)
-            elif isinstance(key, paddle.nn.Layer):
-                if isinstance(key, paddle.nn.Sequential):
-                    paddle_layers = _remove_sequential(key, paddle.nn.Sequential)
-                else:
-                    paddle_layers = [key]
-                torch_modules = _remove_sequential(val, torch.nn.Sequential)
-            else:
-                raise RuntimeError("The key in layer_map should be one of `torch.nn.Module` or `paddle.nn.Layer`")
+    assert len(paddle_layers) == len(
+        torch_modules
+    ), "Torch and Paddle return difference number of sublayers. Check your model."
 
-            for paddle_sublayer, torch_submodule in zip(paddle_layers, torch_modules):
+    for paddle_sublayer, torch_submodule in zip(paddle_layers, torch_modules):
 
-                for (name, paddle_param), torch_param in zip(
-                    paddle_sublayer.named_parameters("", False),
-                    torch_submodule.parameters(False),
-                ):
-                    _process_runner(
-                        process,
-                        paddle_sublayer,
-                        torch_submodule,
-                        name,
-                        paddle_param,
-                        torch_param,
-                    )
-    else:
-        for paddle_sublayer, torch_submodule in zip_longest(layer.sublayers(True), module.modules(), fillvalue=None):
-            if paddle_sublayer is None or torch_submodule is None:
-                raise RuntimeError("Torch and Paddle return difference number of sublayers. Check your model.")
-            for (name, paddle_param), torch_param in zip(
-                paddle_sublayer.named_parameters("", False),
-                torch_submodule.parameters(False),
-            ):
-                _process_runner(
-                    process,
-                    paddle_sublayer,
-                    torch_submodule,
-                    name,
-                    paddle_param,
-                    torch_param,
-                )
+        for (name, paddle_param), torch_param in zip(
+            paddle_sublayer.named_parameters("", False),
+            torch_submodule.parameters(False),
+        ):
+            _process_runner(
+                process,
+                paddle_sublayer,
+                torch_submodule,
+                name,
+                paddle_param,
+                torch_param,
+            )
 
 
 def _shape_check(

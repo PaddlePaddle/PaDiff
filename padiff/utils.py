@@ -148,6 +148,14 @@ def is_sublayer(father_net, child_net):
         raise RuntimeError("father net is not Module / Layer")
 
 
+def traversal_layers(layers, cur_net, layer_map):
+    for child in cur_net.children():
+        if not (isinstance(child, torch.nn.Sequential) or isinstance(child, paddle.nn.Sequential)):
+            layers.append(child)
+        if child.__class__.__name__ not in layer_map.keys() and child.__class__.__name__ not in layer_map.values():
+            traversal_layers(layers, child, layer_map)
+
+
 class TableView:
     """
     A search speedup wrapper class.

@@ -16,6 +16,7 @@ import unittest
 
 import paddle
 import torch
+import numpy as np
 
 from padiff import auto_diff
 
@@ -77,34 +78,93 @@ class SimpleModule2(torch.nn.Module):
         return x
 
 
+class SimpleLayer3(paddle.nn.Layer):
+    def __init__(self):
+        super(SimpleLayer3, self).__init__()
+        self.attn = paddle.nn.MultiHeadAttention(16, 1)
+
+    def forward(self, q, k, v):
+        x = self.attn(q, k, v)
+        return x
+
+
+class SimpleModule3(torch.nn.Module):
+    def __init__(self):
+        super(SimpleModule3, self).__init__()
+        self.attn = torch.nn.MultiheadAttention(16, 1, batch_first=True)
+
+    def forward(self, q, k, v):
+        x, _ = self.attn(q, k, v)
+        return x
+
+
 class TestCaseName(unittest.TestCase):
     def test_layer_map_1(self):
         layer = SimpleLayer1(4, 8, 4)
         module = SimpleModule1(4, 8, 4)
 
-        layer_map = {
-            layer.layers: [module.linear1, module.layer_norm, module.linear2],
-        }
-
         inp = paddle.to_tensor([[1, 2, 0, 1]]).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert (
-            auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}) is True
+            auto_diff(layer, module, inp, auto_weights=True, layer_map={}, options={"atol": 1e-4}) is True
         ), "Failed. expected success."
 
     def test_layer_map_2(self):
         layer = SimpleLayer2()
         module = SimpleModule2()
 
-        layer_map = {
-            module.embedder: layer.embedder,
-            module.lstm: layer.lstm,
-        }
+        layer_map = {"LSTM": "LSTM"}
 
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert (
             auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}) is True
+        ), "Failed. expected success."
+
+    def test_layer_map_3(self):
+        layer = SimpleLayer3()
+        module = SimpleModule3()
+
+        name_param_dict = {}
+        for i, param in enumerate(layer.named_parameters()):
+            pname = param[0]
+            if "cross_attn" in pname:
+                pname = pname.replace("cross_attn", "multihead_attn")
+            elif "q" not in pname and "k" not in pname and "v" not in pname:
+                continue
+            param_np = param[1].numpy()
+            pname = pname.replace("q_proj.", "in_proj_")
+            pname = pname.replace("k_proj.", "in_proj_")
+            pname = pname.replace("v_proj.", "in_proj_")
+            if pname not in name_param_dict:
+                name_param_dict[pname] = param_np
+            elif "_weight" in pname:
+                name_param_dict[pname] = np.concatenate((name_param_dict[pname], param_np), axis=1)
+            else:
+                name_param_dict[pname] = np.concatenate((name_param_dict[pname], param_np), axis=0)
+
+        device = torch.device("cuda:0")
+        for i, param in enumerate(module.named_parameters()):
+            pname, pa = param[0], param[1]
+            if "in_proj" in pname or "multihead_attn" in pname:
+                param_np = name_param_dict[pname]
+            else:
+                param_np = layer.state_dict()[pname].numpy()
+            if pname.endswith("weight"):
+                param_np = np.transpose(param_np)
+
+            param[1].data = torch.from_numpy(param_np)
+
+        layer_map = {"MultiHeadAttention": "MultiheadAttention"}
+
+        inp = paddle.rand((2, 4, 16)).numpy()
+        inp = (
+            {"q": paddle.to_tensor(inp), "k": paddle.to_tensor(inp), "v": paddle.to_tensor(inp)},
+            {"q": torch.as_tensor(inp), "k": torch.as_tensor(inp), "v": torch.as_tensor(inp)},
+        )
+
+        assert (
+            auto_diff(layer, module, inp, auto_weights=False, layer_map=layer_map, options={"atol": 1e-4}) is True
         ), "Failed. expected success."
 
 
