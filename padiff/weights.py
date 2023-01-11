@@ -62,9 +62,20 @@ def process_each_weight(process, layer, module, layer_map, options={}):
         }
 
         if assign_config is not None:
-            assert (
-                torch_submodule.__class__.__name__ == assign_config["torch"]
-            ), "Not correspond, check your __init__ to make sure every sublayer is corresponded."
+            try:
+                assert (
+                    torch_submodule.__class__.__name__ in assign_config["torch"]
+                ), "Not correspond, paddle layer {}  vs torch module {}. check your __init__ to make sure every sublayer is corresponded, or view the model struct reports in diff_log.".format(
+                    paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__
+                )
+            except Exception as e:
+                p_model_log = os.path.join(sys.path[0], "diff_log", "paddle_model_struct.log")
+                t_model_log = os.path.join(sys.path[0], "diff_log", "torch_model_struct.log")
+                with open(p_model_log, "w") as log:
+                    log.write(str(layer))
+                with open(t_model_log, "w") as log:
+                    log.write(str(module))
+                raise e
         if assign_config is None or param_name not in assign_config["param"]:
             pass
         else:
