@@ -15,7 +15,6 @@
 import os
 import sys
 import os.path as osp
-from itertools import zip_longest
 
 import numpy
 import paddle
@@ -23,10 +22,10 @@ import torch
 import yaml
 
 
-from .utils import log, map_for_each_sublayer, compare_tensor
+from .utils import log, map_for_each_sublayer, compare_tensor, traversal_layers
 
 
-def process_each_weight(process, layer, module, options={}):
+def process_each_weight(process, layer, module, layer_map, options={}):
     """
     Apply process for each pair of parameters in layer(paddle) and module(torch)
 
@@ -34,6 +33,7 @@ def process_each_weight(process, layer, module, options={}):
         process (function): process applied to parameters
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
+        layer_map (dict, optional): manually map paddle layer and torch module.
         options (dict, optional):
             atol, compare_mode
     """
@@ -90,9 +90,18 @@ def process_each_weight(process, layer, module, options={}):
             settings,
         )
 
-    for paddle_sublayer, torch_submodule in zip_longest(layer.sublayers(True), module.modules(), fillvalue=None):
-        if paddle_sublayer is None or torch_submodule is None:
-            raise RuntimeError("Torch and Paddle return difference number of sublayers. Check your model.")
+    paddle_layers = [layer]
+    torch_modules = [module]
+
+    traversal_layers(paddle_layers, layer, layer_map)
+    traversal_layers(torch_modules, module, layer_map)
+
+    assert len(paddle_layers) == len(
+        torch_modules
+    ), "Torch and Paddle return difference number of sublayers. Check your model."
+
+    for paddle_sublayer, torch_submodule in zip(paddle_layers, torch_modules):
+
         for (name, paddle_param), torch_param in zip(
             paddle_sublayer.named_parameters("", False),
             torch_submodule.parameters(False),
@@ -127,13 +136,14 @@ def _shape_check(
     ).format(param_name, p_shape, t_shape, paddle_sublayer, torch_submodule)
 
 
-def assign_weight(layer, module):
+def assign_weight(layer, module, layer_map={}):
     """
     Init weights of layer(paddle) and module(torch) with same value
 
     Args:
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
+        layer_map (dict, optional): manually map paddle layer and torch module.
     """
 
     def _assign_weight(
@@ -159,16 +169,17 @@ def assign_weight(layer, module):
         else:
             torch_param.data = torch.as_tensor(np_value).type(torch_param.dtype)
 
-    process_each_weight(_assign_weight, layer, module)
+    process_each_weight(_assign_weight, layer, module, layer_map)
 
 
-def check_weight_grad(layer, module, options):
+def check_weight_grad(layer, module, layer_map={}, options={}):
     """
     Compare weights and grads between layer(paddle) and module(torch)
 
     Args:
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
+        layer_map (dict, optional): manually map paddle layer and torch module.
         options (dict, optional):
             atol, compare_mode
     """
@@ -231,7 +242,7 @@ def check_weight_grad(layer, module, options):
                     )
                 )
 
-    process_each_weight(_check_weight_grad, layer, module, options)
+    process_each_weight(_check_weight_grad, layer, module, layer_map, options)
 
     if _weight_check and _grad_check:
         log("weight and weight.grad is compared.")

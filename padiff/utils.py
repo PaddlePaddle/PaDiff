@@ -115,18 +115,45 @@ def is_sublayer(father_net, child_net):
     """
     return True if child_net is the DIRECTL children of father_net.
     """
-    if isinstance(father_net, torch.nn.Module) and isinstance(child_net, torch.nn.Module):
+
+    def _is_sublayer_torch(father_net, child_net):
         for child in father_net.children():
-            if id(child) == id(child_net):
-                return True
+            if isinstance(child, torch.nn.Sequential):
+                if _is_sublayer_torch(child, child_net):
+                    return True
+            else:
+                if id(child) == id(child_net):
+                    return True
+        return False
+
+    def _is_sublayer_paddle(father_net, child_net):
+        for _, child in father_net.named_children():
+            if isinstance(child, paddle.nn.Sequential):
+                if _is_sublayer_paddle(child, child_net):
+                    return True
+            else:
+                if id(child) == id(child_net):
+                    return True
+        return False
+
+    if isinstance(father_net, torch.nn.Module) and isinstance(child_net, torch.nn.Module):
+        if _is_sublayer_torch(father_net, child_net):
+            return True
         return False
     elif isinstance(father_net, paddle.nn.Layer) and isinstance(child_net, paddle.nn.Layer):
-        for _, child in father_net.named_children():
-            if id(child) == id(child_net):
-                return True
+        if _is_sublayer_paddle(father_net, child_net):
+            return True
         return False
     else:
         raise RuntimeError("father net is not Module / Layer")
+
+
+def traversal_layers(layers, cur_net, layer_map):
+    for child in cur_net.children():
+        if not (isinstance(child, torch.nn.Sequential) or isinstance(child, paddle.nn.Sequential)):
+            layers.append(child)
+        if child.__class__.__name__ not in layer_map.keys() and child.__class__.__name__ not in layer_map.values():
+            traversal_layers(layers, child, layer_map)
 
 
 class TableView:

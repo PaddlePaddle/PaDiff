@@ -191,6 +191,7 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
     paddle_fwd_items = paddle_rep.get_fwd_items()
     torch_fwd_items = TableView(torch_fwd_items, lambda x: x.net_id)
     paddle_tree_view = TreeView(paddle_fwd_items)
+
     assert len(torch_fwd_items) == len(
         paddle_fwd_items
     ), "Difference length of torch_fwd_items and paddel_items, make sure the paddle layer and torch module have the same valid sublayer."
