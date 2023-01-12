@@ -50,7 +50,8 @@ class ReportItem:
         """
         self.input is a tuple: (tensor, ...)
         """
-        self.input = clone_tensors(input)
+        #self.input = clone_tensors(input)
+        self.input = input
         self.output = clone_tensors(output)
         self.net = net
         self.net_id = net_id
