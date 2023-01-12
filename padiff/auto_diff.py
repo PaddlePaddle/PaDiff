@@ -134,7 +134,7 @@ def _register_paddle_hooker(layer, layer_map):
 
 
 @contextlib.contextmanager
-def _register_torch_hooker(module, layer_map):
+def _register_torch_hooker(module, layer_map={}):
     remove_handles = []
     idx = 0
     torch_modules = [module]
@@ -151,4 +151,4 @@ def _register_torch_hooker(module, layer_map):
 def _preprocess(layer, module, auto_weights, layer_map, options):
     remove_inplace(layer, module)
     if auto_weights:
-        assign_weight(layer, module, layer_map)
+        assign_weight(layer, module, layer_map={})

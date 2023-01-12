@@ -172,7 +172,7 @@ def assign_weight(layer, module, layer_map=None):
     process_each_weight(_assign_weight, layer, module, layer_map)
 
 
-def check_weight_grad(layer, module, layer_map=None, options={}):
+def check_weight_grad(layer, module, layer_map={}, options={}):
     """
     Compare weights and grads between layer(paddle) and module(torch)
 
