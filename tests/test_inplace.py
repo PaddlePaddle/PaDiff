@@ -14,10 +14,11 @@
 
 import unittest
 
+
 import paddle
 import torch
 
-from padiff import autodiff
+from padiff import auto_diff
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -53,9 +54,9 @@ class TestCaseName(unittest.TestCase):
         layer = SimpleLayer()
         module = SimpleModule()
         inp = paddle.rand((100, 100)).numpy().astype("float32")
+        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert (
-            autodiff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
-            is True
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
         ), "Failed. expected success."
 
 

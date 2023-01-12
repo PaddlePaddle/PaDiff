@@ -30,9 +30,7 @@ REQUIRED_PACKAGES = read_requirements_file("requirements.txt")
 setup(
     name="padiff",
     version=padiff.__version__,
-    description=(
-        "A tools to automatically diff precision between Paddle and Pytorch Model."
-    ),
+    description=("A tools to automatically diff precision between Paddle and Pytorch Model."),
     long_description="",
     url="https://github.com/PaddlePaddle/PaDiff",
     author="PaddlePaddle Author",
@@ -40,6 +38,8 @@ setup(
     install_requires=REQUIRED_PACKAGES,
     packages=find_packages(),
     include_package_data=True,
+    data_files=[("padiff/configs", ["padiff/configs/assign_weight.yaml"])],
+    include_data_files=True,
     python_requires=">=3.7",
     classifiers=[
         "Programming Language :: Python :: 3",

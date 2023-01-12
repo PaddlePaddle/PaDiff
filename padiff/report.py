@@ -16,8 +16,14 @@ import contextlib
 
 from .actions import get_action
 from .stack_info import print_frames
-from .utils import (TableView, TreeView, clone_tensors, for_each_grad_tensor,
-                    for_each_tensor)
+from .utils import (
+    TableView,
+    TreeView,
+    clone_tensors,
+    for_each_grad_tensor,
+    for_each_tensor,
+    log,
+)
 
 
 class Counter:
@@ -44,8 +50,13 @@ class ReportItem:
         """
         self.input is a tuple: (tensor, ...)
         """
-        self.input = clone_tensors(input)
-        self.output = clone_tensors(output)
+        # self.input = clone_tensors(input)
+        self.input = input
+        if self.type == "forward":
+            # we only clone output in forward step.
+            self.output = clone_tensors(output)
+        else:
+            self.output = output
         self.net = net
         self.net_id = net_id
         self.fwd_item = None
@@ -62,7 +73,7 @@ class ReportItem:
     def _gen_input_grads(self):
         if self.type == "forward":
             return None
-        assert input is not None, "Backward while input is None, not expected."
+        assert self.input is not None, "Backward while input is None, not expected."
 
         return [None for i in for_each_grad_tensor(self.input)]
 
@@ -147,14 +158,12 @@ def report_guard(report):
 
 def current_report():
     if global_report is None:
-        raise RuntimeError(
-            "Please call `current_report()` within contextmanager `report_guard(Report())`."
-        )
+        raise RuntimeError("Please call `current_report()` within contextmanager `report_guard(Report())`.")
     return global_report
 
 
 def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
-    print("FAILED !!!")
+    log("FAILED !!!")
     if grad:
         print(
             "    Diff found in `Backward Stage` in step: {}, net_id is {} vs {}".format(
@@ -167,11 +176,7 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
                 step_idx, paddle_item.net_id, torch_item.net_id
             )
         )
-    print(
-        "    Type of layer is  : {} vs {}".format(
-            type(torch_item.net), type(paddle_item.net)
-        )
-    )
+    log("    Type of layer is  : {} vs {}".format(type(torch_item.net), type(paddle_item.net)))
     print(str(exc))
 
     print("\n\nPaddle Stacks:")
@@ -191,6 +196,7 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
     paddle_fwd_items = paddle_rep.get_fwd_items()
     torch_fwd_items = TableView(torch_fwd_items, lambda x: x.net_id)
     paddle_tree_view = TreeView(paddle_fwd_items)
+
     assert len(torch_fwd_items) == len(
         paddle_fwd_items
     ), "Difference length of torch_fwd_items and paddel_items, make sure the paddle layer and torch module have the same valid sublayer."
@@ -198,9 +204,9 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
     backward_items = []
     # forward check
     for idx, paddle_item in enumerate(paddle_tree_view.traversal_forward()):
-        assert (
-            paddle_item.net_id in torch_fwd_items
-        ), "Torch has no corresponding module for {}".format(type(paddle_item.net))
+        assert paddle_item.net_id in torch_fwd_items, "Torch has no corresponding module for {}".format(
+            type(paddle_item.net)
+        )
         torch_item = torch_fwd_items[paddle_item.net_id]
         assert torch_item.type == paddle_item.type and paddle_item.type == "forward"
         act = get_action(torch_item.net, paddle_item.net)
@@ -211,7 +217,7 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
             print_info(paddle_item, torch_item, e, idx, grad=False)
             return False
 
-    print("forward {} steps compared.".format(len(paddle_fwd_items)))
+    log("forward {} steps compared.".format(len(paddle_fwd_items)))
 
     # backward check
     # backward_map map from id(paddle_backward_item) to torch_backward_item
@@ -231,8 +237,8 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
             print_info(paddle_item, torch_item, e, idx, grad=True)
             return False
 
-    print("bacward {} steps compared.".format(len(backward_items)))
+    log("bacward {} steps compared.".format(len(backward_items)))
 
     # total status
-    print("SUCCESS !!!")
+    log("SUCCESS !!!")
     return True

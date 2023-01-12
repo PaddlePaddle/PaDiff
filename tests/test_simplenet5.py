@@ -19,41 +19,36 @@ import torch
 
 from padiff import auto_diff
 
-"""
-测试 同一个Module / Layer被多次forward
-
-期待结果：
-Success
-"""
-
 
 class SimpleLayer(paddle.nn.Layer):
     def __init__(self):
         super(SimpleLayer, self).__init__()
-        self.linear1 = paddle.nn.Linear(100, 100)
-        self.linear2 = paddle.nn.Linear(100, 100)
+        self.linear1 = paddle.nn.Linear(100, 10)
+        self.linear2 = paddle.nn.Linear(100, 20)
+        self.linear3 = paddle.nn.Linear(100, 30)
 
     def forward(self, x):
         x1 = self.linear1(x)
-        x2 = self.linear1(x)
-        x3 = self.linear2(x)
-        return x1 + x2 + x3
+        x2 = self.linear2(x)
+        x3 = self.linear3(x)
+        return [x1, x2, x3]
 
 
 class SimpleModule(torch.nn.Module):
     def __init__(self):
         super(SimpleModule, self).__init__()
-        self.linear1 = torch.nn.Linear(100, 100)
-        self.linear2 = torch.nn.Linear(100, 100)
+        self.linear1 = torch.nn.Linear(100, 10)
+        self.linear2 = torch.nn.Linear(100, 20)
+        self.linear3 = torch.nn.Linear(100, 30)
 
     def forward(self, x):
         x1 = self.linear1(x)
-        x2 = self.linear1(x)
-        x3 = self.linear2(x)
-        return x2 + x1 + x3
+        x2 = self.linear2(x)
+        x3 = self.linear3(x)
+        return [x1, x2, x3]
 
 
-class TestCase(unittest.TestCase):
+class TestCaseName(unittest.TestCase):
     def test_success(self):
         layer = SimpleLayer()
         module = SimpleModule()
@@ -61,7 +56,7 @@ class TestCase(unittest.TestCase):
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert (
             auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
-        ), "Failed, expect success."
+        ), "Failed. expected success."
 
 
 if __name__ == "__main__":

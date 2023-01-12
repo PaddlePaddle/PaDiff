@@ -15,49 +15,59 @@
 import contextlib
 from functools import partial
 
-import numpy
 import paddle
 import torch
 
-from .report import (Report, check_forward_and_backward, current_report,
-                     report_guard)
+from .report import Report, check_forward_and_backward, current_report, report_guard
 from .stack_info import *
-from .utils import for_each_grad_tensor
+from .utils import (
+    for_each_grad_tensor,
+    log,
+    max_diff,
+    reset_log_dir,
+    tensors_mean,
+    traversal_layers,
+)
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
 
-def autodiff(layer, module, example_inp, auto_weights=True, options={}):
+def auto_diff(layer, module, example_inp, auto_weights=True, layer_map={}, options={}):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
     Args:
-        layer (paddle.nn.Layer):
-        module (torch.nn.Module):
-        example_inp (numpy.array):
-        auto_weights (boolean, optional):
+        layer (paddle.nn.Layer): paddle layer that needs compare
+        module (torch.nn.Module): torch module that needs compare
+        example_inp (paddle_input, torch_input): input data for paddle layer and torch module.
+            paddle_input and torch_input should be dict and send into net like `module(**input)`.
+        auto_weights (boolean, optional): uniformly init the parameters of models
+        layer_map (dict, optional): manually map paddle layer and torch module.
         options (dict, optional):
-            atol
+            atol, compare_mode
     Returns:
         True for success, False for failed.
     """
     assert isinstance(layer, paddle.nn.Layer), "Invalid Argument."
     assert isinstance(module, torch.nn.Module), "Invalid Argument."
-    assert isinstance(example_inp, numpy.ndarray), "Invalid Argument."
+    assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
+    log("Start auto_diff, may need a while to generate reports...")
 
+    paddle_input, torch_input = example_inp
+    assert isinstance(paddle_input, dict), "Invalid Argument."
+    assert isinstance(torch_input, dict), "Invalid Argument."
     paddle.set_device("cpu")
     module = module.to("cpu")
 
-    _preprocess(layer, module, example_inp, auto_weights, options)
+    reset_log_dir()
+    _preprocess(layer, module, auto_weights, layer_map, options)
 
     torch_report = Report("torch")
     paddle_report = Report("paddle")
     with report_guard(torch_report):
-        with _register_torch_hooker(module):
+        with _register_torch_hooker(module, layer_map):
             try:
-                torch_input = torch.as_tensor(example_inp)
-                torch_input.requires_grad = True
-                torch_output = module(torch_input)
-                loss = torch_output.mean()
+                torch_output = module(**torch_input)
+                loss = tensors_mean(torch_output, "torch")
                 loss.backward()
             except Exception as e:
                 raise RuntimeError(
@@ -67,12 +77,10 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
                 )
 
     with report_guard(paddle_report):
-        with _register_paddle_hooker(layer):
+        with _register_paddle_hooker(layer, layer_map):
             try:
-                paddle_input = paddle.to_tensor(example_inp)
-                paddle_input.stop_gradient = False
-                paddle_output = layer(paddle_input)
-                loss = paddle_output.mean()
+                paddle_output = layer(**paddle_input)
+                loss = tensors_mean(paddle_output, "paddle")
                 loss.backward()
             except Exception as e:
                 raise RuntimeError(
@@ -81,15 +89,14 @@ def autodiff(layer, module, example_inp, auto_weights=True, options={}):
                     )
                 )
 
-    print(
-        "Max output diff is {}\n".format(
-            numpy.abs(paddle_output.numpy() - torch_output.detach().numpy()).max()
-        )
-    )
+    log("Max elementwise output diff is {}\n".format(max_diff(paddle_output, torch_output)))
 
-    weight_check, grad_check = check_weight_grad(layer, module, options)
+    weight_check, grad_check = check_weight_grad(layer, module, layer_map=layer_map, options=options)
     ret = check_forward_and_backward(torch_report, paddle_report, options)
     ret = ret and weight_check and grad_check
+
+    # TODO(linjieccc): pytest failed if log clean is enabled
+    # clean_log_dir()
     return ret
 
 
@@ -111,29 +118,37 @@ def layer_hook(module, input, output, idx):
 
 
 @contextlib.contextmanager
-def _register_paddle_hooker(layer):
+def _register_paddle_hooker(layer, layer_map={}):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
-    for idx, mod in enumerate(layer.sublayers(True)):
+    idx = 0
+    paddle_layers = [layer]
+    traversal_layers(paddle_layers, layer, layer_map)
+    for mod in paddle_layers:
         handle = mod.register_forward_post_hook(partial(layer_hook, idx=idx))
         remove_handles.append(handle)
+        idx += 1
     yield
     for h in remove_handles:
         h.remove()
 
 
 @contextlib.contextmanager
-def _register_torch_hooker(module):
+def _register_torch_hooker(module, layer_map={}):
     remove_handles = []
-    for idx, mod in enumerate(module.modules()):
+    idx = 0
+    torch_modules = [module]
+    traversal_layers(torch_modules, module, layer_map)
+    for mod in torch_modules:
         handle = mod.register_forward_hook(partial(layer_hook, idx=idx))
         remove_handles.append(handle)
+        idx += 1
     yield
     for h in remove_handles:
         h.remove()
 
 
-def _preprocess(layer, module, example_inp, auto_weights, options):
+def _preprocess(layer, module, auto_weights, layer_map, options):
     remove_inplace(layer, module)
     if auto_weights:
-        assign_weight(layer, module)
+        assign_weight(layer, module, layer_map=layer_map)

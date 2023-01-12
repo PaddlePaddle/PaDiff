@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import sys
+import shutil
 import warnings
 from collections import namedtuple
 from itertools import zip_longest
 
+import numpy as np
 import paddle
 import torch
 from paddle.fluid.layers.utils import flatten
@@ -67,13 +71,9 @@ def map_for_each_weight(fn, layer, module):
     """
     Automatically fill weights by randn.
     """
-    for paddle_sublayer, torch_submodule in zip_longest(
-        layer.sublayers(True), module.modules(), fillvalue=None
-    ):
+    for paddle_sublayer, torch_submodule in zip_longest(layer.sublayers(True), module.modules(), fillvalue=None):
         if paddle_sublayer is None or torch_submodule is None:
-            raise RuntimeError(
-                "Torch and Paddle return difference number of sublayers. Check your model."
-            )
+            raise RuntimeError("Torch and Paddle return difference number of sublayers. Check your model.")
         for (name, paddle_param), torch_param in zip(
             paddle_sublayer.named_parameters("", False),
             torch_submodule.parameters(False),
@@ -85,9 +85,7 @@ def map_for_each_sublayer(fn, layer, module):
     """
     Automatically fill weights by randn.
     """
-    for paddle_sublayer, torch_submodule in zip(
-        layer.sublayers(True), module.modules()
-    ):
+    for paddle_sublayer, torch_submodule in zip(layer.sublayers(True), module.modules()):
         fn(paddle_sublayer, torch_submodule)
 
 
@@ -117,22 +115,45 @@ def is_sublayer(father_net, child_net):
     """
     return True if child_net is the DIRECTL children of father_net.
     """
-    if isinstance(father_net, torch.nn.Module) and isinstance(
-        child_net, torch.nn.Module
-    ):
+
+    def _is_sublayer_torch(father_net, child_net):
         for child in father_net.children():
-            if id(child) == id(child_net):
-                return True
+            if isinstance(child, torch.nn.Sequential):
+                if _is_sublayer_torch(child, child_net):
+                    return True
+            else:
+                if id(child) == id(child_net):
+                    return True
         return False
-    elif isinstance(father_net, paddle.nn.Layer) and isinstance(
-        child_net, paddle.nn.Layer
-    ):
+
+    def _is_sublayer_paddle(father_net, child_net):
         for _, child in father_net.named_children():
-            if id(child) == id(child_net):
-                return True
+            if isinstance(child, paddle.nn.Sequential):
+                if _is_sublayer_paddle(child, child_net):
+                    return True
+            else:
+                if id(child) == id(child_net):
+                    return True
+        return False
+
+    if isinstance(father_net, torch.nn.Module) and isinstance(child_net, torch.nn.Module):
+        if _is_sublayer_torch(father_net, child_net):
+            return True
+        return False
+    elif isinstance(father_net, paddle.nn.Layer) and isinstance(child_net, paddle.nn.Layer):
+        if _is_sublayer_paddle(father_net, child_net):
+            return True
         return False
     else:
         raise RuntimeError("father net is not Module / Layer")
+
+
+def traversal_layers(layers, cur_net, layer_map):
+    for child in cur_net.children():
+        if not (isinstance(child, torch.nn.Sequential) or isinstance(child, paddle.nn.Sequential)):
+            layers.append(child)
+        if child.__class__.__name__ not in layer_map.keys() and child.__class__.__name__ not in layer_map.values():
+            traversal_layers(layers, child, layer_map)
 
 
 class TableView:
@@ -148,9 +169,7 @@ class TableView:
             if key(item) not in self.view:
                 self.view[key(item)] = [item]
             else:
-                warnings.warn(
-                    "Warning: duplicate key is found, use list + pop strategy."
-                )
+                warnings.warn("Warning: duplicate key is found, use list + pop strategy.")
                 self.view[key(item)].append(item)
 
     def __getitem__(self, key):
@@ -167,10 +186,12 @@ class TableView:
 
 class TreeView:
     """
-      wrap items as a tree structure:
-      [1, 2, 3, 4, 5, 6]
-      the last item is the root of the layers.
-      if the child is 2 and 5, then we can construct a tree:
+    This class is used to organize ReportItems in order of backward process
+
+    wrap items as a tree structure:
+    [1, 2, 3, 4, 5, 6]
+    the last item is the root of the layers.
+    if the child is 2 and 5, then we can construct a tree:
       6
       |---------|
       2         5
@@ -228,3 +249,86 @@ class TreeView:
 
         for item in _traversal_backward(self.root):
             yield item
+
+
+diff_log_path = os.path.join(sys.path[0], "diff_log")
+
+
+def reset_log_dir():
+    if os.path.exists(diff_log_path):
+        shutil.rmtree(diff_log_path)
+    os.makedirs(diff_log_path)
+
+
+def clean_log_dir():
+    if not os.listdir(diff_log_path):
+        os.rmdir(diff_log_path)
+
+
+def tensors_mean(inp, mode):
+    """
+    TODO(wuzhanfei): This function is used to calcu loss in same way for paddle layer and torch module
+    need to support real opt later
+    """
+    if isinstance(inp, torch.Tensor) or isinstance(inp, paddle.Tensor):
+        return inp.mean()
+
+    if mode == "torch":
+        means = []
+        for t in for_each_tensor(inp):
+            means.append(t[0].mean())
+        loss = torch.stack(means).mean()
+        return loss
+    elif mode == "paddle":
+        means = []
+        for t in for_each_tensor(inp):
+            means.append(t[0].mean())
+        loss = paddle.stack(means).mean()
+        return loss
+    else:
+        raise RuntimeError("unrecognized mode `{}`, expected: `torch` or `paddle`".format(mode))
+
+
+def max_diff(paddle_output, torch_output):
+    p_values = []
+    t_values = []
+    for t in for_each_tensor(paddle_output):
+        p_values.append(t[0])
+    for t in for_each_tensor(torch_output):
+        t_values.append(t[0])
+
+    _max_diff = 0
+    for (pt, tt) in zip(p_values, t_values):
+        temp = np.abs(tt.detach().numpy() - pt.numpy()).max()
+        if temp > _max_diff:
+            _max_diff = temp
+
+    return _max_diff
+
+
+def log(*args):
+    print("[AutoDiff]", *args)
+
+
+def compare_tensor(tensor1, tensor2, atol=1e-7, compare_mode="mean"):
+    if tensor1 is None and tensor2 is None:
+        return True
+    if compare_mode == "strict":
+        return np.allclose(tensor1, tensor2, atol=atol)
+    elif compare_mode == "mean":
+        mean_diff = np.abs(np.mean(tensor1 - tensor2))
+        return bool(mean_diff < atol)
+    else:
+        raise RuntimeError("compare_mode `{}` is not supported, use `strict` or `mean` instead".format(compare_mode))
+
+
+def assert_tensor_equal(tensor1, tensor2, atol=1e-7, compare_mode="mean"):
+    """if equal: return None
+    else: raise Error and Error Message.
+    """
+    if tensor1 is None and tensor2 is None:
+        return True
+    if compare_mode == "mean":
+        np.testing.assert_allclose(tensor1.mean(), tensor2.mean(), atol=atol)
+    elif compare_mode == "strict":
+        np.testing.assert_allclose(tensor1, tensor2, atol=atol)

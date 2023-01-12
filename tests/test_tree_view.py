@@ -17,7 +17,7 @@ import unittest
 import paddle
 import torch
 
-from padiff.autodiff import _register_torch_hooker
+from padiff.auto_diff import _register_torch_hooker
 from padiff.report import Report, report_guard
 from padiff.utils import TreeView
 
