@@ -50,9 +50,13 @@ class ReportItem:
         """
         self.input is a tuple: (tensor, ...)
         """
-        #self.input = clone_tensors(input)
+        # self.input = clone_tensors(input)
         self.input = input
-        self.output = clone_tensors(output)
+        if self.type == 'forward': 
+            #we only clone output in forward step.
+            self.output = clone_tensors(output)
+        else: 
+            self.output = output
         self.net = net
         self.net_id = net_id
         self.fwd_item = None
