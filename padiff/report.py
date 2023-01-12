@@ -166,13 +166,13 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
     log("FAILED !!!")
     if grad:
         log(
-            "    Diff found in `Backward Stagy` in step: {}, net_id is {} vs {}".format(
+            "    Diff found in `Backward Stage` in step: {}, net_id is {} vs {}".format(
                 step_idx, paddle_item.net_id, torch_item.net_id
             )
         )
     else:
         log(
-            "    Diff found in `Forward  Stagy` in step: {}, net_id is {} vs {}".format(
+            "    Diff found in `Forward  Stage` in step: {}, net_id is {} vs {}".format(
                 step_idx, paddle_item.net_id, torch_item.net_id
             )
         )
@@ -199,7 +199,7 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
 
     assert len(torch_fwd_items) == len(
         paddle_fwd_items
-    ), "Difference length of torch_fwd_items and paddel_items, make sure the paddle layer and torch module have the same valid sublayer."
+    ), "Difference length of torch_fwd_items and paddle_items, make sure the paddle layer and torch module have the same valid sublayer."
 
     backward_items = []
     # forward check
