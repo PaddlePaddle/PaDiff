@@ -194,11 +194,12 @@ def check_weight_grad(layer, module, options):
         )
         p_param = paddle_param.numpy()
         t_param = torch_param.detach().numpy()
-        p_grad = paddle_param.grad.numpy()
-        t_grad = torch_param.grad.detach().numpy()
+        p_grad = paddle_param.grad.numpy() if paddle_param.grad is not None else None
+        t_grad = torch_param.grad.detach().numpy() if torch_param.grad is not None else None
         if settings["transpose"]:
             t_param = numpy.transpose(t_param)
-            t_grad = numpy.transpose(t_grad)
+            if t_grad is not None:
+                t_grad = numpy.transpose(t_grad)
 
         weight_log_path = os.path.join(sys.path[0], "diff_log", "weight_diff.log")
         grad_log_path = os.path.join(sys.path[0], "diff_log", "grad_diff.log")
