@@ -136,7 +136,7 @@ def _shape_check(
     ).format(param_name, p_shape, t_shape, paddle_sublayer, torch_submodule)
 
 
-def assign_weight(layer, module, layer_map=None):
+def assign_weight(layer, module, layer_map={}):
     """
     Init weights of layer(paddle) and module(torch) with same value
 

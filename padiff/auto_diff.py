@@ -118,7 +118,7 @@ def layer_hook(module, input, output, idx):
 
 
 @contextlib.contextmanager
-def _register_paddle_hooker(layer, layer_map):
+def _register_paddle_hooker(layer, layer_map={}):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
@@ -151,4 +151,4 @@ def _register_torch_hooker(module, layer_map={}):
 def _preprocess(layer, module, auto_weights, layer_map, options):
     remove_inplace(layer, module)
     if auto_weights:
-        assign_weight(layer, module, layer_map={})
+        assign_weight(layer, module, layer_map=layer_map)
