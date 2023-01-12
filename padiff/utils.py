@@ -311,7 +311,8 @@ def log(*args):
 
 
 def compare_tensor(tensor1, tensor2, atol=1e-7, compare_mode="mean"):
-
+    if tensor1 is None and tensor2 is None:
+        return True
     if compare_mode == "strict":
         return np.allclose(tensor1, tensor2, atol=atol)
     elif compare_mode == "mean":
@@ -319,3 +320,15 @@ def compare_tensor(tensor1, tensor2, atol=1e-7, compare_mode="mean"):
         return bool(mean_diff < atol)
     else:
         raise RuntimeError("compare_mode `{}` is not supported, use `strict` or `mean` instead".format(compare_mode))
+
+
+def assert_tensor_equal(tensor1, tensor2, atol=1e-7, compare_mode="mean"):
+    """if equal: return None
+    else: raise Error and Error Message.
+    """
+    if tensor1 is None and tensor2 is None:
+        return True
+    if compare_mode == "mean":
+        np.testing.assert_allclose(tensor1.mean(), tensor2.mean(), atol=atol)
+    elif compare_mode == "strict":
+        np.testing.assert_allclose(tensor1, tensor2, atol=atol)

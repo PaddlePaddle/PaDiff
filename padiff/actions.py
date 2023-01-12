@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .utils import compare_tensor
+from .utils import assert_tensor_equal
 import torch
 import paddle
 
@@ -76,12 +76,9 @@ class EqualAction(Action):
         torch_tensors = torch_item.compare_tensors()
         paddle_tensors = paddle_item.compare_tensors()
         for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):
-            assert (
-                compare_tensor(
-                    tt.detach().numpy(),
-                    pt.numpy(),
-                    atol=atol,
-                    compare_mode=compare_mode,
-                )
-                == True
+            assert_tensor_equal(
+                tt.detach().numpy(),
+                pt.numpy(),
+                atol=atol,
+                compare_mode=compare_mode,
             )
