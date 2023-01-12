@@ -52,10 +52,10 @@ class ReportItem:
         """
         # self.input = clone_tensors(input)
         self.input = input
-        if self.type == 'forward': 
-            #we only clone output in forward step.
+        if self.type == "forward":
+            # we only clone output in forward step.
             self.output = clone_tensors(output)
-        else: 
+        else:
             self.output = output
         self.net = net
         self.net_id = net_id
