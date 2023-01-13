@@ -155,7 +155,6 @@ def traversal_layers(net, layer_map):
             yield child
         ignore_sublayer = False
         for key, val in layer_map.items():
-            cls_name = child.__class__.__name__
             if id(child) == id(key) or id(child) == id(val):
                 ignore_sublayer = True
         if not ignore_sublayer:
