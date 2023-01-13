@@ -18,7 +18,7 @@ from functools import partial
 import paddle
 import torch
 
-from .report import Report, check_forward_and_backward, current_report, report_guard
+from .report import Report, check_forward_and_backward, current_torch_report, current_paddle_report, report_guard
 from .stack_info import *
 from .utils import (
     for_each_grad_tensor,
@@ -27,6 +27,7 @@ from .utils import (
     reset_log_dir,
     tensors_mean,
     traversal_layers,
+    map_structure_and_replace_key,
 )
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
@@ -63,8 +64,8 @@ def auto_diff(layer, module, example_inp, auto_weights=True, layer_map={}, optio
 
     torch_report = Report("torch")
     paddle_report = Report("paddle")
-    with report_guard(torch_report):
-        with _register_torch_hooker(module, layer_map):
+    with report_guard(torch_report, paddle_report):
+        with _register_torch_hooker(module, layer_map, options):
             try:
                 torch_output = module(**torch_input)
                 loss = tensors_mean(torch_output, "torch")
@@ -76,8 +77,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, layer_map={}, optio
                     )
                 )
 
-    with report_guard(paddle_report):
-        with _register_paddle_hooker(layer, layer_map):
+        with _register_paddle_hooker(layer, layer_map, options):
             try:
                 paddle_output = layer(**paddle_input)
                 loss = tensors_mean(paddle_output, "paddle")
@@ -106,8 +106,8 @@ def tensor_hook(x_grad, bwd_item, nth_tensor):
     return x_grad
 
 
-def layer_hook(module, input, output, idx):
-    rep = current_report()
+def torch_layer_hook(module, input, output, idx, options):
+    rep = current_torch_report()
     frame_info, frames = extract_frame_summary()
     fwd_item = rep.put_item("forward", input, output, module, idx, frame_info, frames)
     bwd_item = rep.put_item("backward", input, output, module, idx, frame_info, frames)
@@ -117,15 +117,41 @@ def layer_hook(module, input, output, idx):
     return None
 
 
+def paddle_layer_hook(module, input, output, idx, options):
+    p_rep = current_paddle_report()
+    frame_info, frames = extract_frame_summary()
+    fwd_item = p_rep.put_item("forward", input, output, module, idx, frame_info, frames)
+    bwd_item = p_rep.put_item("backward", input, output, module, idx, frame_info, frames)
+    bwd_item.set_forward(fwd_item)
+    for i, (t,) in enumerate(for_each_grad_tensor(input)):
+        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
+
+    if options.get("single_step", False):
+        t_rep = current_torch_report()
+        t_fwd_item = t_rep.find_item(p_rep, idx)
+
+        def tt2pt(tt):
+            if isinstance(tt, torch.Tensor):
+                return paddle.to_tensor(tt.detach().numpy())
+            else:
+                return tt
+
+
+        # return map_structure(tt2pt, t_fwd_item.output)
+        return map_structure_and_replace_key(tt2pt, [t_fwd_item.output], output)
+    else:
+        return None
+
+
 @contextlib.contextmanager
-def _register_paddle_hooker(layer, layer_map={}):
+def _register_paddle_hooker(layer, layer_map={}, options={}):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
     paddle_layers = [layer]
     traversal_layers(paddle_layers, layer, layer_map)
     for mod in paddle_layers:
-        handle = mod.register_forward_post_hook(partial(layer_hook, idx=idx))
+        handle = mod.register_forward_post_hook(partial(paddle_layer_hook, idx=idx, options=options))
         remove_handles.append(handle)
         idx += 1
     yield
@@ -134,13 +160,13 @@ def _register_paddle_hooker(layer, layer_map={}):
 
 
 @contextlib.contextmanager
-def _register_torch_hooker(module, layer_map={}):
+def _register_torch_hooker(module, layer_map={}, options={}):
     remove_handles = []
     idx = 0
     torch_modules = [module]
     traversal_layers(torch_modules, module, layer_map)
     for mod in torch_modules:
-        handle = mod.register_forward_hook(partial(layer_hook, idx=idx))
+        handle = mod.register_forward_hook(partial(torch_layer_hook, idx=idx, options=options))
         remove_handles.append(handle)
         idx += 1
     yield

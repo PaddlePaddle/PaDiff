@@ -19,7 +19,7 @@ from .stack_info import print_frames
 from .utils import (
     TableView,
     TreeView,
-    clone_tensors,
+    clone_structure,
     for_each_grad_tensor,
     for_each_tensor,
     log,
@@ -54,7 +54,7 @@ class ReportItem:
         self.input = input
         if self.type == "forward":
             # we only clone output in forward step.
-            self.output = clone_tensors(output)
+            self.output = clone_structure(output)
         else:
             self.output = output
         self.net = net
@@ -107,9 +107,10 @@ class Report:
     def __init__(self, name):
         self.name = name
         self.items = []
+        self.counter = None
 
     def put_item(self, type, input, output, net, net_id, frame_info, frames):
-        step = global_counter.get_id()
+        step = self.counter.get_id()
         self.items.append(
             ReportItem(
                 type=type,
@@ -128,6 +129,11 @@ class Report:
         sorted(self.items, key=lambda x: x.step)
         return list(filter(lambda x: x.type == "forward", self.items))
 
+    def find_item(self, p_report, net_id):
+        tlist = list(filter(lambda x: x.type == "forward" and x.net_id == net_id, self.items))
+        plist = list(filter(lambda x: x.type == "forward" and x.net_id == net_id, p_report.items))
+        return tlist[len(plist) - 1]
+
     def __repr__(self):
         return self.__str__()
 
@@ -140,26 +146,46 @@ class Report:
         return "\n".join(strings)
 
 
-global_report = None
-global_counter = Counter()
+global_torch_report = None
+global_paddle_report = None
+global_torch_counter = Counter()
+global_paddle_counter = Counter()
 
 
 @contextlib.contextmanager
-def report_guard(report):
-    global global_report
-    old = global_report
+def report_guard(torch_report, paddle_report):
+    global global_torch_report, global_paddle_report
+    old_t = global_torch_report
+    old_p = global_paddle_report
     try:
-        global_report = report
-        global_counter.clear()
+        global_torch_report = torch_report
+        global_paddle_report = paddle_report
+        torch_report.counter = global_torch_counter
+        paddle_report.counter = global_paddle_counter
+        torch_report.counter.clear()
+        paddle_report.counter.clear()
         yield
     finally:
-        global_report = old
+        global_torch_report = old_t
+        global_paddle_report = old_p
+        torch_report.counter = None
+        paddle_report.counter = None
 
 
-def current_report():
-    if global_report is None:
-        raise RuntimeError("Please call `current_report()` within contextmanager `report_guard(Report())`.")
-    return global_report
+def current_paddle_report():
+    if global_paddle_report is None:
+        raise RuntimeError(
+            "Please call `current_paddle_report()` within contextmanager `report_guard(Report(), Report())`."
+        )
+    return global_paddle_report
+
+
+def current_torch_report():
+    if global_torch_report is None:
+        raise RuntimeError(
+            "Please call `current_torch_report()` within contextmanager `report_guard(Report(), Report())`."
+        )
+    return global_torch_report
 
 
 def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
@@ -214,10 +240,17 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
             backward_items.append([torch_item.bwd_item, paddle_item.bwd_item])
             act(torch_item, paddle_item, cfg)
         except Exception as e:
+            if cfg.get("single_step", False):
+                log("Under single_step mode:")
             print_info(paddle_item, torch_item, e, idx, grad=False)
             return False
 
     log("forward {} steps compared.".format(len(paddle_fwd_items)))
+
+    if cfg.get("single_step", False):
+        log("In single_step mode, backward compare is skipped.")
+        log("SUCCESS !!!")
+        return True
 
     # backward check
     # backward_map map from id(paddle_backward_item) to torch_backward_item

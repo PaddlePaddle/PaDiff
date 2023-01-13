@@ -22,7 +22,7 @@ from itertools import zip_longest
 import numpy as np
 import paddle
 import torch
-from paddle.fluid.layers.utils import flatten
+from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
 
 
 def is_tensor(x):
@@ -89,14 +89,26 @@ def map_for_each_sublayer(fn, layer, module):
         fn(paddle_sublayer, torch_submodule)
 
 
-def _clone_tensor(tensor):
+def map_structure_and_replace_key(func, structure1, structure2):
+    """
+    Apply `func` to each entry in `structure` and return a new structure.
+    """
+    flat_structure = [flatten(s) for s in structure1]
+    entries = zip(*flat_structure)
+    return pack_sequence_as(structure2, [func(*x) for x in entries])
+
+
+def _clone_tensor(inp):
     """
     clone into cpu to save GPU memory.
     """
-    new_t = tensor.detach().cpu().clone()
-    if is_require_grad(tensor):
-        set_require_grad(new_t)
-    return new_t
+    if isinstance(inp, (torch.Tensor, paddle.Tensor)):
+        new_t = inp.detach().cpu().clone()
+        if is_require_grad(inp):
+            set_require_grad(new_t)
+        return new_t
+    else:
+        return input
 
 
 def clone_tensors(inputs):
@@ -109,6 +121,13 @@ def clone_tensors(inputs):
     for (t,) in for_each_tensor(inputs):
         cloned_inputs.append(_clone_tensor(t))
     return cloned_inputs
+
+
+def clone_structure(inputs):
+    """
+    Clone a nested structure.
+    """
+    return map_structure(_clone_tensor, inputs)
 
 
 def is_sublayer(father_net, child_net):
@@ -299,7 +318,7 @@ def max_diff(paddle_output, torch_output):
 
     _max_diff = 0
     for (pt, tt) in zip(p_values, t_values):
-        temp = np.abs(tt.detach().numpy() - pt.numpy()).max()
+        temp = np.abs(tt.detach().numpy() - pt.detach().numpy()).max()
         if temp > _max_diff:
             _max_diff = temp
 

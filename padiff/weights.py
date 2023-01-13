@@ -183,6 +183,10 @@ def check_weight_grad(layer, module, layer_map={}, options={}):
         options (dict, optional):
             atol, compare_mode
     """
+    if options.get("single_step", False):
+        log("In single_step mode, weight and grad check is skipped.")
+        return True, True
+
     _weight_check = True
     _grad_check = True
 
