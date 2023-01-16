@@ -138,6 +138,7 @@ def paddle_layer_hook(module, input, output, idx, options):
                 return paddle.to_tensor(tt.detach().numpy())
             else:
                 return tt
+
         return map_structure_and_replace_key(tt2pt, [t_fwd_item.output], output)
     else:
         return None
