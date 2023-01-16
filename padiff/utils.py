@@ -372,6 +372,8 @@ def init_options(options):
         options["compare_mode"] = "mean"
     if "single_step" not in options.keys():
         options["single_step"] = False
+    if "debug" not in options.keys():
+        options["debug"] = False
 
     if options["single_step"]:
         options["diff_phase"] = "forward"
