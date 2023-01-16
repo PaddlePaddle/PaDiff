@@ -32,9 +32,13 @@ pip install -e .
 
 -   options：一个传递参数的字典
 
-       -   "atol": 精度对齐的误差上限
+       -   "atol": 绝对精度误差上限，默认值为 `0`
 
-       -   "compare_mode": 精度对齐模式，默认值为"mean"，表示使用Tensor间误差的均值作为对齐标准，要求 mean(a-b) < atol；另一个可选项为"strict"，表示对Tensor进行逐数据（Elementwise）的对齐检查
+       -   "rtol": 相对精度误差上限，默认值为 `1e-7`
+
+       -   "compare_mode": 精度对齐模式，默认值为"mean"，表示使用Tensor间误差的均值作为对齐标准，另一个可选项为"strict"，表示对Tensor进行逐数据（Elementwise）的对齐检查
+
+       -   "single_step": `True|False` 默认为 `False`，是否使用单步对齐模式。在该模式下，paddle模型中每一个sublayer的input由torch模型中对应的input对齐，可以避免层间误差累积的影响。注意：开启single_step后将不会触发backward过程
 
 ### 注意事项与用例代码：
 
@@ -88,7 +92,7 @@ module = SimpleModule()
 inp = paddle.rand((100, 100)).numpy().astype("float32")
 inp = ({'x': paddle.to_tensor(inp)},  ## <-- 注意顺序，paddle_input, torch_input 的形式。
        {'y': torch.as_tensor(inp) })
-auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'compare_mode': 'strict'})
+auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0, 'compare_mode': 'strict', 'single_step':False})
 ```
 
 ## 输出信息示例
