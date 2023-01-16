@@ -19,7 +19,7 @@ import paddle
 import torch
 
 from padiff import auto_diff
-from padiff.utils import reset_log_dir
+from padiff.utils import reset_log_dir, init_options
 from padiff.weights import check_weight_grad
 
 
@@ -69,29 +69,27 @@ class TestCaseName(unittest.TestCase):
     def test_check_weight_grad(self):
         layer = SimpleLayer()
         module = SimpleModule()
+        options = {"atol": 1e-4}
+        init_options(options)
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
-        ), "Failed. expected success."
+        assert auto_diff(layer, module, inp, auto_weights=True, options=options) is True, "Failed. expected success."
 
         module.zero_grad()
         reset_log_dir()
-        weight_check, grad_check = check_weight_grad(layer, module, options={"atol": 1e-4})
+        weight_check, grad_check = check_weight_grad(layer, module, options=options)
         assert weight_check is True, "Weight params should be same"
         assert grad_check is False, "Grad should be different"
 
         layer = SimpleLayer()
         module = SimpleModule()
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
-        ), "Failed. expected success."
+        assert auto_diff(layer, module, inp, auto_weights=True, options=options) is True, "Failed. expected success."
 
         for param in module.parameters():
             param.data = param * 2
         reset_log_dir()
-        weight_check, grad_check = check_weight_grad(layer, module, options={"atol": 1e-4})
+        weight_check, grad_check = check_weight_grad(layer, module, options=options)
         assert weight_check is False, "Weight params should be different"
         assert grad_check is True, "Grad should be same"
 

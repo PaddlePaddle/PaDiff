@@ -71,9 +71,9 @@ class EqualAction(Action):
         """
         NOTE:
         """
-        atol = cfg.get("atol", 0)
-        rtol = cfg.get("rtol", 1e-7)
-        compare_mode = cfg.get("compare_mode", "mean")
+        atol = cfg["atol"]
+        rtol = cfg["rtol"]
+        compare_mode = cfg["compare_mode"]
         torch_tensors = torch_item.compare_tensors()
         paddle_tensors = paddle_item.compare_tensors()
         for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):

@@ -28,11 +28,12 @@ from .utils import (
     tensors_mean,
     traversal_layers,
     map_structure_and_replace_key,
+    init_options,
 )
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
 
-def auto_diff(layer, module, example_inp, auto_weights=True, layer_map={}, options={}):
+def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_map={}):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
@@ -42,9 +43,9 @@ def auto_diff(layer, module, example_inp, auto_weights=True, layer_map={}, optio
         example_inp (paddle_input, torch_input): input data for paddle layer and torch module.
             paddle_input and torch_input should be dict and send into net like `module(**input)`.
         auto_weights (boolean, optional): uniformly init the parameters of models
-        layer_map (dict, optional): manually map paddle layer and torch module.
         options (dict, optional):
             atol, compare_mode
+        layer_map (dict, optional): manually map paddle layer and torch module.
     Returns:
         True for success, False for failed.
     """
@@ -60,16 +61,18 @@ def auto_diff(layer, module, example_inp, auto_weights=True, layer_map={}, optio
     module = module.to("cpu")
 
     reset_log_dir()
-    _preprocess(layer, module, auto_weights, layer_map, options)
+    init_options(options)
+    _preprocess(layer, module, auto_weights, options, layer_map)
 
     torch_report = Report("torch")
     paddle_report = Report("paddle")
     with report_guard(torch_report, paddle_report):
-        with _register_torch_hooker(module, layer_map, options):
+        with _register_torch_hooker(module, options, layer_map):
             try:
                 torch_output = module(**torch_input)
                 loss = tensors_mean(torch_output, "torch")
-                loss.backward()
+                if options["diff_phase"] == "both":
+                    loss.backward()
             except Exception as e:
                 raise RuntimeError(
                     "Exception is thrown while running forward of torch_module, please check the legality of module.\n{}".format(
@@ -77,11 +80,12 @@ def auto_diff(layer, module, example_inp, auto_weights=True, layer_map={}, optio
                     )
                 )
 
-        with _register_paddle_hooker(layer, layer_map, options):
+        with _register_paddle_hooker(layer, options, layer_map):
             try:
                 paddle_output = layer(**paddle_input)
                 loss = tensors_mean(paddle_output, "paddle")
-                loss.backward()
+                if options["diff_phase"] == "both":
+                    loss.backward()
             except Exception as e:
                 raise RuntimeError(
                     "Exception is thrown while running forward of paddle_layer, please check the legality of layer.\n{}".format(
@@ -126,7 +130,7 @@ def paddle_layer_hook(module, input, output, idx, options):
     for i, (t,) in enumerate(for_each_grad_tensor(input)):
         t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
 
-    if options.get("single_step", False):
+    if options["single_step"]:
         t_rep = current_torch_report()
         t_fwd_item = t_rep.find_item(p_rep, idx)
 
@@ -142,7 +146,7 @@ def paddle_layer_hook(module, input, output, idx, options):
 
 
 @contextlib.contextmanager
-def _register_paddle_hooker(layer, layer_map={}, options={}):
+def _register_paddle_hooker(layer, options, layer_map={}):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
@@ -158,7 +162,7 @@ def _register_paddle_hooker(layer, layer_map={}, options={}):
 
 
 @contextlib.contextmanager
-def _register_torch_hooker(module, layer_map={}, options={}):
+def _register_torch_hooker(module, options, layer_map={}):
     remove_handles = []
     idx = 0
     modules = [module]
@@ -172,7 +176,7 @@ def _register_torch_hooker(module, layer_map={}, options={}):
         h.remove()
 
 
-def _preprocess(layer, module, auto_weights, layer_map, options):
+def _preprocess(layer, module, auto_weights, options, layer_map):
     remove_inplace(layer, module)
     if auto_weights:
-        assign_weight(layer, module, layer_map=layer_map)
+        assign_weight(layer, module, options=options, layer_map=layer_map)
