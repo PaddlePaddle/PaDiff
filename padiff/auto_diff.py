@@ -31,6 +31,9 @@ from .utils import (
 )
 from .weights import assign_weight, check_weight_grad, remove_inplace
 
+paddle.set_printoptions(precision=10)
+torch.set_printoptions(precision=10)
+
 
 def auto_diff(layer, module, example_inp, auto_weights=True, layer_map={}, options={}):
     """
