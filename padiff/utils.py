@@ -108,7 +108,7 @@ def _clone_tensor(inp):
             set_require_grad(new_t)
         return new_t
     else:
-        return input
+        return inp
 
 
 def clone_tensors(inputs):

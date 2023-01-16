@@ -31,6 +31,7 @@ from .utils import (
     init_options,
 )
 from .weights import assign_weight, check_weight_grad, remove_inplace
+from .cmd import PaDiff_Cli
 
 paddle.set_printoptions(precision=10)
 torch.set_printoptions(precision=10)
@@ -101,6 +102,9 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
     weight_check, grad_check = check_weight_grad(layer, module, layer_map=layer_map, options=options)
     ret = check_forward_and_backward(torch_report, paddle_report, options)
     ret = ret and weight_check and grad_check
+
+    if options["cli"]:
+        PaDiff_Cli(paddle_report, torch_report, options).cmdloop()
 
     # TODO(linjieccc): pytest failed if log clean is enabled
     # clean_log_dir()
