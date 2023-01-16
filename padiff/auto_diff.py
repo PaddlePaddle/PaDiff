@@ -136,7 +136,6 @@ def paddle_layer_hook(module, input, output, idx, options):
             else:
                 return tt
 
-        # return map_structure(tt2pt, t_fwd_item.output)
         return map_structure_and_replace_key(tt2pt, [t_fwd_item.output], output)
     else:
         return None

@@ -36,7 +36,7 @@ def process_each_weight(process, layer, module, layer_map, options={}):
         module (torch.nn.Module): input torch module
         layer_map (dict, optional): manually map paddle layer and torch module.
         options (dict, optional):
-            atol, compare_mode
+            atol, rtol, compare_mode, single_step
     """
     yaml_path = osp.join(osp.dirname(__file__), "configs", "assign_weight.yaml")
     with open(yaml_path, "r") as yaml_file:
@@ -56,7 +56,8 @@ def process_each_weight(process, layer, module, layer_map, options={}):
     ):
         assign_config = yamls["assign_yaml"].get(paddle_sublayer.__class__.__name__, None)
         settings = {
-            "atol": options.get("atol", 1e-7),
+            "atol": options.get("atol", 0),
+            "rtol": options.get("rtol", 1e-7),
             "transpose": False,
             "compare_mode": options.get("compare_mode", "mean"),
         }
@@ -220,9 +221,12 @@ def check_weight_grad(layer, module, layer_map={}, options={}):
             p_param,
             t_param,
             atol=settings["atol"],
+            rtol=settings["rtol"],
             compare_mode=settings["compare_mode"],
         )
-        _grad_check = compare_tensor(p_grad, t_grad, atol=settings["atol"], compare_mode=settings["compare_mode"])
+        _grad_check = compare_tensor(
+            p_grad, t_grad, atol=settings["atol"], rtol=settings["rtol"], compare_mode=settings["compare_mode"]
+        )
 
         if _weight_check is False:
             with open(weight_log_path, "a") as f:
@@ -263,8 +267,6 @@ def remove_inplace(layer, module):
     Args:
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
-        options (dict, optional):
-            atol, compare_mode
     """
 
     def _remove_inplace(layer, module):
