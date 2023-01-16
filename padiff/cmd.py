@@ -14,19 +14,33 @@
 
 from cmd import Cmd
 from .utils import TableView, TreeView, assert_tensor_equal, for_each_tensor
+import os
+
+HELP_USAGE = 0
+HELP_INFO = 1
 
 
 class PaDiff_Cmd(Cmd):
+    prompt = "(PaDiff) "
+
     def __init__(self, paddle_report, torch_report, options):
         Cmd.__init__(self)
 
         # "usage: ``, info: ",
         self.helps = {
-            "compare": "usage: `compare forward|backward|{int} input|output|grad`\n info: compare ReportItems. If compare backward, the second param is not nessesary; if compare {int}, that means you want to compare the {int}th ReportItem in forward process (with forward order)",
-            "options": "usage: `options`\n info: print user options",
-            "info": "usage: `info`\n info: print model info",
-            "eval": "usage: `eval {python command}`\n info: eval python command",
-            "q": "usage: `q`\n info: exit",
+            "compare": [
+                "[usage]: `compare forward|backward|{int} input|output|grad`",
+                "[info]: compare ReportItems. If compare backward, the second param is not nessesary; if compare {int}, that means you want to compare the {int}th ReportItem in forward process (with forward order)",
+            ],
+            "options": [
+                "[usage]: `options` or `options set {name} {value}`",
+                "[info]: print user options, or set options",
+            ],
+            "info": ["[usage]: `info`", "[info]: print model info"],
+            "eval": ["[usage]: `eval {python command}`", "[info]: eval python command"],
+            "q": ["[usage]: `q`", "[info]: quit cmd"],
+            "clear": ["[usage]: `clear`", "[info]: clear screen"],
+            "item": ["[usage]: `item forward|backward {int} {stack|net|net_id|step_id}`", "[info]: show item info"],
         }
 
         self.paddle_report = paddle_report
@@ -67,28 +81,57 @@ class PaDiff_Cmd(Cmd):
         res = True
         if words[0] == "forward":
             res = self._compare(self.fwd_order, words[1])
-
         elif words[0] == "backward":
             res = self._compare(self.bwd_order, words[1])
-
         elif self._is_int(words[0]):
             res = self._compare([self.fwd_order[int(words[0])]], words[1])
-
         else:
             print("{} can not be recognized.".format(words[0]))
             self.do_help("compare")
-        
+
         if res:
             print("Compare complete, no diff found.")
-        else:
-            print("Found diff.")
 
     # info & logs
+    def do_item(self, line):
+        words = line.split(" ")
+        if len(words) < 3 or words[0] not in ["forward", "backward"] or not self._is_int(words[1]):
+            print("Param err!")
+            self.do_help("item")
+            return
+
+        if words[0] == "forward":
+            item = self.fwd_order[int(words[1])]
+        else:
+            item = self.bwd_order[int(words[1])]
+
+        if words[2] == "stack":
+            item.print_stacks()
+        elif words[2] == "net":
+            print(str(item.net))
+        elif words[2] == "net_id":
+            print(item.net_id)
+        elif words[2] == "step_id":
+            print(item.step_id)
+        else:
+            print("Not support {}".format(words[2]))
+
     def do_options(self, line):
-        print("{")
-        for key in self.options:
-            print("  {}: {}".format(key, self.options[key]))
-        print("}")
+        words = line.split(" ")
+        if len(words) > 2 and words[0] == "set":
+            if words[1] in ["compare_mode", "diff_phase"]:
+                self.options[words[1]] = words[2]
+            elif words[1] in ["atol", "rtol"]:
+                self.options[words[1]] = float(words[2])
+            elif words[1] in ["single_step"]:
+                self.options[words[1]] = bool(words[2])
+            else:
+                print("Can not set {}".format(words[2]))
+        else:
+            print("{")
+            for key in self.options:
+                print("  {}: {}".format(key, self.options[key]))
+            print("}")
 
     def do_info(self, line):
         print("diff_phase: {}".format(self.options["diff_phase"]))
@@ -98,15 +141,15 @@ class PaDiff_Cmd(Cmd):
         # TODO: show model in graph?
 
     def do_help(self, line):
+        words = line.split(" ")
         if len(line) == 0:
             print("Available commands:")
-            for i in self.helps.keys():
-                print("  {}".format(i))
+            for key in self.helps.keys():
+                print("  {}".format(key))
         else:
-            words = line.split(" ")
             for w in words:
                 if w in self.helps.keys():
-                    print("{}\n{}".format(w, self.helps[w]))
+                    print("{}\n{}\n{}".format(w, self.helps[w][HELP_USAGE], self.helps[w][HELP_INFO]))
                 else:
                     print("Command {} not exist.")
 
@@ -120,6 +163,12 @@ class PaDiff_Cmd(Cmd):
     # basic
     def do_q(self, line):
         return True
+
+    def do_clear(self, line):
+        os.system("clear")
+
+    def preloop(self):
+        print("\nEnter cmd ...\n")
 
     def emptyline(self):
         pass
@@ -136,7 +185,7 @@ class PaDiff_Cmd(Cmd):
             for (tt,), (pt,) in zip(tts, pts):
                 res = self._compare_and_show_message(tt.detach().numpy(), pt.numpy())
                 if res == False:
-                    print("At idx:`{}` in mode `{}`, diff found, compare stopped.".format(idx, mode))
+                    print("At idx:`{}` in mode `{}`, diff found, compare stopped.\n".format(idx, mode))
                     return False
         return True
 
@@ -162,5 +211,5 @@ class PaDiff_Cmd(Cmd):
             assert_tensor_equal(t1, t2, self.options["atol"], self.options["rtol"], self.options["compare_mode"])
             return True
         except Exception as e:
-            print(str(e))
+            print(str(e), "\n")
             return False
