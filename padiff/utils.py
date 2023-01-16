@@ -362,18 +362,18 @@ def assert_tensor_equal(tensor1, tensor2, atol=0, rtol=1e-7, compare_mode="mean"
 
 
 def init_options(options):
-    if "atol" not in options.keys():
-        options["atol"] = 0
-    if "rtol" not in options.keys():
-        options["rtol"] = 1e-7
-    if "diff_phase" not in options.keys():
-        options["diff_phase"] = "both"
-    if "compare_mode" not in options.keys():
-        options["compare_mode"] = "mean"
-    if "single_step" not in options.keys():
-        options["single_step"] = False
-    if "debug" not in options.keys():
-        options["debug"] = False
+    default_options = {
+        "atol": 0,
+        "rtol": 1e-7,
+        "diff_phase": "both",
+        "compare_mode": "mean",
+        "single_step": False,
+        "debug": False,
+    }
+
+    for key in default_options.keys():
+        if key not in options.keys():
+            options[key] = default_options[key]
 
     if options["single_step"]:
         options["diff_phase"] = "forward"
@@ -381,9 +381,6 @@ def init_options(options):
 
     log("Your options:")
     print("{")
-    print("  atol : `{}`".format(options["atol"]))
-    print("  rtol : `{}`".format(options["rtol"]))
-    print("  diff_phase : `{}`".format(options["diff_phase"]))
-    print("  compare_mode : `{}`".format(options["compare_mode"]))
-    print("  single_step : `{}`".format(options["single_step"]))
+    for key in options.keys():
+        print("  {}: `{}`".format(key, options[key]))
     print("}")
