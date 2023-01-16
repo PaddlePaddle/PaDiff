@@ -240,15 +240,15 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
             backward_items.append([torch_item.bwd_item, paddle_item.bwd_item])
             act(torch_item, paddle_item, cfg)
         except Exception as e:
-            if cfg.get("single_step", False):
+            if cfg["single_step"]:
                 log("Under single_step mode:")
             print_info(paddle_item, torch_item, e, idx, grad=False)
             return False
 
     log("forward {} steps compared.".format(len(paddle_fwd_items)))
 
-    if cfg.get("single_step", False):
-        log("In single_step mode, backward compare is skipped.")
+    if cfg["diff_phase"] == "forward":
+        log("Diff_phase is `forward`. Backward compare skipped.")
         log("SUCCESS !!!")
         return True
 

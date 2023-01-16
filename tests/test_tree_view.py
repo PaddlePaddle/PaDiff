@@ -19,7 +19,7 @@ import torch
 
 from padiff.auto_diff import _register_torch_hooker
 from padiff.report import Report, report_guard
-from padiff.utils import TreeView
+from padiff.utils import TreeView, init_options
 
 
 class SimpleSubModule(torch.nn.Module):
@@ -68,12 +68,14 @@ class SimpleModule(torch.nn.Module):
 
 class TestCaseName(unittest.TestCase):
     def test_add(self):
+        option = {}
+        init_options(option)
         torch_report = Report("torch")
         paddle_report = Report("Paddle")
         module = SimpleModule()
         example_inp = paddle.rand((100, 100)).numpy().astype("float32")
         with report_guard(torch_report=torch_report, paddle_report=paddle_report):
-            with _register_torch_hooker(module):
+            with _register_torch_hooker(module, option):
                 try:
                     torch_input = torch.as_tensor(example_inp)
                     torch_input.requires_grad = True

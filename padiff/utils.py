@@ -359,3 +359,28 @@ def assert_tensor_equal(tensor1, tensor2, atol=0, rtol=1e-7, compare_mode="mean"
         np.testing.assert_allclose(tensor1.mean(), tensor2.mean(), atol=atol, rtol=rtol)
     elif compare_mode == "strict":
         np.testing.assert_allclose(tensor1, tensor2, atol=atol, rtol=rtol)
+
+
+def init_options(options):
+    default_options = {
+        "atol": 0,
+        "rtol": 1e-7,
+        "diff_phase": "both",
+        "compare_mode": "mean",
+        "single_step": False,
+        "debug": False,
+    }
+
+    for key in default_options.keys():
+        if key not in options.keys():
+            options[key] = default_options[key]
+
+    if options["single_step"]:
+        options["diff_phase"] = "forward"
+        log("In single_step mode, diff_phase is set to `forward`.")
+
+    log("Your options:")
+    print("{")
+    for key in options.keys():
+        print("  {}: `{}`".format(key, options[key]))
+    print("}")

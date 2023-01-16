@@ -26,7 +26,7 @@ import yaml
 from .utils import log, map_for_each_sublayer, compare_tensor, traversal_layers
 
 
-def process_each_weight(process, layer, module, layer_map, options={}):
+def process_each_weight(process, layer, module, options, layer_map={}):
     """
     Apply process for each pair of parameters in layer(paddle) and module(torch)
 
@@ -56,10 +56,10 @@ def process_each_weight(process, layer, module, layer_map, options={}):
     ):
         assign_config = yamls["assign_yaml"].get(paddle_sublayer.__class__.__name__, None)
         settings = {
-            "atol": options.get("atol", 0),
-            "rtol": options.get("rtol", 1e-7),
+            "atol": options["atol"],
+            "rtol": options["rtol"],
             "transpose": False,
-            "compare_mode": options.get("compare_mode", "mean"),
+            "compare_mode": options["compare_mode"],
         }
 
         if assign_config is not None:
@@ -134,7 +134,7 @@ def _shape_check(
     ).format(param_name, p_shape, t_shape, paddle_sublayer, torch_submodule)
 
 
-def assign_weight(layer, module, layer_map={}):
+def assign_weight(layer, module, options, layer_map={}):
     """
     Init weights of layer(paddle) and module(torch) with same value
 
@@ -167,10 +167,10 @@ def assign_weight(layer, module, layer_map={}):
         else:
             torch_param.data = torch.as_tensor(np_value).type(torch_param.dtype)
 
-    process_each_weight(_assign_weight, layer, module, layer_map)
+    process_each_weight(_assign_weight, layer, module, options, layer_map)
 
 
-def check_weight_grad(layer, module, layer_map={}, options={}):
+def check_weight_grad(layer, module, options, layer_map={}):
     """
     Compare weights and grads between layer(paddle) and module(torch)
 
@@ -181,8 +181,8 @@ def check_weight_grad(layer, module, layer_map={}, options={}):
         options (dict, optional):
             atol, compare_mode
     """
-    if options.get("single_step", False):
-        log("In single_step mode, weight and grad check is skipped.")
+    if options["diff_phase"] == "forward":
+        log("Diff_phase is `forward`. Weight and grad check skipped.")
         return True, True
 
     _weight_check = True
@@ -248,7 +248,7 @@ def check_weight_grad(layer, module, layer_map={}, options={}):
                     )
                 )
 
-    process_each_weight(_check_weight_grad, layer, module, layer_map, options)
+    process_each_weight(_check_weight_grad, layer, module, options, layer_map)
 
     if _weight_check and _grad_check:
         log("weight and weight.grad is compared.")

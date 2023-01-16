@@ -36,9 +36,11 @@ pip install -e .
 
        -   "rtol": 相对精度误差上限，默认值为 `1e-7`
 
-       -   "compare_mode": 精度对齐模式，默认值为"mean"，表示使用Tensor间误差的均值作为对齐标准，另一个可选项为"strict"，表示对Tensor进行逐数据（Elementwise）的对齐检查
+       -   "diff_phase": `"both"|"forward"`默认为`"both"`。设置为`"both"`时，工具将比较前反向的diff；当设置为`forward`时，仅比较前向diff，且会跳过模型的backward计算过程。
 
-       -   "single_step": `True|False` 默认为 `False`，是否使用单步对齐模式。在该模式下，paddle模型中每一个sublayer的input由torch模型中对应的input对齐，可以避免层间误差累积的影响。注意：开启single_step后将不会触发backward过程
+       -   "compare_mode": `"mean"|"strict"`默认为`"mean"`。`"mean"`表示使用Tensor间误差的均值作为对齐标准；`"strict"`表示对Tensor进行逐数据（Elementwise）的对齐检查。
+
+       -   "single_step": `True|False` 默认为 `False`。设置为`True`开启单步对齐模式，paddle模型中每一个sublayer的input由torch模型中对应的input对齐，可以避免层间误差累积。注意：开启single_step后将不会触发backward过程，"diff_phase"参数将被强制设置为`"forward"`。
 
 ### 注意事项与用例代码：
 
