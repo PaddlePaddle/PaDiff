@@ -73,14 +73,24 @@ class EqualAction(Action):
         """
         atol = cfg.get("atol", 0)
         rtol = cfg.get("rtol", 1e-7)
+        is_debug = cfg.get("debug", False)
         compare_mode = cfg.get("compare_mode", "mean")
         torch_tensors = torch_item.compare_tensors()
         paddle_tensors = paddle_item.compare_tensors()
         for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):
-            assert_tensor_equal(
-                tt.detach().numpy(),
-                pt.numpy(),
-                atol=atol,
-                rtol=rtol,
-                compare_mode=compare_mode,
-            )
+            try:
+                assert_tensor_equal(
+                    tt.detach().numpy(),
+                    pt.numpy(),
+                    atol=atol,
+                    compare_mode=compare_mode,
+                )
+            except Exception as e:
+                if is_debug:
+                    print("Mean of inputs:")
+                    print(torch_item.input[0].numpy().mean())
+                    print(paddle_item.input[0].numpy().mean())
+                    import pdb
+
+                    pdb.set_trace()
+                raise e
