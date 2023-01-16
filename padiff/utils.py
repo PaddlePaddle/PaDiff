@@ -369,6 +369,7 @@ def init_options(options):
         "compare_mode": "mean",
         "single_step": False,
         "debug": False,
+        "cmd": False
     }
 
     for key in default_options.keys():

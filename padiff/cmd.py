@@ -13,21 +13,20 @@
 # limitations under the License.
 
 from cmd import Cmd
-from .utils import TableView, TreeView, assert_tensor_equal
+from .utils import TableView, TreeView, assert_tensor_equal, for_each_tensor
 
 
-class PaDiff_Cli(Cmd):
+class PaDiff_Cmd(Cmd):
     def __init__(self, paddle_report, torch_report, options):
         Cmd.__init__(self)
 
         # "usage: ``, info: ",
         self.helps = {
-            "compare": "usage: `compare forward|backward|{int} input|output|grad`, info: compare ReportItems. If compare backward, the second param is not nessesary; if compare {int}, that means you want to compare the {int}th ReportItem in forward process (with forward order)",
-            "options": "usage: `options`, info: print user options",
-            "info": "usage: `info`, info: print model info",
-            "pdb": "usage: `pdb`, info: enter pdb mode",
-            "eval": "usage: `eval {python command}`, info: eval python command",
-            "q": "usage: `q`, info: exit",
+            "compare": "usage: `compare forward|backward|{int} input|output|grad`\n info: compare ReportItems. If compare backward, the second param is not nessesary; if compare {int}, that means you want to compare the {int}th ReportItem in forward process (with forward order)",
+            "options": "usage: `options`\n info: print user options",
+            "info": "usage: `info`\n info: print model info",
+            "eval": "usage: `eval {python command}`\n info: eval python command",
+            "q": "usage: `q`\n info: exit",
         }
 
         self.paddle_report = paddle_report
@@ -55,7 +54,7 @@ class PaDiff_Cli(Cmd):
 
         for idx, paddle_item in enumerate(paddle_tree_view.traversal_backward()):
             self.bwd_order.append(paddle_item.bwd_item)
-            torch_item = p2t_dict[paddle_item.fwd_item].bwd_item
+            torch_item = self.p2t_dict[paddle_item.fwd_item].bwd_item
             assert torch_item.type == paddle_item.type and paddle_item.type == "backward"
             self.p2t_dict[paddle_item.bwd_item] = torch_item
 
@@ -63,21 +62,26 @@ class PaDiff_Cli(Cmd):
     def do_compare(self, line):
         words = line.split(" ")
         if len(words) < 2:
-            print("param err.")
+            print("Too few params.")
             return
-
+        res = True
         if words[0] == "forward":
-            _compare(self.fwd_order, words[1])
+            res = self._compare(self.fwd_order, words[1])
 
         elif words[0] == "backward":
-            _compare(self.bwd_order, words[1])
+            res = self._compare(self.bwd_order, words[1])
 
-        elif _is_int(words[0]):
-            _compare([self.fwd_order[int(words[0])]], words[1])
+        elif self._is_int(words[0]):
+            res = self._compare([self.fwd_order[int(words[0])]], words[1])
 
         else:
             print("{} can not be recognized.".format(words[0]))
-            do_help("compare")
+            self.do_help("compare")
+        
+        if res:
+            print("Compare complete, no diff found.")
+        else:
+            print("Found diff.")
 
     # info & logs
     def do_options(self, line):
@@ -107,11 +111,6 @@ class PaDiff_Cli(Cmd):
                     print("Command {} not exist.")
 
     # for debug
-    def do_pdb(sefl, line):
-        import pdb
-
-        pdb.set_trace()
-
     def do_eval(self, line):
         try:
             eval(line)
@@ -129,35 +128,36 @@ class PaDiff_Cli(Cmd):
         print("Command not found.")
 
     # utils
-    def _compare(items, mode):
+    def _compare(self, items, mode):
         for idx, p_item in enumerate(items):
             t_item = self.p2t_dict[p_item]
-            pts = _get_tensors(p_item, mode)
-            tts = _get_tensors(t_item, mode)
+            pts = self._get_tensors(p_item, mode)
+            tts = self._get_tensors(t_item, mode)
             for (tt,), (pt,) in zip(tts, pts):
-                res = _compare_and_show_message(tt.detach().numpy(), pt.numpy())
+                res = self._compare_and_show_message(tt.detach().numpy(), pt.numpy())
                 if res == False:
                     print("At idx:`{}` in mode `{}`, diff found, compare stopped.".format(idx, mode))
-                    return
+                    return False
+        return True
 
-    def _get_tensors(RepItem, mode):
+    def _get_tensors(self, RepItem, mode):
         if mode == "input":
-            return for_each_tensor(self.input)
+            return for_each_tensor(RepItem.input)
         elif mode == "output":
-            return for_each_tensor(self.output)
+            return for_each_tensor(RepItem.output)
         elif mode == "grad":
-            return for_each_tensor(self.input_grads)
+            return for_each_tensor(RepItem.input_grads)
         else:
             print("{} not available".format(mode))
 
-    def _is_int(string):
+    def _is_int(self, string):
         try:
             int(string)
             return True
         except:
             return False
 
-    def _compare_and_show_message(t1, t2):
+    def _compare_and_show_message(self, t1, t2):
         try:
             assert_tensor_equal(t1, t2, self.options["atol"], self.options["rtol"], self.options["compare_mode"])
             return True
