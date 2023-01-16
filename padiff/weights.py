@@ -15,6 +15,7 @@
 import os
 import sys
 import os.path as osp
+from itertools import zip_longest
 
 import numpy
 import paddle
@@ -90,18 +91,14 @@ def process_each_weight(process, layer, module, layer_map, options={}):
             settings,
         )
 
-    paddle_layers = [layer]
-    torch_modules = [module]
+    layers = [layer]
+    modules = [module]
+    layers.extend(traversal_layers(layer, layer_map))
+    modules.extend(traversal_layers(module, layer_map))
 
-    traversal_layers(paddle_layers, layer, layer_map)
-    traversal_layers(torch_modules, module, layer_map)
-
-    assert len(paddle_layers) == len(
-        torch_modules
-    ), "Torch and Paddle return difference number of sublayers. Check your model."
-
-    for paddle_sublayer, torch_submodule in zip(paddle_layers, torch_modules):
-
+    for paddle_sublayer, torch_submodule in zip_longest(layers, modules, fillvalue=None):
+        if paddle_sublayer is None or torch_submodule is None:
+            raise RuntimeError("Torch and Paddle return difference number of sublayers. Check your model.")
         for (name, paddle_param), torch_param in zip(
             paddle_sublayer.named_parameters("", False),
             torch_submodule.parameters(False),

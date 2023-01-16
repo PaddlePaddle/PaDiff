@@ -135,44 +135,50 @@ def is_sublayer(father_net, child_net):
     return True if child_net is the DIRECTL children of father_net.
     """
 
-    def _is_sublayer_torch(father_net, child_net):
-        for child in father_net.children():
-            if isinstance(child, torch.nn.Sequential):
-                if _is_sublayer_torch(child, child_net):
-                    return True
-            else:
-                if id(child) == id(child_net):
-                    return True
-        return False
+    def _is_sublayer(father_net, child_net, layer_type):
 
-    def _is_sublayer_paddle(father_net, child_net):
-        for _, child in father_net.named_children():
-            if isinstance(child, paddle.nn.Sequential):
-                if _is_sublayer_paddle(child, child_net):
-                    return True
-            else:
-                if id(child) == id(child_net):
-                    return True
+        for child in father_net.children():
+            check_list = child if isinstance(child, layer_type["layer_list"]) else [child]
+            for l in check_list:
+                if isinstance(l, layer_type["sequential"]):
+                    if _is_sublayer(l, child_net, layer_type):
+                        return True
+                else:
+                    if id(l) == id(child_net):
+                        return True
         return False
 
     if isinstance(father_net, torch.nn.Module) and isinstance(child_net, torch.nn.Module):
-        if _is_sublayer_torch(father_net, child_net):
+        layer_type = {
+            "sequential": torch.nn.Sequential,
+            "layer_list": torch.nn.ModuleList,
+        }
+        if _is_sublayer(father_net, child_net, layer_type):
             return True
         return False
     elif isinstance(father_net, paddle.nn.Layer) and isinstance(child_net, paddle.nn.Layer):
-        if _is_sublayer_paddle(father_net, child_net):
+        layer_type = {
+            "sequential": paddle.nn.Sequential,
+            "layer_list": paddle.nn.LayerList,
+        }
+        if _is_sublayer(father_net, child_net, layer_type):
             return True
         return False
     else:
         raise RuntimeError("father net is not Module / Layer")
 
 
-def traversal_layers(layers, cur_net, layer_map):
-    for child in cur_net.children():
+def traversal_layers(net, layer_map):
+    for child in net.children():
         if not (isinstance(child, torch.nn.Sequential) or isinstance(child, paddle.nn.Sequential)):
-            layers.append(child)
-        if child.__class__.__name__ not in layer_map.keys() and child.__class__.__name__ not in layer_map.values():
-            traversal_layers(layers, child, layer_map)
+            yield child
+        ignore_sublayer = False
+        for key, val in layer_map.items():
+            if id(child) == id(key) or id(child) == id(val):
+                ignore_sublayer = True
+        if not ignore_sublayer:
+            for sublayer in traversal_layers(child, layer_map):
+                yield sublayer
 
 
 class TableView:

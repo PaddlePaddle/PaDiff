@@ -113,7 +113,7 @@ class TestCaseName(unittest.TestCase):
         layer = SimpleLayer2()
         module = SimpleModule2()
 
-        layer_map = {"LSTM": "LSTM"}
+        layer_map = {layer.lstm: module.lstm}
 
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
@@ -155,7 +155,7 @@ class TestCaseName(unittest.TestCase):
 
             param[1].data = torch.from_numpy(param_np)
 
-        layer_map = {"MultiHeadAttention": "MultiheadAttention"}
+        layer_map = {layer.attn: module.attn}
 
         inp = paddle.rand((2, 4, 16)).numpy()
         inp = (

@@ -136,7 +136,6 @@ def paddle_layer_hook(module, input, output, idx, options):
             else:
                 return tt
 
-
         # return map_structure(tt2pt, t_fwd_item.output)
         return map_structure_and_replace_key(tt2pt, [t_fwd_item.output], output)
     else:
@@ -148,9 +147,9 @@ def _register_paddle_hooker(layer, layer_map={}, options={}):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
-    paddle_layers = [layer]
-    traversal_layers(paddle_layers, layer, layer_map)
-    for mod in paddle_layers:
+    layers = [layer]
+    layers.extend(traversal_layers(layer, layer_map))
+    for mod in layers:
         handle = mod.register_forward_post_hook(partial(paddle_layer_hook, idx=idx, options=options))
         remove_handles.append(handle)
         idx += 1
@@ -163,9 +162,9 @@ def _register_paddle_hooker(layer, layer_map={}, options={}):
 def _register_torch_hooker(module, layer_map={}, options={}):
     remove_handles = []
     idx = 0
-    torch_modules = [module]
-    traversal_layers(torch_modules, module, layer_map)
-    for mod in torch_modules:
+    modules = [module]
+    modules.extend(traversal_layers(module, layer_map))
+    for mod in modules:
         handle = mod.register_forward_hook(partial(torch_layer_hook, idx=idx, options=options))
         remove_handles.append(handle)
         idx += 1
