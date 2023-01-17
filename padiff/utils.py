@@ -168,16 +168,16 @@ def is_sublayer(father_net, child_net):
         raise RuntimeError("father net is not Module / Layer")
 
 
-def traversal_layers(net, layer_map):
+def traversal_layers(net, layer_mapping):
     for child in net.children():
         if not (isinstance(child, torch.nn.Sequential) or isinstance(child, paddle.nn.Sequential)):
             yield child
         ignore_sublayer = False
-        for key, val in layer_map.items():
+        for key, val in layer_mapping.items():
             if id(child) == id(key) or id(child) == id(val):
                 ignore_sublayer = True
         if not ignore_sublayer:
-            for sublayer in traversal_layers(child, layer_map):
+            for sublayer in traversal_layers(child, layer_mapping):
                 yield sublayer
 
 
@@ -387,11 +387,11 @@ def init_options(options):
     print("}")
 
 
-def modify_layer_map(layer_map):
+def modify_layer_mapping(layer_mapping):
     remove_keys = []
-    for key in layer_map.keys():
+    for key in layer_mapping.keys():
         if not isinstance(key, paddle.nn.Layer):
             remove_keys.append(key)
     for key in remove_keys:
-        layer_map[layer_map[key]] = key
-        layer_map.pop(key)
+        layer_mapping[layer_mapping[key]] = key
+        layer_mapping.pop(key)

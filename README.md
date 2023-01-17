@@ -20,7 +20,7 @@ pip install -e .
 
 ### auto_diff 使用接口与参数说明
 
-接口函数签名：`auto_diff(layer, module, example_inp, auto_weights=True, layer_map={}, options={})`
+接口函数签名：`auto_diff(layer, module, example_inp, auto_weights=True, layer_mapping={}, options={})`
 
 -   layer：传入paddle模型
 
@@ -30,7 +30,7 @@ pip install -e .
 
 -   auto_weights: 是否使用随机数值统一初始化paddle与torch模型，默认为True
 
--   layer_map: 指定paddle与torch的layer映射关系，当模型结构无法完全对齐时需要通过此参数指定layer的映射关系。
+-   layer_mapping: 指定paddle与torch的layer映射关系，当模型结构无法完全对齐时需要通过此参数指定layer的映射关系。
 
 -   options：一个传递参数的字典
 
@@ -193,19 +193,19 @@ auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0
 
 - 如果显示精度有diff，先分析Paddle和Torch的调用栈，找到对应的源码并分析他们在逻辑上是否是对应的Layer，如果不是对应的Layer，那么说明 Torch 模型和 Paddle 模型没有满足Layer定义的一一对应假设。如图 <img width="875" alt="3d569899c42f69198f398540dec89012" src="https://user-images.githubusercontent.com/16025309/209917231-717c8e88-b3d8-41bc-b6a9-0330d0d9ed50.png">
 
-- 如果模型没有满足Layer定义的一一对应假设，可以通过`layer_map`指定Layer的映射关系。例如下图中共有三个SubLayer没有一一对齐，因此需要通过`layer_map`指定三个地方的映射关系。 如图 <img width="788" alt="image" src="https://user-images.githubusercontent.com/40840292/212643420-b30d5d6f-3a26-4a41-8dc2-7b3e6622c1d5.png">
+- 如果模型没有满足Layer定义的一一对应假设，可以通过`layer_mapping`指定Layer的映射关系。例如下图中共有三个SubLayer没有一一对齐，因此需要通过`layer_mapping`指定三个地方的映射关系。 如图 <img width="788" alt="image" src="https://user-images.githubusercontent.com/40840292/212643420-b30d5d6f-3a26-4a41-8dc2-7b3e6622c1d5.png">
 
        ```python
        layer = SimpleLayer()
        module = SimpleModule()
 
-       layer_map = {
+       layer_mapping = {
        layer.transformer.encoder.layers[0].self_attn: module.transformer.encoder.layers[0].self_attn,
        layer.transformer.decoder.layers[0].self_attn: module.transformer.decoder.layers[0].self_attn,
        layer.transformer.decoder.layers[0].cross_attn: module.transformer.decoder.layers[0].multihead_attn,
        } # object pair的形式
 
-       auto_diff(layer, module, inp, auto_weights=False, layer_map=layer_map, options={"atol": 1e-4})
+       auto_diff(layer, module, inp, auto_weights=False, layer_mapping=layer_mapping, options={"atol": 1e-4})
        ```
 
 - 如果不是上述的问题，那么可以考虑进行debug，比如构造最小复现样例或者是pdb调试等等。
