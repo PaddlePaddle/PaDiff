@@ -117,7 +117,8 @@ class TestCaseName(unittest.TestCase):
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert (
-            auto_diff(layer, module, inp, auto_weights=True, layer_mapping=layer_mapping, options={"atol": 1e-4}) is True
+            auto_diff(layer, module, inp, auto_weights=True, layer_mapping=layer_mapping, options={"atol": 1e-4})
+            is True
         ), "Failed. expected success."
 
     def test_layer_mapping_3(self):
@@ -133,7 +134,8 @@ class TestCaseName(unittest.TestCase):
         )
 
         assert (
-            auto_diff(layer, module, inp, auto_weights=True, layer_mapping=layer_mapping, options={"atol": 1e-4}) is True
+            auto_diff(layer, module, inp, auto_weights=True, layer_mapping=layer_mapping, options={"atol": 1e-4})
+            is True
         ), "Failed. expected success."
 
 
