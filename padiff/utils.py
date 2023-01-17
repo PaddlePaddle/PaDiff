@@ -385,3 +385,13 @@ def init_options(options):
     for key in options.keys():
         print("  {}: `{}`".format(key, options[key]))
     print("}")
+
+
+def modify_layer_map(layer_map):
+    remove_keys = []
+    for key in layer_map.keys():
+        if not isinstance(key, paddle.nn.Layer):
+            remove_keys.append(key)
+    for key in remove_keys:
+        layer_map[layer_map[key]] = key
+        layer_map.pop(key)

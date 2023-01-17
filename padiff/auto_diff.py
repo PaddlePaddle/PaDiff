@@ -29,8 +29,10 @@ from .utils import (
     traversal_layers,
     map_structure_and_replace_key,
     init_options,
+    modify_layer_map,
 )
 from .weights import assign_weight, check_weight_grad, remove_inplace
+from .yaml_loader import global_yaml_loader as yamls
 from .cmd import PaDiff_Cmd
 
 paddle.set_printoptions(precision=10)
@@ -65,7 +67,6 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
     module = module.to("cpu")
 
     reset_log_dir()
-    init_options(options)
     _preprocess(layer, module, auto_weights, options, layer_map)
 
     torch_report = Report("torch")
@@ -184,6 +185,9 @@ def _register_torch_hooker(module, options, layer_map={}):
 
 
 def _preprocess(layer, module, auto_weights, options, layer_map):
+    init_options(options)
+    modify_layer_map(layer_map)
     remove_inplace(layer, module)
+    yamls.options = options
     if auto_weights:
         assign_weight(layer, module, options=options, layer_map=layer_map)
