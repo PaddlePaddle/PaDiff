@@ -26,7 +26,7 @@ import yaml
 from .utils import log, map_for_each_sublayer, compare_tensor, traversal_layers
 
 
-def process_each_weight(process, layer, module, options, layer_map={}):
+def process_each_weight(process, layer, module, options, layer_mapping={}):
     """
     Apply process for each pair of parameters in layer(paddle) and module(torch)
 
@@ -34,7 +34,7 @@ def process_each_weight(process, layer, module, options, layer_map={}):
         process (function): process applied to parameters
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
-        layer_map (dict, optional): manually map paddle layer and torch module.
+        layer_mapping (dict, optional): manually map paddle layer and torch module.
         options (dict, optional):
             atol, rtol, compare_mode, single_step
     """
@@ -94,8 +94,8 @@ def process_each_weight(process, layer, module, options, layer_map={}):
 
     layers = [layer]
     modules = [module]
-    layers.extend(traversal_layers(layer, layer_map))
-    modules.extend(traversal_layers(module, layer_map))
+    layers.extend(traversal_layers(layer, layer_mapping))
+    modules.extend(traversal_layers(module, layer_mapping))
 
     for paddle_sublayer, torch_submodule in zip_longest(layers, modules, fillvalue=None):
         if paddle_sublayer is None or torch_submodule is None:
@@ -134,14 +134,14 @@ def _shape_check(
     ).format(param_name, p_shape, t_shape, paddle_sublayer, torch_submodule)
 
 
-def assign_weight(layer, module, options, layer_map={}):
+def assign_weight(layer, module, options, layer_mapping={}):
     """
     Init weights of layer(paddle) and module(torch) with same value
 
     Args:
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
-        layer_map (dict, optional): manually map paddle layer and torch module.
+        layer_mapping (dict, optional): manually map paddle layer and torch module.
     """
 
     def _assign_weight(
@@ -167,17 +167,17 @@ def assign_weight(layer, module, options, layer_map={}):
         else:
             torch_param.data = torch.as_tensor(np_value).type(torch_param.dtype)
 
-    process_each_weight(_assign_weight, layer, module, options, layer_map)
+    process_each_weight(_assign_weight, layer, module, options, layer_mapping)
 
 
-def check_weight_grad(layer, module, options, layer_map={}):
+def check_weight_grad(layer, module, options, layer_mapping={}):
     """
     Compare weights and grads between layer(paddle) and module(torch)
 
     Args:
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
-        layer_map (dict, optional): manually map paddle layer and torch module.
+        layer_mapping (dict, optional): manually map paddle layer and torch module.
         options (dict, optional):
             atol, compare_mode
     """
@@ -248,7 +248,7 @@ def check_weight_grad(layer, module, options, layer_map={}):
                     )
                 )
 
-    process_each_weight(_check_weight_grad, layer, module, options, layer_map)
+    process_each_weight(_check_weight_grad, layer, module, options, layer_mapping)
 
     if _weight_check and _grad_check:
         log("weight and weight.grad is compared.")

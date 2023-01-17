@@ -37,7 +37,7 @@ paddle.set_printoptions(precision=10)
 torch.set_printoptions(precision=10)
 
 
-def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_map={}):
+def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_mapping={}):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
@@ -49,7 +49,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
         auto_weights (boolean, optional): uniformly init the parameters of models
         options (dict, optional):
             atol, compare_mode
-        layer_map (dict, optional): manually map paddle layer and torch module.
+        layer_mapping (dict, optional): manually map paddle layer and torch module.
     Returns:
         True for success, False for failed.
     """
@@ -66,12 +66,12 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
 
     reset_log_dir()
     init_options(options)
-    _preprocess(layer, module, auto_weights, options, layer_map)
+    _preprocess(layer, module, auto_weights, options, layer_mapping)
 
     torch_report = Report("torch")
     paddle_report = Report("paddle")
     with report_guard(torch_report, paddle_report):
-        with _register_torch_hooker(module, options, layer_map):
+        with _register_torch_hooker(module, options, layer_mapping):
             try:
                 torch_output = module(**torch_input)
                 loss = tensors_mean(torch_output, "torch")
@@ -84,7 +84,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
                     )
                 )
 
-        with _register_paddle_hooker(layer, options, layer_map):
+        with _register_paddle_hooker(layer, options, layer_mapping):
             try:
                 paddle_output = layer(**paddle_input)
                 loss = tensors_mean(paddle_output, "paddle")
@@ -99,7 +99,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
 
     log("Max elementwise output diff is {}\n".format(max_diff(paddle_output, torch_output)))
 
-    weight_check, grad_check = check_weight_grad(layer, module, layer_map=layer_map, options=options)
+    weight_check, grad_check = check_weight_grad(layer, module, layer_mapping=layer_mapping, options=options)
     ret = check_forward_and_backward(torch_report, paddle_report, options)
     ret = ret and weight_check and grad_check
 
@@ -153,12 +153,12 @@ def paddle_layer_hook(module, input, output, idx, options):
 
 
 @contextlib.contextmanager
-def _register_paddle_hooker(layer, options, layer_map={}):
+def _register_paddle_hooker(layer, options, layer_mapping={}):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
     layers = [layer]
-    layers.extend(traversal_layers(layer, layer_map))
+    layers.extend(traversal_layers(layer, layer_mapping))
     for mod in layers:
         handle = mod.register_forward_post_hook(partial(paddle_layer_hook, idx=idx, options=options))
         remove_handles.append(handle)
@@ -169,11 +169,11 @@ def _register_paddle_hooker(layer, options, layer_map={}):
 
 
 @contextlib.contextmanager
-def _register_torch_hooker(module, options, layer_map={}):
+def _register_torch_hooker(module, options, layer_mapping={}):
     remove_handles = []
     idx = 0
     modules = [module]
-    modules.extend(traversal_layers(module, layer_map))
+    modules.extend(traversal_layers(module, layer_mapping))
     for mod in modules:
         handle = mod.register_forward_hook(partial(torch_layer_hook, idx=idx, options=options))
         remove_handles.append(handle)
@@ -183,7 +183,7 @@ def _register_torch_hooker(module, options, layer_map={}):
         h.remove()
 
 
-def _preprocess(layer, module, auto_weights, options, layer_map):
+def _preprocess(layer, module, auto_weights, options, layer_mapping):
     remove_inplace(layer, module)
     if auto_weights:
-        assign_weight(layer, module, options=options, layer_map=layer_map)
+        assign_weight(layer, module, options=options, layer_mapping=layer_mapping)
