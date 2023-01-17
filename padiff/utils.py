@@ -108,7 +108,7 @@ def _clone_tensor(inp):
             set_require_grad(new_t)
         return new_t
     else:
-        return input
+        return inp
 
 
 def clone_tensors(inputs):
@@ -369,6 +369,7 @@ def init_options(options):
         "compare_mode": "mean",
         "single_step": False,
         "debug": False,
+        "cmd": False,
     }
 
     for key in default_options.keys():
