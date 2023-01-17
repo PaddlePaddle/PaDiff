@@ -1,6 +1,14 @@
+LSTM:
+  torch: LSTM
+  init: True
+
 Linear:
   torch:
     - Linear
     - NonDynamicallyQuantizableLinear
   param:
     weight: transpose
+
+MultiHeadAttention:
+  torch: MultiHeadAttention
+  init: True
