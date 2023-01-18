@@ -9,3 +9,8 @@ addopts = "-ra -q"
 testpaths = [
     "tests",
 ]
+
+[tool.poetry]
+packages = [
+    {include = "padiff"},
+]
