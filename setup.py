@@ -38,8 +38,6 @@ setup(
     install_requires=REQUIRED_PACKAGES,
     packages=find_packages(),
     include_package_data=True,
-    data_files=[("padiff/configs", ["padiff/configs/assign_weight.yaml"])],
-    include_data_files=True,
     python_requires=">=3.7",
     classifiers=[
         "Programming Language :: Python :: 3",

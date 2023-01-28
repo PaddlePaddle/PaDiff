@@ -34,7 +34,8 @@ lint:
 test: unit-test
 
 unit-test:
-	pytest \
+	PYTHONPATH=. pytest
+   	pytest \
 		-n auto --cov padiff \
 		--cov-report xml:coverage.xml
 
