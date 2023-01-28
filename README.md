@@ -7,14 +7,14 @@ PaDiff是基于PaddlePaddle与PyTorch的模型精度对齐工具。传入Paddle�
 
 
 ## 安装
-PaDiff v0.1 版本将于近期发布，届时可通过如下命令安装：
+PaDiff v0.1 版本已发布，可通过如下命令安装：
 ```
 pip install padiff
 ```
 
-尝鲜版或开发者推荐如下命令安装：
+尝鲜版或开发者推荐clone源码并使用如下命令安装：
 ```
-pip install -e .
+python setup.py install
 ```
 ## 使用说明
 
