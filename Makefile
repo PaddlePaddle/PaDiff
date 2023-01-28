@@ -35,9 +35,8 @@ test: unit-test
 
 unit-test:
 	PYTHONPATH=. pytest
-    # removed `-n auto` to avoid multi-process (maybe support it later)
-	pytest \
-		--cov padiff \
+   	pytest \
+		-n auto --cov padiff \
 		--cov-report xml:coverage.xml
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
