@@ -107,8 +107,7 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
     if options["cmd"]:
         PaDiff_Cmd(paddle_report, torch_report, options).cmdloop()
 
-    # TODO(linjieccc): pytest failed if log clean is enabled
-    # clean_log_dir()
+    clean_log_dir()
     return ret
 
 
