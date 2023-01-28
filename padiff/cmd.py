@@ -66,11 +66,12 @@ class PaDiff_Cmd(Cmd):
         if options["diff_phase"] == "forward":
             return
 
-        for idx, paddle_item in enumerate(paddle_tree_view.traversal_backward()):
-            self.bwd_order.append(paddle_item.bwd_item)
-            torch_item = self.p2t_dict[paddle_item.fwd_item].bwd_item
-            assert torch_item.type == paddle_item.type and paddle_item.type == "backward"
-            self.p2t_dict[paddle_item.bwd_item] = torch_item
+        for idx, paddle_fwd_item in enumerate(paddle_tree_view.traversal_backward()):
+            paddle_bwd_item = paddle_fwd_item.bwd_item
+            self.bwd_order.append(paddle_bwd_item)
+            torch_bwd_item = self.p2t_dict[paddle_fwd_item].bwd_item
+            assert torch_bwd_item.type == paddle_bwd_item.type and paddle_bwd_item.type == "backward"
+            self.p2t_dict[paddle_bwd_item] = torch_bwd_item
 
     # core function
     def do_compare(self, line):
