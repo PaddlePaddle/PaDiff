@@ -16,6 +16,6 @@ from .auto_diff import auto_diff
 
 __all__ = ["auto_diff"]
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 
 from . import configs
