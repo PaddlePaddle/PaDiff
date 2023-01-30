@@ -2,6 +2,9 @@
 **P**addle **Auto**matically **Diff** precision toolkits.
 
 
+## 最近更新
+- 支持使用自定义损失函数
+
 ## 简介
 PaDiff是基于PaddlePaddle与PyTorch的模型精度对齐工具。传入Paddle与Torch模型，PaDiff将对训练过程中的所有中间结果以及训练后的模型权重进行对齐检查，并以调用栈的形式提示模型第一次出现精度diff的位置。
 
@@ -44,8 +47,11 @@ python setup.py install
 
        -   "single_step": `True|False` 默认为 `False`。设置为 `True` 时开启单步对齐模式，forward过程中每一个step都会同步模型的输入，可以避免层间误差累积。注意：开启single_step后将不会触发backward过程，"diff_phase"参数将被强制设置为 `"forward"`。
 
+- loss_fn：由paddle和torch使用的损失函数按顺序组成的list。在使用时，要求传入的loss function只接受一个参数。
+
 ### 注意事项与样例代码：
 
+#### case1 模型定义与auto_diff基本使用
 -   在使用auto_diff时，需要传入paddle模型与torch模型，在模型定义时，需要将forward中所使用的子模型在 `__init__` 函数中定义，并保证其中的子模型定义顺序一致，具体可见下方示例代码
 
 ```py
@@ -98,6 +104,92 @@ inp = ({'x': paddle.to_tensor(inp)},  ## <-- 注意顺序，paddle_input, torch_
        {'y': torch.as_tensor(inp) })
 auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0, 'compare_mode': 'strict', 'single_step':False})
 ```
+
+#### case2 使用 layer_mapping
+- layer_mapping可以指定两个sublayer之间的对应关系，这样做可以略过sublayer内部的数据对齐
+- 在auto_diff内支持部分sublayer的权重初始化，对于不支持的sublayer，将在auto_diff输出信息中进行提示。若出现了相关输出信息，用户需要自行初始化sublayer
+
+
+```py
+# 由于paddle与torch的MultiHeadAttention无法直接对齐
+# 需要使用 layer_mapping 功能
+
+class SimpleLayer(paddle.nn.Layer):
+    def __init__(self):
+        super(SimpleLayer, self).__init__()
+        self.attn = paddle.nn.MultiHeadAttention(16, 1)
+
+    def forward(self, q, k, v):
+        x = self.attn(q, k, v)
+        return x
+
+class SimpleModule(torch.nn.Module):
+    def __init__(self):
+        super(SimpleModule, self).__init__()
+        self.attn = torch.nn.MultiheadAttention(16, 1, batch_first=True)
+
+    def forward(self, q, k, v):
+        x, _ = self.attn(q, k, v)
+        return x
+
+
+layer = SimpleLayer()
+module = SimpleModule()
+
+# 在layer_mapping中指定无法对齐的sublayer。注意，在字典中应使用python obj
+# layer_mapping对kv顺序没有要求
+# 目前 auto_diff 已支持 MultiHeadAttention 的权重自动初始化，因此此处无需其他操作
+
+layer_mapping = {layer.attn: module.attn}
+
+inp = paddle.rand((2, 4, 16)).numpy()
+inp = (
+{"q": paddle.to_tensor(inp), "k": paddle.to_tensor(inp), "v": paddle.to_tensor(inp)},
+{"q": torch.as_tensor(inp), "k": torch.as_tensor(inp), "v": torch.as_tensor(inp)},
+)
+
+
+auto_diff(layer, module, inp, auto_weights=True, layer_mapping=layer_mapping, options={"atol": 1e-4})
+```
+
+#### case3 使用loss_fn
+- 不指定loss_fn时，将使用auto_diff内置的一个fake loss function进行计算
+```py
+class SimpleLayer(paddle.nn.Layer):
+    # ...
+class SimpleModule(torch.nn.Module):
+    # ...
+
+layer = SimpleLayer()
+module = SimpleModule()
+inp = paddle.rand((100, 100)).numpy().astype("float32")
+inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
+label = paddle.rand([10]).numpy().astype("float32")
+
+# 自定义loss函数，若输入不止一个，可以使用partial或者闭包等方法得到单输入的函数，再传入
+def paddle_loss(inp, label):
+    label = paddle.to_tensor(label)
+    return inp.mean() - label.mean()
+def torch_loss(inp, label):
+    label = torch.tensor(label)
+    return inp.mean() - label.mean()
+
+auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, loss_fn=[
+       partial(paddle_loss, label=label),
+       partial(torch_loss, label=label)
+])
+
+# 使用 paddle 和 torch 提供的损失函数时，使用方法一致
+paddle_mse = paddle.nn.MSELoss()
+torch_mse = torch.nn.MSELoss()
+
+auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, loss_fn=[
+       partial(paddle_mse, label=paddle.to_tensor(label)),
+       partial(torch_mse, target=torch.tensor(label))
+])
+```
+
+
 
 ## 输出信息示例
 
