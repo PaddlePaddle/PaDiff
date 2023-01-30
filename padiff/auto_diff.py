@@ -39,7 +39,7 @@ paddle.set_printoptions(precision=10)
 torch.set_printoptions(precision=10)
 
 
-def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_mapping={}):
+def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_mapping={}, loss_fn=None):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
@@ -66,6 +66,15 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
     paddle.set_device("cpu")
     module = module.to("cpu")
 
+    if loss_fn is not None:
+        paddle_loss, torch_loss = loss_fn
+        assert callable(paddle_loss), "Invalid loss function"
+        assert callable(torch_loss), "Invalid loss function"
+        options["loss_fn"] = True
+    else:
+        options["loss_fn"] = False
+
+    options = init_options(options)
     reset_log_dir()
     _preprocess(layer, module, auto_weights, options, layer_mapping)
 
@@ -75,7 +84,11 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
         with _register_torch_hooker(module, options, layer_mapping):
             try:
                 torch_output = module(**torch_input)
-                loss = tensors_mean(torch_output, "torch")
+                if options["loss_fn"]:
+                    loss = torch_loss(torch_output)
+                    torch_report.set_loss(loss)
+                else:
+                    loss = tensors_mean(torch_output, "torch")
                 if options["diff_phase"] == "both":
                     loss.backward()
             except Exception as e:
@@ -88,7 +101,11 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
         with _register_paddle_hooker(layer, options, layer_mapping):
             try:
                 paddle_output = layer(**paddle_input)
-                loss = tensors_mean(paddle_output, "paddle")
+                if options["loss_fn"]:
+                    loss = paddle_loss(paddle_output)
+                    paddle_report.set_loss(loss)
+                else:
+                    loss = tensors_mean(paddle_output, "paddle")
                 if options["diff_phase"] == "both":
                     loss.backward()
             except Exception as e:
@@ -185,7 +202,6 @@ def _register_torch_hooker(module, options, layer_mapping={}):
 
 
 def _preprocess(layer, module, auto_weights, options, layer_mapping):
-    init_options(options)
     modify_layer_mapping(layer_mapping)
     remove_inplace(layer, module)
     yamls.options = options

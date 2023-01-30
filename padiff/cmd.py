@@ -208,7 +208,7 @@ class PaDiff_Cmd(Cmd):
 
     def _compare_and_show_message(self, t1, t2):
         try:
-            assert_tensor_equal(t1, t2, self.options["atol"], self.options["rtol"], self.options["compare_mode"])
+            assert_tensor_equal(t1, t2, self.options)
             return True
         except Exception as e:
             print(str(e), "\n")

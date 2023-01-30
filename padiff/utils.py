@@ -315,15 +315,8 @@ def tensors_mean(inp, mode):
 
 
 def max_diff(paddle_output, torch_output):
-    p_values = []
-    t_values = []
-    for t in for_each_tensor(paddle_output):
-        p_values.append(t[0])
-    for t in for_each_tensor(torch_output):
-        t_values.append(t[0])
-
     _max_diff = 0
-    for (pt, tt) in zip(p_values, t_values):
+    for (pt,), (tt,) in zip(for_each_tensor(paddle_output), for_each_tensor(torch_output)):
         temp = np.abs(tt.detach().numpy() - pt.detach().numpy()).max()
         if temp > _max_diff:
             _max_diff = temp
@@ -335,7 +328,7 @@ def log(*args):
     print("[AutoDiff]", *args)
 
 
-def compare_tensor(tensor1, tensor2, atol=0, rtol=1e-7, compare_mode="mean"):
+def compare_tensor_ret_bool(tensor1, tensor2, atol=0, rtol=1e-7, compare_mode="mean"):
     """
     compare tensor and return bool
     """
@@ -349,10 +342,13 @@ def compare_tensor(tensor1, tensor2, atol=0, rtol=1e-7, compare_mode="mean"):
         raise RuntimeError("compare_mode `{}` is not supported, use `strict` or `mean` instead".format(compare_mode))
 
 
-def assert_tensor_equal(tensor1, tensor2, atol=0, rtol=1e-7, compare_mode="mean"):
+def assert_tensor_equal(tensor1, tensor2, options):
     """if equal: return None
     else: raise Error and Error Message.
     """
+    atol = options["atol"]
+    rtol = options["rtol"]
+    compare_mode = options["compare_mode"]
     if tensor1 is None and tensor2 is None:
         return True
     if compare_mode == "mean":
@@ -372,19 +368,15 @@ def init_options(options):
         "cmd": False,
     }
 
-    for key in default_options.keys():
-        if key not in options.keys():
-            options[key] = default_options[key]
-
-    if options["single_step"]:
-        options["diff_phase"] = "forward"
-        log("In single_step mode, diff_phase is set to `forward`.")
+    default_options.update(options)
 
     log("Your options:")
     print("{")
-    for key in options.keys():
-        print("  {}: `{}`".format(key, options[key]))
+    for key in default_options.keys():
+        print("  {}: `{}`".format(key, default_options[key]))
     print("}")
+
+    return default_options
 
 
 def modify_layer_mapping(layer_mapping):

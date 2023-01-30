@@ -23,6 +23,7 @@ from .utils import (
     for_each_grad_tensor,
     for_each_tensor,
     log,
+    assert_tensor_equal,
 )
 
 
@@ -108,6 +109,7 @@ class Report:
         self.name = name
         self.items = []
         self.counter = None
+        self.loss = None
 
     def put_item(self, type, input, output, net, net_id, frame_info, frames):
         step = self.counter.get_id()
@@ -133,6 +135,9 @@ class Report:
         tlist = list(filter(lambda x: x.type == "forward" and x.net_id == net_id, self.items))
         plist = list(filter(lambda x: x.type == "forward" and x.net_id == net_id, p_report.items))
         return tlist[len(plist) - 1]
+
+    def set_loss(self, loss):
+        self.loss = loss.detach().cpu().clone()
 
     def __repr__(self):
         return self.__str__()
@@ -246,6 +251,17 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
             return False
 
     log("forward {} steps compared.".format(len(paddle_fwd_items)))
+
+    # loss check
+    if cfg["loss_fn"]:
+        try:
+            assert_tensor_equal(paddle_rep.loss, torch_rep.loss, cfg)
+            log("loss compared.")
+        except Exception as e:
+            log("*** Diff found in loss, Checkout your loss function! ***")
+            log("loss compare:\n")
+            print("{}".format(str(e)))
+            return False
 
     if cfg["diff_phase"] == "forward":
         log("Diff_phase is `forward`. Backward compare skipped.")
