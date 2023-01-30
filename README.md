@@ -38,15 +38,15 @@ python setup.py install
 
        -   "rtol": 相对精度误差上限，默认值为 `1e-7`
 
-       -   "diff_phase": `"both"|"forward"`默认为`"both"`。设置为`"both"`时，工具将比较前反向的diff；当设置为`forward`时，仅比较前向diff，且会跳过模型的backward计算过程。
+       -   "diff_phase": `"both"|"forward"` 默认为 `"both"`。设置为 `"both"` 时，工具将比较前反向的diff；当设置为 `"forward"` 时，仅比较前向diff，且会跳过模型的backward计算过程。
 
-       -   "compare_mode": `"mean"|"strict"`默认为`"mean"`。`"mean"`表示使用Tensor间误差的均值作为对齐标准；`"strict"`表示对Tensor进行逐数据（Elementwise）的对齐检查。
+       -   "compare_mode": `"mean"|"strict"` 默认为 `"mean"`。 `"mean"` 表示使用Tensor间误差的均值作为对齐标准； `"strict"` 表示对Tensor进行逐数据（Elementwise）的对齐检查。
 
-       -   "single_step": `True|False` 默认为 `False`。设置为`True`开启单步对齐模式，paddle模型中每一个sublayer的input由torch模型中对应的input对齐，可以避免层间误差累积。注意：开启single_step后将不会触发backward过程，"diff_phase"参数将被强制设置为`"forward"`。
+       -   "single_step": `True|False` 默认为 `False`。设置为 `True` 时开启单步对齐模式，forward过程中每一个step都会同步模型的输入，可以避免层间误差累积。注意：开启single_step后将不会触发backward过程，"diff_phase"参数将被强制设置为 `"forward"`。
 
-### 注意事项与用例代码：
+### 注意事项与样例代码：
 
--   在使用auto_diff时，需要传入paddle模型与torch模型，在模型定义时，需要将forward中所使用的子模型在`__init__`函数中定义，并保证其中的子模型定义顺序一致，具体可见下方示例代码
+-   在使用auto_diff时，需要传入paddle模型与torch模型，在模型定义时，需要将forward中所使用的子模型在 `__init__` 函数中定义，并保证其中的子模型定义顺序一致，具体可见下方示例代码
 
 ```py
 from padiff import auto_diff
