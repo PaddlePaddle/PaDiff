@@ -70,7 +70,7 @@ class TestCaseName(unittest.TestCase):
         layer = SimpleLayer()
         module = SimpleModule()
         options = {"atol": 1e-4}
-        init_options(options)
+        options = init_options(options)
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})

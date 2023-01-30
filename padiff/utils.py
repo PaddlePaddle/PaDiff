@@ -366,6 +366,7 @@ def init_options(options):
         "single_step": False,
         "debug": False,
         "cmd": False,
+        "loss_fn": False,
     }
 
     default_options.update(options)
@@ -373,7 +374,8 @@ def init_options(options):
     log("Your options:")
     print("{")
     for key in default_options.keys():
-        print("  {}: `{}`".format(key, default_options[key]))
+        if key not in ["debug", "cmd", "loss_fn"]:
+            print("  {}: `{}`".format(key, default_options[key]))
     print("}")
 
     return default_options
