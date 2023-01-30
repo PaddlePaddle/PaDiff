@@ -21,7 +21,7 @@ import paddle
 import torch
 
 
-from .utils import log, map_for_each_sublayer, compare_tensor, traversal_layers
+from .utils import log, map_for_each_sublayer, traversal_layers, assert_tensor_equal
 from .yaml_loader import global_yaml_loader as yamls
 
 
@@ -68,6 +68,7 @@ def process_each_weight(process, layer, module, options, layer_mapping={}):
 
     layers = [layer]
     modules = [module]
+    # layers in layer_mapping should be inited in `special_init`, so they will be skipped here
     layers.extend(filter(lambda x: x not in layer_mapping.keys(), traversal_layers(layer, layer_mapping)))
     modules.extend(filter(lambda x: x not in layer_mapping.values(), traversal_layers(module, layer_mapping)))
 
@@ -204,35 +205,32 @@ def check_weight_grad(layer, module, options, layer_mapping={}):
         weight_log_path = os.path.join(sys.path[0], "diff_log", "weight_diff.log")
         grad_log_path = os.path.join(sys.path[0], "diff_log", "grad_diff.log")
 
-        _weight_check = compare_tensor(
-            p_param,
-            t_param,
-            atol=settings["atol"],
-            rtol=settings["rtol"],
-            compare_mode=settings["compare_mode"],
-        )
-        _grad_check = compare_tensor(
-            p_grad, t_grad, atol=settings["atol"], rtol=settings["rtol"], compare_mode=settings["compare_mode"]
-        )
-
-        if _weight_check is False:
+        # check weight
+        try:
+            assert_tensor_equal(p_param, t_param, settings)
+            _weight_check = True
+        except Exception as e:
+            _weight_check = False
             with open(weight_log_path, "a") as f:
                 f.write(
                     "After training, weight value is different for param `{}`.\n"
-                    "paddle: `{}` with value:\n{}\n"
-                    "torch: `{}` with value:\n{}\n\n".format(
-                        param_name, paddle_sublayer, p_param, torch_submodule, t_param
-                    )
+                    "paddle: `{}` \n"
+                    "torch: `{}` \n"
+                    "{}\n\n".format(param_name, paddle_sublayer, torch_submodule, str(e))
                 )
 
-        if _grad_check is False:
+        # check grad
+        try:
+            assert_tensor_equal(p_grad, t_grad, settings)
+            _grad_check = True
+        except Exception as e:
+            _grad_check = False
             with open(grad_log_path, "a") as f:
                 f.write(
                     "After training, grad value is different for param `{}`.\n"
-                    "paddle: `{}` with value\n{}\n"
-                    "torch: `{}` with value\n{}\n\n".format(
-                        param_name, paddle_sublayer, p_grad, torch_submodule, t_grad
-                    )
+                    "paddle: `{}` \n"
+                    "torch: `{}` \n"
+                    "{}\n\n".format(param_name, paddle_sublayer, torch_submodule, str(e))
                 )
 
     process_each_weight(_check_weight_grad, layer, module, options, layer_mapping)

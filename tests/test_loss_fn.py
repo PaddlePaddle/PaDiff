@@ -14,13 +14,11 @@
 
 import unittest
 
-
 import paddle
 import torch
 
 from padiff import auto_diff
-from padiff.utils import reset_log_dir, init_options
-from padiff.weights import check_weight_grad
+from functools import partial
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -66,32 +64,51 @@ class SimpleModule(torch.nn.Module):
 
 
 class TestCaseName(unittest.TestCase):
-    def test_check_weight_grad(self):
+    def test_loss_fn(self):
+
         layer = SimpleLayer()
         module = SimpleModule()
-        options = {"atol": 1e-4}
-        options = init_options(options)
-
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert auto_diff(layer, module, inp, auto_weights=True, options=options) is True, "Failed. expected success."
+        label = paddle.rand([10]).numpy().astype("float32")
 
-        module.zero_grad()
-        reset_log_dir()
-        weight_check, grad_check = check_weight_grad(layer, module, options=options)
-        assert weight_check is True, "Weight params should be same"
-        assert grad_check is False, "Grad should be different"
+        def paddle_loss(inp, label):
+            label = paddle.to_tensor(label)
+            return inp.mean() - label.mean()
 
-        layer = SimpleLayer()
-        module = SimpleModule()
-        assert auto_diff(layer, module, inp, auto_weights=True, options=options) is True, "Failed. expected success."
+        def torch_loss(inp, label):
+            label = torch.tensor(label)
+            return inp.mean() - label.mean()
 
-        for param in module.parameters():
-            param.data = param * 2
-        reset_log_dir()
-        weight_check, grad_check = check_weight_grad(layer, module, options=options)
-        assert weight_check is False, "Weight params should be different"
-        assert grad_check is True, "Grad should be same"
+        assert (
+            auto_diff(
+                layer,
+                module,
+                inp,
+                auto_weights=True,
+                options={"atol": 1e-4},
+                loss_fn=[partial(paddle_loss, label=label), partial(torch_loss, label=label)],
+            )
+            is True
+        ), "Failed. expected success."
+
+        paddle_mse = paddle.nn.MSELoss()
+        torch_mse = torch.nn.MSELoss()
+
+        assert (
+            auto_diff(
+                layer,
+                module,
+                inp,
+                auto_weights=True,
+                options={"atol": 1e-4},
+                loss_fn=[
+                    partial(paddle_mse, label=paddle.to_tensor(label)),
+                    partial(torch_mse, target=torch.tensor(label)),
+                ],
+            )
+            is True
+        ), "Failed. expected success."
 
 
 if __name__ == "__main__":
