@@ -35,8 +35,11 @@ class Trainer(object):
             self.paddle_loss = loss_fn[0]
             self.torch_loss = loss_fn[1]
         if opt is not None:
+            self.has_opt = True
             self.paddle_opt = opt[0]
             self.torch_opt = opt[1]
+        else:
+            self.has_opt = False
 
         remove_inplace(self.layer, self.module)
 
@@ -94,8 +97,9 @@ class Trainer(object):
         log("Max elementwise output diff is {}\n".format(max_diff(paddle_output, torch_output)))
 
     def clear_grad(self):
-        self.paddle_opt.clear_grad()
-        self.torch_opt.zero_grad()
+        if self.has_opt:
+            self.paddle_opt.clear_grad()
+            self.torch_opt.zero_grad()
 
 
 def tensor_hook(x_grad, bwd_item, nth_tensor):
