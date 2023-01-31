@@ -80,7 +80,7 @@ def auto_diff(
     _preprocess(trainer, auto_weights, options, layer_mapping)
 
     if steps > 1:
-        if options["diff_phase"] == "forward" or options["ops"] == False:
+        if options["diff_phase"] == "forward" or options["opt"] == False:
             steps = 1
             log("Notice: diff_phase is `forward` or require optimizer, steps is set to `1`.")
 
