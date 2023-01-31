@@ -79,9 +79,10 @@ def auto_diff(
     trainer = Trainer(layer, module, loss_fn, optimizer)
     _preprocess(trainer, auto_weights, options, layer_mapping)
 
-    if steps > 1 and options["diff_phase"] == "forward":
-        steps = 1
-        log("Notice: diff_phase is `forward`, steps will be set to `1`")
+    if steps > 1:
+        if options["diff_phase"] == "forward" or options["ops"] == False:
+            steps = 1
+            log("Notice: diff_phase is `forward` or require optimizer, steps is set to `1`.")
 
     # collect reports and analys
     for step_id in range(steps):
