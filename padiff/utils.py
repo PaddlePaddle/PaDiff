@@ -367,25 +367,34 @@ def init_options(options):
         "debug": False,
         "cmd": False,
         "loss_fn": False,
+        "opt": False,
+        "multi_steps": False,
     }
 
     default_options.update(options)
+    options.update(default_options)
 
     log("Your options:")
-    print("{")
-    for key in default_options.keys():
-        if key not in ["debug", "cmd", "loss_fn"]:
-            print("  {}: `{}`".format(key, default_options[key]))
-    print("}")
 
-    return default_options
+    if options["single_step"]:
+        options["diff_phase"] = "forward"
+        log("  In single_step mode, diff_phase will be set to `forward`.")
+
+    if options["diff_phase"] == "forward" and options["opt"]:
+        log("  Diff_phase is `forward`, optimizer will not be used.")
+
+    print("{")
+    for key in options.keys():
+        if key not in ["debug", "cmd", "loss_fn", "opt", "multi_steps"]:
+            print("  {}: `{}`".format(key, options[key]))
+    print("}")
 
 
 def modify_layer_mapping(layer_mapping):
-    remove_keys = []
+    swap_keys = []
     for key in layer_mapping.keys():
         if not isinstance(key, paddle.nn.Layer):
-            remove_keys.append(key)
-    for key in remove_keys:
+            swap_keys.append(key)
+    for key in swap_keys:
         layer_mapping[layer_mapping[key]] = key
         layer_mapping.pop(key)

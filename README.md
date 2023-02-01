@@ -4,6 +4,8 @@
 
 ## 最近更新
 - 支持使用自定义损失函数
+- 支持使用Optimizer
+- 支持多step的对齐检查
 
 ## 简介
 PaDiff是基于PaddlePaddle与PyTorch的模型精度对齐工具。传入Paddle与Torch模型，PaDiff将对训练过程中的所有中间结果以及训练后的模型权重进行对齐检查，并以调用栈的形式提示模型第一次出现精度diff的位置。
@@ -23,7 +25,7 @@ python setup.py install
 
 ### auto_diff 使用接口与参数说明
 
-接口函数签名：`auto_diff(layer, module, example_inp, auto_weights=True, layer_mapping={}, options={})`
+接口函数签名：`auto_diff(layer, module, example_inp, auto_weights=True, steps=1, options={}, layer_mapping={}, loss_fn=None, optimizer=None)`
 
 -   layer：传入paddle模型
 
@@ -47,7 +49,10 @@ python setup.py install
 
        -   "single_step": `True|False` 默认为 `False`。设置为 `True` 时开启单步对齐模式，forward过程中每一个step都会同步模型的输入，可以避免层间误差累积。注意：开启single_step后将不会触发backward过程，"diff_phase"参数将被强制设置为 `"forward"`。
 
-- loss_fn：由paddle和torch使用的损失函数按顺序组成的list。在使用时，要求传入的loss function只接受一个参数。
+-   loss_fn：由paddle和torch使用的损失函数按顺序组成的list。在使用时，要求传入的loss function只接受一个参数。
+-   optimizer：由paddle和torch使用的优化器按顺序组成的list。
+
+-   steps: 支持多step的对齐检查，默认值为1。当输入steps >1 时要求 `option["diff_phase"]` 为 `"forward"`，且传入了optimizer
 
 ### 注意事项与样例代码：
 

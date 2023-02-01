@@ -12,34 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
-from functools import partial
 
 import paddle
 import torch
-
-from .report import Report, check_forward_and_backward, current_torch_report, current_paddle_report, report_guard
-from .stack_info import *
+from .report import Report, check_forward_and_backward
 from .utils import (
-    for_each_grad_tensor,
     log,
-    max_diff,
     reset_log_dir,
-    tensors_mean,
-    traversal_layers,
-    map_structure_and_replace_key,
     init_options,
     modify_layer_mapping,
 )
-from .weights import assign_weight, check_weight_grad, remove_inplace
+from .weights import check_weight_grad
 from .yaml_loader import global_yaml_loader as yamls
 from .cmd import PaDiff_Cmd
+from .Trainer import Trainer
+
 
 paddle.set_printoptions(precision=10)
 torch.set_printoptions(precision=10)
 
 
-def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_mapping={}, loss_fn=None):
+def auto_diff(
+    layer, module, example_inp, auto_weights=True, options={}, layer_mapping={}, loss_fn=None, optimizer=None, steps=1
+):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
@@ -55,6 +50,8 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
     Returns:
         True for success, False for failed.
     """
+
+    # checkout inputs
     assert isinstance(layer, paddle.nn.Layer), "Invalid Argument."
     assert isinstance(module, torch.nn.Module), "Invalid Argument."
     assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
@@ -71,55 +68,41 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
         assert callable(paddle_loss), "Invalid loss function"
         assert callable(torch_loss), "Invalid loss function"
         options["loss_fn"] = True
-    else:
-        options["loss_fn"] = False
 
-    options = init_options(options)
-    reset_log_dir()
-    _preprocess(layer, module, auto_weights, options, layer_mapping)
+    if optimizer is not None:
+        paddle_opt, torch_opt = optimizer
+        assert isinstance(paddle_opt, paddle.optimizer.Optimizer), "Invalid Optimizer."
+        assert isinstance(torch_opt, torch.optim.Optimizer), "Invalid Optimizer."
+        options["opt"] = True
 
-    torch_report = Report("torch")
-    paddle_report = Report("paddle")
-    with report_guard(torch_report, paddle_report):
-        with _register_torch_hooker(module, options, layer_mapping):
-            try:
-                torch_output = module(**torch_input)
-                if options["loss_fn"]:
-                    loss = torch_loss(torch_output)
-                    torch_report.set_loss(loss)
-                else:
-                    loss = tensors_mean(torch_output, "torch")
-                if options["diff_phase"] == "both":
-                    loss.backward()
-            except Exception as e:
-                raise RuntimeError(
-                    "Exception is thrown while running forward of torch_module, please check the legality of module.\n{}".format(
-                        str(e)
-                    )
-                )
+    # prepare models and options
+    trainer = Trainer(layer, module, loss_fn, optimizer)
+    _preprocess(trainer, auto_weights, options, layer_mapping)
 
-        with _register_paddle_hooker(layer, options, layer_mapping):
-            try:
-                paddle_output = layer(**paddle_input)
-                if options["loss_fn"]:
-                    loss = paddle_loss(paddle_output)
-                    paddle_report.set_loss(loss)
-                else:
-                    loss = tensors_mean(paddle_output, "paddle")
-                if options["diff_phase"] == "both":
-                    loss.backward()
-            except Exception as e:
-                raise RuntimeError(
-                    "Exception is thrown while running forward of paddle_layer, please check the legality of layer.\n{}".format(
-                        str(e)
-                    )
-                )
+    if steps > 1:
+        if options["diff_phase"] == "forward" or options["opt"] == False:
+            steps = 1
+            log("Notice: diff_phase is `forward` or require optimizer, steps is set to `1`.")
 
-    log("Max elementwise output diff is {}\n".format(max_diff(paddle_output, torch_output)))
+    # collect reports and analys
+    for step_id in range(steps):
+        log(f"=================Train Step {step_id}=================")
+        paddle_report = Report("paddle")
+        torch_report = Report("torch")
+        trainer.set_report(paddle_report, torch_report)
 
-    weight_check, grad_check = check_weight_grad(layer, module, layer_mapping=layer_mapping, options=options)
-    ret = check_forward_and_backward(torch_report, paddle_report, options)
-    ret = ret and weight_check and grad_check
+        trainer.clear_grad()
+        trainer.train_step(example_inp, options, layer_mapping)
+
+        weight_check, grad_check = check_weight_grad(
+            trainer.layer, trainer.module, layer_mapping=layer_mapping, options=options
+        )
+        ret = check_forward_and_backward(torch_report, paddle_report, options)
+        ret = ret and weight_check and grad_check
+
+        if ret == False:
+            log(f"\nDiff found in step {step_id}")
+            break
 
     if options["cmd"]:
         PaDiff_Cmd(paddle_report, torch_report, options).cmdloop()
@@ -129,81 +112,10 @@ def auto_diff(layer, module, example_inp, auto_weights=True, options={}, layer_m
     return ret
 
 
-def tensor_hook(x_grad, bwd_item, nth_tensor):
-    # print (nth_tensor, bwd_item.input_grads, bwd_item.input)
-    bwd_item.set_input_grads(nth_tensor, x_grad)
-    return x_grad
-
-
-def torch_layer_hook(module, input, output, idx, options):
-    rep = current_torch_report()
-    frame_info, frames = extract_frame_summary()
-    fwd_item = rep.put_item("forward", input, output, module, idx, frame_info, frames)
-    bwd_item = rep.put_item("backward", input, output, module, idx, frame_info, frames)
-    bwd_item.set_forward(fwd_item)
-    for i, (t,) in enumerate(for_each_grad_tensor(input)):
-        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
-    return None
-
-
-def paddle_layer_hook(module, input, output, idx, options):
-    p_rep = current_paddle_report()
-    frame_info, frames = extract_frame_summary()
-    fwd_item = p_rep.put_item("forward", input, output, module, idx, frame_info, frames)
-    bwd_item = p_rep.put_item("backward", input, output, module, idx, frame_info, frames)
-    bwd_item.set_forward(fwd_item)
-    for i, (t,) in enumerate(for_each_grad_tensor(input)):
-        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
-
-    if options["single_step"]:
-        t_rep = current_torch_report()
-        t_fwd_item = t_rep.find_item(p_rep, idx)
-
-        def tt2pt(tt):
-            if isinstance(tt, torch.Tensor):
-                return paddle.to_tensor(tt.detach().numpy())
-            else:
-                return tt
-
-        return map_structure_and_replace_key(tt2pt, [t_fwd_item.output], output)
-    else:
-        return None
-
-
-@contextlib.contextmanager
-def _register_paddle_hooker(layer, options, layer_mapping={}):
-    remove_handles = []
-    # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
-    idx = 0
-    layers = [layer]
-    layers.extend(traversal_layers(layer, layer_mapping))
-    for mod in layers:
-        handle = mod.register_forward_post_hook(partial(paddle_layer_hook, idx=idx, options=options))
-        remove_handles.append(handle)
-        idx += 1
-    yield
-    for h in remove_handles:
-        h.remove()
-
-
-@contextlib.contextmanager
-def _register_torch_hooker(module, options, layer_mapping={}):
-    remove_handles = []
-    idx = 0
-    modules = [module]
-    modules.extend(traversal_layers(module, layer_mapping))
-    for mod in modules:
-        handle = mod.register_forward_hook(partial(torch_layer_hook, idx=idx, options=options))
-        remove_handles.append(handle)
-        idx += 1
-    yield
-    for h in remove_handles:
-        h.remove()
-
-
-def _preprocess(layer, module, auto_weights, options, layer_mapping):
+def _preprocess(trainer, auto_weights, options, layer_mapping):
+    reset_log_dir()
+    init_options(options)
     modify_layer_mapping(layer_mapping)
-    remove_inplace(layer, module)
     yamls.options = options
     if auto_weights:
-        assign_weight(layer, module, options=options, layer_mapping=layer_mapping)
+        trainer.assign_weight_(options=options, layer_mapping=layer_mapping)
