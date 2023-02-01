@@ -20,7 +20,7 @@ from .utils import (
     log,
     reset_log_dir,
     init_options,
-    modify_layer_mapping,
+    init_LayerMap,
 )
 from .weights import check_weight_grad
 from .yaml_loader import global_yaml_loader as yamls
@@ -33,7 +33,7 @@ torch.set_printoptions(precision=10)
 
 
 def auto_diff(
-    layer, module, example_inp, auto_weights=True, options={}, layer_mapping={}, loss_fn=None, optimizer=None, steps=1
+    layer, module, example_inp, auto_weights=True, options={}, layer_map=None, loss_fn=None, optimizer=None, steps=1
 ):
     """
     Given example inputs, automatically find the first layer with precision diff.
@@ -46,7 +46,7 @@ def auto_diff(
         auto_weights (boolean, optional): uniformly init the parameters of models
         options (dict, optional):
             atol, compare_mode
-        layer_mapping (dict, optional): manually map paddle layer and torch module.
+        layer_map (class LayerMap, optional): manually map paddle layer and torch module.
     Returns:
         True for success, False for failed.
     """
@@ -77,7 +77,8 @@ def auto_diff(
 
     # prepare models and options
     trainer = Trainer(layer, module, loss_fn, optimizer)
-    _preprocess(trainer, auto_weights, options, layer_mapping)
+    layer_map = init_LayerMap(layer, module, layer_map)
+    _preprocess(trainer, auto_weights, options, layer_map)
 
     if steps > 1:
         if options["diff_phase"] == "forward" or options["opt"] == False:
@@ -92,10 +93,10 @@ def auto_diff(
         trainer.set_report(paddle_report, torch_report)
 
         trainer.clear_grad()
-        trainer.train_step(example_inp, options, layer_mapping)
+        trainer.train_step(example_inp, options=options, layer_map=layer_map)
 
         weight_check, grad_check = check_weight_grad(
-            trainer.layer, trainer.module, layer_mapping=layer_mapping, options=options
+            trainer.layer, trainer.module, options=options, layer_map=layer_map
         )
         ret = check_forward_and_backward(torch_report, paddle_report, options)
         ret = ret and weight_check and grad_check
@@ -112,10 +113,9 @@ def auto_diff(
     return ret
 
 
-def _preprocess(trainer, auto_weights, options, layer_mapping):
+def _preprocess(trainer, auto_weights, options, layer_map):
     reset_log_dir()
     init_options(options)
-    modify_layer_mapping(layer_mapping)
     yamls.options = options
     if auto_weights:
-        trainer.assign_weight_(options=options, layer_mapping=layer_mapping)
+        trainer.assign_weight_(layer_map)

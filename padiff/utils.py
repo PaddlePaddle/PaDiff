@@ -16,13 +16,16 @@ import os
 import sys
 import shutil
 import warnings
-from collections import namedtuple
+from collections import namedtuple, Iterable
 from itertools import zip_longest
 
 import numpy as np
 import paddle
 import torch
 from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
+
+
+# process Tensor
 
 
 def is_tensor(x):
@@ -49,6 +52,41 @@ def set_require_grad(x):
         x.requires_grad = True
     if hasattr(x, "stop_gradient"):
         x.stop_gradient = False
+
+
+def _clone_tensor(inp):
+    """
+    clone into cpu to save GPU memory.
+    """
+    if isinstance(inp, (torch.Tensor, paddle.Tensor)):
+        new_t = inp.detach().cpu().clone()
+        if is_require_grad(inp):
+            set_require_grad(new_t)
+        return new_t
+    else:
+        return inp
+
+
+def clone_tensors(inputs):
+    """
+    Clone the tensors in inputs. for example:
+    Inputs = [2, Tensor1, "sdf", Tensor2]
+    Return = [Tensor1_cloned, Tensor2_cloned]
+    """
+    cloned_inputs = []
+    for (t,) in for_each_tensor(inputs):
+        cloned_inputs.append(_clone_tensor(t))
+    return cloned_inputs
+
+
+def clone_structure(inputs):
+    """
+    Clone a nested structure.
+    """
+    return map_structure(_clone_tensor, inputs)
+
+
+# traversal tools
 
 
 def for_each_tensor(*structure):
@@ -98,36 +136,7 @@ def map_structure_and_replace_key(func, structure1, structure2):
     return pack_sequence_as(structure2, [func(*x) for x in entries])
 
 
-def _clone_tensor(inp):
-    """
-    clone into cpu to save GPU memory.
-    """
-    if isinstance(inp, (torch.Tensor, paddle.Tensor)):
-        new_t = inp.detach().cpu().clone()
-        if is_require_grad(inp):
-            set_require_grad(new_t)
-        return new_t
-    else:
-        return inp
-
-
-def clone_tensors(inputs):
-    """
-    Clone the tensors in inputs. for example:
-    Inputs = [2, Tensor1, "sdf", Tensor2]
-    Return = [Tensor1_cloned, Tensor2_cloned]
-    """
-    cloned_inputs = []
-    for (t,) in for_each_tensor(inputs):
-        cloned_inputs.append(_clone_tensor(t))
-    return cloned_inputs
-
-
-def clone_structure(inputs):
-    """
-    Clone a nested structure.
-    """
-    return map_structure(_clone_tensor, inputs)
+# Report tools
 
 
 def is_sublayer(father_net, child_net):
@@ -166,19 +175,6 @@ def is_sublayer(father_net, child_net):
         return False
     else:
         raise RuntimeError("father net is not Module / Layer")
-
-
-def traversal_layers(net, layer_mapping):
-    for child in net.children():
-        if not (isinstance(child, torch.nn.Sequential) or isinstance(child, paddle.nn.Sequential)):
-            yield child
-        ignore_sublayer = False
-        for key, val in layer_mapping.items():
-            if id(child) == id(key) or id(child) == id(val):
-                ignore_sublayer = True
-        if not ignore_sublayer:
-            for sublayer in traversal_layers(child, layer_mapping):
-                yield sublayer
 
 
 class TableView:
@@ -276,6 +272,8 @@ class TreeView:
             yield item
 
 
+# logs
+
 diff_log_path = os.path.join(sys.path[0], "diff_log")
 
 
@@ -290,28 +288,11 @@ def clean_log_dir():
         os.rmdir(diff_log_path)
 
 
-def tensors_mean(inp, mode):
-    """
-    TODO(wuzhanfei): This function is used to calcu loss in same way for paddle layer and torch module
-    need to support real opt later
-    """
-    if isinstance(inp, torch.Tensor) or isinstance(inp, paddle.Tensor):
-        return inp.mean()
+def log(*args):
+    print("[AutoDiff]", *args)
 
-    if mode == "torch":
-        means = []
-        for t in for_each_tensor(inp):
-            means.append(t[0].mean())
-        loss = torch.stack(means).mean()
-        return loss
-    elif mode == "paddle":
-        means = []
-        for t in for_each_tensor(inp):
-            means.append(t[0].mean())
-        loss = paddle.stack(means).mean()
-        return loss
-    else:
-        raise RuntimeError("unrecognized mode `{}`, expected: `torch` or `paddle`".format(mode))
+
+# tensor compute
 
 
 def max_diff(paddle_output, torch_output):
@@ -322,10 +303,6 @@ def max_diff(paddle_output, torch_output):
             _max_diff = temp
 
     return _max_diff
-
-
-def log(*args):
-    print("[AutoDiff]", *args)
 
 
 def compare_tensor_ret_bool(tensor1, tensor2, atol=0, rtol=1e-7, compare_mode="mean"):
@@ -355,6 +332,33 @@ def assert_tensor_equal(tensor1, tensor2, options):
         np.testing.assert_allclose(tensor1.mean(), tensor2.mean(), atol=atol, rtol=rtol)
     elif compare_mode == "strict":
         np.testing.assert_allclose(tensor1, tensor2, atol=atol, rtol=rtol)
+
+
+def tensors_mean(inp, mode):
+    """
+    TODO(wuzhanfei): This function is used to calcu loss in same way for paddle layer and torch module
+    need to support real opt later
+    """
+    if isinstance(inp, torch.Tensor) or isinstance(inp, paddle.Tensor):
+        return inp.mean()
+
+    if mode == "torch":
+        means = []
+        for t in for_each_tensor(inp):
+            means.append(t[0].mean())
+        loss = torch.stack(means).mean()
+        return loss
+    elif mode == "paddle":
+        means = []
+        for t in for_each_tensor(inp):
+            means.append(t[0].mean())
+        loss = paddle.stack(means).mean()
+        return loss
+    else:
+        raise RuntimeError("unrecognized mode `{}`, expected: `torch` or `paddle`".format(mode))
+
+
+# init tools
 
 
 def init_options(options):
@@ -390,11 +394,107 @@ def init_options(options):
     print("}")
 
 
-def modify_layer_mapping(layer_mapping):
+def modify_layer_map(layer_map):
     swap_keys = []
-    for key in layer_mapping.keys():
+    for key in layer_map.keys():
         if not isinstance(key, paddle.nn.Layer):
             swap_keys.append(key)
     for key in swap_keys:
-        layer_mapping[layer_mapping[key]] = key
-        layer_mapping.pop(key)
+        layer_map[layer_map[key]] = key
+        layer_map.pop(key)
+
+
+def init_LayerMap(layer, module, layer_map):
+    if layer_map is None:
+        layer_map = LayerMap()
+    elif isinstance(layer_map, dict):
+        new_map = LayerMap()
+        new_map.map = layer_map
+        layer_map = new_map
+    else:
+        assert isinstance(layer_map, LayerMap), "Invalid Argument."
+
+    layer_map.ignore_class(layer)
+    layer_map.ignore_class(module)
+
+    return layer_map
+
+
+class LayerMap(object):
+    def __init__(self):
+        self._layer_one2one = {}  # key: paddle.nn.Layer, value: torch.nn.Module
+        self._layer_ignore = set()  # ignore layer in this set
+        self._layer_ignore_sublayer = set()  # ignore sublayer of layers in this set (do not include themselves)
+
+        self._ignore_cls = (  # these classes will be ignored
+            paddle.nn.Sequential,
+            torch.nn.Sequential,
+        )
+
+    @staticmethod
+    def modify_layer_map(layer_map):
+        swap_keys = []
+        for key in layer_map.keys():
+            if not isinstance(key, paddle.nn.Layer):
+                swap_keys.append(key)
+        for key in swap_keys:
+            layer_map[layer_map[key]] = key
+            layer_map.pop(key)
+
+    @property
+    def map(self):
+        return self._layer_one2one
+
+    @map.setter
+    def map(self, inp):
+        assert isinstance(inp, dict), "LayerMap.map wants `dict` obj as input"
+        LayerMap.modify_layer_map(inp)
+        self._layer_one2one.update(inp)
+        self._layer_ignore_sublayer.update(set(inp.keys()))
+        self._layer_ignore_sublayer.update(set(inp.values()))
+
+    def ignore(self, inp):
+        if isinstance(inp, Iterable):
+            self._layer_ignore.update(set(inp))
+        elif isinstance(inp, (paddle.nn.Layer, torch.nn.Module)):
+            self._layer_ignore.add(inp)
+        else:
+            raise RuntimeError("Unexpect input type for LayerMap.ignore: {}".format(type(inp)))
+
+    def ignore_recursively(self, layers):
+        self._layer_ignore_sublayer.update(set(layers))
+        self._layer_ignore.update(set(layers))
+
+    def ignore_class(self, layer):
+        ignored = set()
+        for sublayer in self.layers(layer):
+            if isinstance(sublayer, self._ignore_cls):
+                ignored.add(sublayer)
+        self._layer_ignore.update(ignored)
+
+    def _traversal_layers(self, net):
+        for child in net.children():
+            if child not in self._layer_ignore:
+                yield child
+            if child not in self._layer_ignore_sublayer:
+                for sublayer in self._traversal_layers(child):
+                    yield sublayer
+
+    def special_init_layers(self):
+        return self.map.items()
+
+    def weight_init_layers(self, layer):
+        # layers in layer_map should be inited in `special_init`, so they will be skipped here
+        layers = [layer]
+        if isinstance(layer, paddle.nn.Layer):
+            layers.extend(filter(lambda x: x not in self.map.keys(), self._traversal_layers(layer)))
+        elif isinstance(layer, torch.nn.Module):
+            layers.extend(filter(lambda x: x not in self.map.values(), self._traversal_layers(layer)))
+        else:
+            raise RuntimeError("Invalid model type: {}".format(type(layer)))
+        return layers
+
+    def layers(self, layer):
+        layers = [layer]
+        layers.extend(self._traversal_layers(layer))
+        return layers

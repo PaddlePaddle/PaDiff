@@ -62,7 +62,7 @@ class yaml_loader:
     @options.setter
     def options(self, val):
         assert isinstance(val, dict)
-        self._options = val
+        self._options.update(val)
 
 
 global_yaml_loader = yaml_loader()
