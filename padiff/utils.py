@@ -455,10 +455,12 @@ class LayerMap(object):
         self._layer_ignore_sublayer.update(set(layers))
         self._layer_ignore.update(set(layers))
 
-    def ignore_class(self, layer):
+    def ignore_class(self, layer, ign_cls=None):
         ignored = set()
+        if ign_cls == None:
+            ign_cls = self._ignore_cls
         for sublayer in self.layers(layer):
-            if isinstance(sublayer, self._ignore_cls):
+            if isinstance(sublayer, ign_cls):
                 ignored.add(sublayer)
         self._layer_ignore.update(ignored)
 

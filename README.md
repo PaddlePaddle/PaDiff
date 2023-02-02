@@ -142,6 +142,10 @@ layer_map.ignore(layer.nop_layer)
 # 此处也可以传入 Iteratable 对象（如list）
 layer_map.ignore_recursivly(layer.nop_layer)
 
+# NOPLayer是一个class name
+# 忽略layer中所有类型为 NOPLayer的sublayer
+layer_map.ignore_class(layer, NOPLayer)
+
 auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map)
 ```
 
