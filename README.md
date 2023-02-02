@@ -147,7 +147,7 @@ auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map)
 
 ##### layer_map 样例代码
 
-**layer_map使用情景之一： 顶层模型向对应，但内部无法完全对齐**
+layer_map使用情景之一： 顶层模型向对应，但内部无法完全对齐
 
 ```py
 # 由于paddle与torch的MultiHeadAttention无法直接对齐
@@ -189,7 +189,8 @@ auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map, options={"
 ```
 
 
-**layer_map使用情景之二： 略过无法对齐的sublayer**
+layer_map使用情景之二： 略过无法对齐的sublayer
+
 使用 auto_diff 时，可能出现这样的情况：从计算逻辑上 paddle 与 torch 模型是对齐的，但从模型结构看，它们并不对齐。**若的确找不到合适的顶层模块设置对应**，那么可以使用 ignore layer 功能
 
 1. 在 paddle / torch 模型定义中，某一方使用了用于包裹的layer（比如 Sequential 或者自定义的类），而另一方并未使用（或者使用了另一种包裹方式）
