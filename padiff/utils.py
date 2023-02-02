@@ -394,16 +394,6 @@ def init_options(options):
     print("}")
 
 
-def modify_layer_map(layer_map):
-    swap_keys = []
-    for key in layer_map.keys():
-        if not isinstance(key, paddle.nn.Layer):
-            swap_keys.append(key)
-    for key in swap_keys:
-        layer_map[layer_map[key]] = key
-        layer_map.pop(key)
-
-
 def init_LayerMap(layer, module, layer_map):
     if layer_map is None:
         layer_map = LayerMap()
