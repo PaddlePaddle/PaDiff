@@ -21,7 +21,6 @@ from .utils import (
     log,
     max_diff,
     tensors_mean,
-    traversal_layers,
     map_structure_and_replace_key,
 )
 from .weights import remove_inplace, assign_weight
@@ -46,17 +45,17 @@ class Trainer(object):
         self.paddle_rep = None
         self.torch_rep = None
 
-    def assign_weight_(self, options, layer_mapping):
-        assign_weight(self.layer, self.module, options=options, layer_mapping=layer_mapping)
+    def assign_weight_(self, layer_map):
+        assign_weight(self.layer, self.module, layer_map=layer_map)
 
     def set_report(self, paddle_rep, torch_rep):
         self.paddle_rep = paddle_rep
         self.torch_rep = torch_rep
 
-    def train_step(self, example_inp, options, layer_mapping):
+    def train_step(self, example_inp, options, layer_map):
         paddle_input, torch_input = example_inp
         with report_guard(self.torch_rep, self.paddle_rep):
-            with _register_torch_hooker(self.module, options, layer_mapping):
+            with _register_torch_hooker(self.module, options, layer_map):
                 try:
                     torch_output = self.module(**torch_input)
                     if options["loss_fn"]:
@@ -75,7 +74,7 @@ class Trainer(object):
                         )
                     )
 
-            with _register_paddle_hooker(self.layer, options, layer_mapping):
+            with _register_paddle_hooker(self.layer, options, layer_map):
                 try:
                     paddle_output = self.layer(**paddle_input)
                     if options["loss_fn"]:
@@ -144,12 +143,11 @@ def paddle_layer_hook(module, input, output, idx, options):
 
 
 @contextlib.contextmanager
-def _register_paddle_hooker(layer, options, layer_mapping={}):
+def _register_paddle_hooker(layer, options, layer_map):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
-    layers = [layer]
-    layers.extend(traversal_layers(layer, layer_mapping))
+    layers = layer_map.layers(layer)
     for mod in layers:
         handle = mod.register_forward_post_hook(partial(paddle_layer_hook, idx=idx, options=options))
         remove_handles.append(handle)
@@ -160,11 +158,10 @@ def _register_paddle_hooker(layer, options, layer_mapping={}):
 
 
 @contextlib.contextmanager
-def _register_torch_hooker(module, options, layer_mapping={}):
+def _register_torch_hooker(module, options, layer_map):
     remove_handles = []
     idx = 0
-    modules = [module]
-    modules.extend(traversal_layers(module, layer_mapping))
+    modules = layer_map.layers(module)
     for mod in modules:
         handle = mod.register_forward_hook(partial(torch_layer_hook, idx=idx, options=options))
         remove_handles.append(handle)
