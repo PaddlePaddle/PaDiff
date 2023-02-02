@@ -13,8 +13,12 @@
 # limitations under the License.
 
 from .auto_diff import auto_diff
+from .utils import LayerMap
 
-__all__ = ["auto_diff"]
+__all__ = [
+    "auto_diff",
+    "LayerMap",
+]
 
 __version__ = "0.1.0"
 

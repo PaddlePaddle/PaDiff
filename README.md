@@ -25,7 +25,7 @@ python setup.py install
 
 ### auto_diff 使用接口与参数说明
 
-接口函数签名：`auto_diff(layer, module, example_inp, auto_weights=True, steps=1, options={}, layer_mapping={}, loss_fn=None, optimizer=None)`
+接口函数签名：`auto_diff(layer, module, example_inp, auto_weights=True, steps=1, options={}, layer_map={}, loss_fn=None, optimizer=None)`
 
 -   layer：传入paddle模型
 
@@ -35,7 +35,7 @@ python setup.py install
 
 -   auto_weights: 是否使用随机数值统一初始化paddle与torch模型，默认为True
 
--   layer_mapping: 指定paddle与torch的layer映射关系，当模型结构无法完全对齐时需要通过此参数指定layer的映射关系。
+-   layer_map: 指定paddle与torch的layer映射关系，当模型结构无法完全对齐时需要通过此参数指定layer的映射关系。
 
 -   options：一个传递参数的字典
 
@@ -110,14 +110,14 @@ inp = ({'x': paddle.to_tensor(inp)},  ## <-- 注意顺序，paddle_input, torch_
 auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0, 'compare_mode': 'strict', 'single_step':False})
 ```
 
-#### case2 使用 layer_mapping
-- layer_mapping可以指定两个sublayer之间的对应关系，这样做可以略过sublayer内部的数据对齐
+#### case2 使用 layer_map
+- layer_map可以指定两个sublayer之间的对应关系，这样做可以略过sublayer内部的数据对齐
 - 在auto_diff内支持部分sublayer的权重初始化，对于不支持的sublayer，将在auto_diff输出信息中进行提示。若出现了相关输出信息，用户需要自行初始化sublayer
 
 
 ```py
 # 由于paddle与torch的MultiHeadAttention无法直接对齐
-# 需要使用 layer_mapping 功能
+# 需要使用 layer_map 功能
 
 class SimpleLayer(paddle.nn.Layer):
     def __init__(self):
@@ -141,11 +141,11 @@ class SimpleModule(torch.nn.Module):
 layer = SimpleLayer()
 module = SimpleModule()
 
-# 在layer_mapping中指定无法对齐的sublayer。注意，在字典中应使用python obj
-# layer_mapping对kv顺序没有要求
+# 在layer_map中指定无法对齐的sublayer。注意，在字典中应使用python obj
+# layer_map对kv顺序没有要求
 # 目前 auto_diff 已支持 MultiHeadAttention 的权重自动初始化，因此此处无需其他操作
 
-layer_mapping = {layer.attn: module.attn}
+layer_map = {layer.attn: module.attn}
 
 inp = paddle.rand((2, 4, 16)).numpy()
 inp = (
@@ -154,7 +154,7 @@ inp = (
 )
 
 
-auto_diff(layer, module, inp, auto_weights=True, layer_mapping=layer_mapping, options={"atol": 1e-4})
+auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4})
 ```
 
 #### case3 使用loss_fn
@@ -290,19 +290,19 @@ auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, loss_fn
 
 - 如果显示精度有diff，先分析Paddle和Torch的调用栈，找到对应的源码并分析他们在逻辑上是否是对应的Layer，如果不是对应的Layer，那么说明 Torch 模型和 Paddle 模型没有满足Layer定义的一一对应假设。如图 <img width="875" alt="3d569899c42f69198f398540dec89012" src="https://user-images.githubusercontent.com/16025309/209917231-717c8e88-b3d8-41bc-b6a9-0330d0d9ed50.png">
 
-- 如果模型没有满足Layer定义的一一对应假设，可以通过`layer_mapping`指定Layer的映射关系。例如下图中共有三个SubLayer没有一一对齐，因此需要通过`layer_mapping`指定三个地方的映射关系。 如图 <img width="788" alt="image" src="https://user-images.githubusercontent.com/40840292/212643420-b30d5d6f-3a26-4a41-8dc2-7b3e6622c1d5.png">
+- 如果模型没有满足Layer定义的一一对应假设，可以通过`layer_map`指定Layer的映射关系。例如下图中共有三个SubLayer没有一一对齐，因此需要通过`layer_map`指定三个地方的映射关系。 如图 <img width="788" alt="image" src="https://user-images.githubusercontent.com/40840292/212643420-b30d5d6f-3a26-4a41-8dc2-7b3e6622c1d5.png">
 
        ```python
        layer = SimpleLayer()
        module = SimpleModule()
 
-       layer_mapping = {
+       layer_map = {
        layer.transformer.encoder.layers[0].self_attn: module.transformer.encoder.layers[0].self_attn,
        layer.transformer.decoder.layers[0].self_attn: module.transformer.decoder.layers[0].self_attn,
        layer.transformer.decoder.layers[0].cross_attn: module.transformer.decoder.layers[0].multihead_attn,
        } # object pair的形式
 
-       auto_diff(layer, module, inp, auto_weights=False, layer_mapping=layer_mapping, options={"atol": 1e-4})
+       auto_diff(layer, module, inp, auto_weights=False, layer_map=layer_map, options={"atol": 1e-4})
        ```
 
 - 如果不是上述的问题，那么可以考虑进行debug，比如构造最小复现样例或者是pdb调试等等。

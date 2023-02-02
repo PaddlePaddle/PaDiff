@@ -21,11 +21,11 @@ import paddle
 import torch
 
 
-from .utils import log, map_for_each_sublayer, traversal_layers, assert_tensor_equal
+from .utils import log, map_for_each_sublayer, assert_tensor_equal, LayerMap
 from .yaml_loader import global_yaml_loader as yamls
 
 
-def process_each_weight(process, layer, module, options, layer_mapping={}):
+def process_each_weight(process, layer, module, layer_map=LayerMap()):
     """
     Apply process for each pair of parameters in layer(paddle) and module(torch)
 
@@ -33,9 +33,7 @@ def process_each_weight(process, layer, module, options, layer_mapping={}):
         process (function): process applied to parameters
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
-        layer_mapping (dict, optional): manually map paddle layer and torch module.
-        options (dict, optional):
-            atol, rtol, compare_mode, single_step
+        layer_map (dict, optional): manually map paddle layer and torch module.
     """
 
     def _process_runner(
@@ -66,11 +64,8 @@ def process_each_weight(process, layer, module, options, layer_mapping={}):
             settings,
         )
 
-    layers = [layer]
-    modules = [module]
-    # layers in layer_mapping should be inited in `special_init`, so they will be skipped here
-    layers.extend(filter(lambda x: x not in layer_mapping.keys(), traversal_layers(layer, layer_mapping)))
-    modules.extend(filter(lambda x: x not in layer_mapping.values(), traversal_layers(module, layer_mapping)))
+    layers = layer_map.weight_init_layers(layer)
+    modules = layer_map.weight_init_layers(module)
 
     for paddle_sublayer, torch_submodule in zip_longest(layers, modules, fillvalue=None):
         if paddle_sublayer is None or torch_submodule is None:
@@ -133,17 +128,16 @@ def _assign_weight(
         torch_param.data = torch.as_tensor(np_value).type(torch_param.dtype)
 
 
-def assign_weight(layer, module, options, layer_mapping={}):
+def assign_weight(layer, module, layer_map=LayerMap()):
     """
     Init weights of layer(paddle) and module(torch) with same value
 
     Args:
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
-        layer_mapping (dict, optional): manually map paddle layer and torch module.
     """
 
-    for paddle_sublayer, torch_submodule in layer_mapping.items():
+    for paddle_sublayer, torch_submodule in layer_map.special_init_layers():
         assign_config = yamls.assign_yaml.get(paddle_sublayer.__class__.__name__, None)
         if assign_config is None or assign_config.get("init", False) == False:
             log(
@@ -155,19 +149,17 @@ def assign_weight(layer, module, options, layer_mapping={}):
         else:
             special_init(paddle_sublayer, torch_submodule)
 
-    process_each_weight(_assign_weight, layer, module, options, layer_mapping)
+    process_each_weight(_assign_weight, layer, module, layer_map)
 
 
-def check_weight_grad(layer, module, options, layer_mapping={}):
+def check_weight_grad(layer, module, options, layer_map=LayerMap()):
     """
     Compare weights and grads between layer(paddle) and module(torch)
 
     Args:
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
-        layer_mapping (dict, optional): manually map paddle layer and torch module.
-        options (dict, optional):
-            atol, compare_mode
+        layer_map (dict, optional): manually map paddle layer and torch module.
     """
     if options["diff_phase"] == "forward":
         log("Diff_phase is `forward`. Weight and grad check skipped.")
@@ -233,7 +225,7 @@ def check_weight_grad(layer, module, options, layer_mapping={}):
                     "{}\n\n".format(param_name, paddle_sublayer, torch_submodule, str(e))
                 )
 
-    process_each_weight(_check_weight_grad, layer, module, options, layer_mapping)
+    process_each_weight(_check_weight_grad, layer, module, layer_map)
 
     if _weight_check and _grad_check:
         log("weight and weight.grad is compared.")
