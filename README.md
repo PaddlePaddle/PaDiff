@@ -36,6 +36,7 @@ python setup.py install
 -   auto_weights: 是否使用随机数值统一初始化paddle与torch模型，默认为True
 
 -   layer_map: 指定paddle与torch的layer映射关系，当模型结构无法完全对齐时需要通过此参数指定layer的映射关系。
+       -   layer_map的具体使用方法详见实例代码的 case2
 
 -   options：一个传递参数的字典
 
@@ -110,10 +111,43 @@ inp = ({'x': paddle.to_tensor(inp)},  ## <-- 注意顺序，paddle_input, torch_
 auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0, 'compare_mode': 'strict', 'single_step':False})
 ```
 
-#### case2 使用 layer_map
-- layer_map可以指定两个sublayer之间的对应关系，这样做可以略过sublayer内部的数据对齐
-- 在auto_diff内支持部分sublayer的权重初始化，对于不支持的sublayer，将在auto_diff输出信息中进行提示。若出现了相关输出信息，用户需要自行初始化sublayer
+#### case2  使用layer_map
+##### layer_map 的作用
+1. layer_map可以指定两个sublayer之间的对应关系，这样做可以略过sublayer内部的数据对齐，但仍保留指定sublayer的输出数据对齐检查
+   - 指定对应关系后，auto_diff将尝试初始化这些sublayer。若目前auto_diff未支持此类sublayer的初始化，将在输出信息中进行提示，用户需要自行初始化这些sublayer
+2. layer_map可以指定igoner layers，这些layer的所有相关数据将不会进行对齐检查
 
+##### layer_map 的使用接口
+
+```py
+# 推荐用法
+from padiff import auto_diff, LayerMap
+
+layer = SimpleLayer()
+module = SimpleModule()
+
+layer_map = LayerMap()
+
+# 设置sublayer对应关系，字典中应传入 python object，对kv顺序无要求
+# layer.sublayer1 与 module.submodule1 的 sublayer以及自身的weights将不会参与对齐，但auto_diff会验证 layer.sublayer1 与 module.submodule1 整体是否对齐
+layer_map.map = {
+    layer.sublayer1 : module.submodule1
+}
+
+# 设置忽略ignore layers， 此处也可以传入 Iteratable 对象（如list）
+# layer.nop_layer 将不会参与检查，但它的sublayer不受影响
+layer_map.ignore(layer.nop_layer)
+
+# 递归地设置 ignore layers (包括layer.nop_layer)
+# 此处也可以传入 Iteratable 对象（如list）
+layer_map.ignore_recursivly(layer.nop_layer)
+
+auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map)
+```
+
+##### layer_map 样例代码
+
+**layer_map使用情景之一： 顶层模型向对应，但内部无法完全对齐**
 
 ```py
 # 由于paddle与torch的MultiHeadAttention无法直接对齐
@@ -141,10 +175,8 @@ class SimpleModule(torch.nn.Module):
 layer = SimpleLayer()
 module = SimpleModule()
 
-# 在layer_map中指定无法对齐的sublayer。注意，在字典中应使用python obj
-# layer_map对kv顺序没有要求
 # 目前 auto_diff 已支持 MultiHeadAttention 的权重自动初始化，因此此处无需其他操作
-
+# 不需要 ignore layer 功能时，可以直接传入一个dict作为layer_map
 layer_map = {layer.attn: module.attn}
 
 inp = paddle.rand((2, 4, 16)).numpy()
@@ -153,9 +185,65 @@ inp = (
 {"q": torch.as_tensor(inp), "k": torch.as_tensor(inp), "v": torch.as_tensor(inp)},
 )
 
-
 auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4})
 ```
+
+
+**layer_map使用情景之二： 略过无法对齐的sublayer**
+使用 auto_diff 时，可能出现这样的情况：从计算逻辑上 paddle 与 torch 模型是对齐的，但从模型结构看，它们并不对齐。**若的确找不到合适的顶层模块设置对应**，那么可以使用 ignore layer 功能
+
+1. 在 paddle / torch 模型定义中，某一方使用了用于包裹的layer（比如 Sequential 或者自定义的类），而另一方并未使用（或者使用了另一种包裹方式）
+   - 目前auto_diff会自动排除 Sequential
+2. 在 paddle / torch 模型定义中，某一方使用了 API 接口，另一方使用了sublayer，例如 Relu，导致模型结构存在差异，需要使用 ignore layer 功能略过 API 所对应的 sublayer （暂未支持 API 与 sublayer 的对齐）
+3. 在 paddle / torch 模型定义中，一系列顺序的sublayer可以对齐，但是单个sublayer无法对应，auto_diff暂时不支持直接在LayerMap中设置多对多的映射关系
+   - 推荐方法：在模型定义代码中添加自定义顶层模块，将无法对齐的sublayer顺序执行的过程整合在自定义顶层模块的forward中，然后使用LayerMap.map设置对齐
+   - 若难以修改源代码，或对此类sublayer没有强对齐需求，可以将这些sublayer都添加到 ignore layers:
+
+
+```py
+class NOPLayer(paddle.nn.Layer):
+    def __init__(self):
+        super(NOPLayer, self).__init__()
+
+    def forward(self, x):
+        return x
+
+class SimpleLayer4(paddle.nn.Layer):
+    def __init__(self):
+        super(SimpleLayer4, self).__init__()
+        self.nop = NOPLayer()
+        self.linear = paddle.nn.Linear(100, 10)
+
+    def forward(self, x):
+        x = self.nop(x)
+        x = self.linear(x)
+        return x
+
+class SimpleModule4(torch.nn.Module):
+    def __init__(self):
+        super(SimpleModule4, self).__init__()
+        self.linear = torch.nn.Linear(100, 10)
+
+    def forward(self, x):
+        x = self.linear(x)
+        return x
+
+layer = SimpleLayer4()
+module = SimpleModule4()
+
+inp = paddle.rand((100, 100)).numpy().astype("float32")
+inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
+
+layer_map = LayerMap()
+# layer.nop 导致模型无法对齐，故而需要ignore
+layer_map.ignore(layer.nop)
+
+auto_diff(
+    layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}
+)
+
+```
+
 
 #### case3 使用loss_fn
 - 不指定loss_fn时，将使用auto_diff内置的一个fake loss function进行计算
