@@ -24,6 +24,7 @@ from .utils import (
     map_structure_and_replace_key,
 )
 from .weights import remove_inplace, assign_weight
+from .yaml_loader import global_yaml_loader as yamls
 
 
 class Trainer(object):
@@ -55,7 +56,7 @@ class Trainer(object):
     def train_step(self, example_inp, options, layer_map):
         paddle_input, torch_input = example_inp
         with report_guard(self.torch_rep, self.paddle_rep):
-            with _register_torch_hooker(self.module, options, layer_map):
+            with _register_torch_hooker(self.module, layer_map):
                 try:
                     torch_output = self.module(**torch_input)
                     if options["loss_fn"]:
@@ -74,7 +75,7 @@ class Trainer(object):
                         )
                     )
 
-            with _register_paddle_hooker(self.layer, options, layer_map):
+            with _register_paddle_hooker(self.layer, layer_map):
                 try:
                     paddle_output = self.layer(**paddle_input)
                     if options["loss_fn"]:
@@ -107,7 +108,7 @@ def tensor_hook(x_grad, bwd_item, nth_tensor):
     return x_grad
 
 
-def torch_layer_hook(module, input, output, idx, options):
+def torch_layer_hook(module, input, output, idx):
     rep = current_torch_report()
     frame_info, frames = extract_frame_summary()
     fwd_item = rep.put_item("forward", input, output, module, idx, frame_info, frames)
@@ -118,7 +119,8 @@ def torch_layer_hook(module, input, output, idx, options):
     return None
 
 
-def paddle_layer_hook(module, input, output, idx, options):
+def paddle_layer_hook(module, input, output, idx):
+    options = yamls.options
     p_rep = current_paddle_report()
     frame_info, frames = extract_frame_summary()
     fwd_item = p_rep.put_item("forward", input, output, module, idx, frame_info, frames)
@@ -127,7 +129,7 @@ def paddle_layer_hook(module, input, output, idx, options):
     for i, (t,) in enumerate(for_each_grad_tensor(input)):
         t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
 
-    if options["single_step"]:
+    if options["single_step"] and idx != -1:
         t_rep = current_torch_report()
         t_fwd_item = t_rep.find_item(p_rep, idx)
 
@@ -143,13 +145,13 @@ def paddle_layer_hook(module, input, output, idx, options):
 
 
 @contextlib.contextmanager
-def _register_paddle_hooker(layer, options, layer_map):
+def _register_paddle_hooker(layer, layer_map):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
     layers = layer_map.layers(layer)
     for mod in layers:
-        handle = mod.register_forward_post_hook(partial(paddle_layer_hook, idx=idx, options=options))
+        handle = mod.register_forward_post_hook(partial(paddle_layer_hook, idx=idx))
         remove_handles.append(handle)
         idx += 1
     yield
@@ -158,12 +160,12 @@ def _register_paddle_hooker(layer, options, layer_map):
 
 
 @contextlib.contextmanager
-def _register_torch_hooker(module, options, layer_map):
+def _register_torch_hooker(module, layer_map):
     remove_handles = []
     idx = 0
     modules = layer_map.layers(module)
     for mod in modules:
-        handle = mod.register_forward_hook(partial(torch_layer_hook, idx=idx, options=options))
+        handle = mod.register_forward_hook(partial(torch_layer_hook, idx=idx))
         remove_handles.append(handle)
         idx += 1
     yield

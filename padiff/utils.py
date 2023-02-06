@@ -23,7 +23,7 @@ import numpy as np
 import paddle
 import torch
 from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
-
+from .yaml_loader import global_yaml_loader as yamls
 
 # process Tensor
 
@@ -392,6 +392,8 @@ def init_options(options):
         if key not in ["debug", "cmd", "loss_fn", "opt", "multi_steps"]:
             print("  {}: `{}`".format(key, options[key]))
     print("}")
+
+    yamls.options = options
 
 
 def init_LayerMap(layer, module, layer_map):

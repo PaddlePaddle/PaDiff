@@ -23,7 +23,6 @@ from .utils import (
     init_LayerMap,
 )
 from .weights import check_weight_grad
-from .yaml_loader import global_yaml_loader as yamls
 from .cmd import PaDiff_Cmd
 from .Trainer import Trainer
 
@@ -116,6 +115,5 @@ def auto_diff(
 def _preprocess(trainer, auto_weights, options, layer_map):
     reset_log_dir()
     init_options(options)
-    yamls.options = options
     if auto_weights:
         trainer.assign_weight_(layer_map)
