@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing_extensions import Self
 from .auto_diff import auto_diff
 from .utils import LayerMap
 
