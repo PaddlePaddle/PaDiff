@@ -55,7 +55,13 @@ python setup.py install
 
 -   steps: 支持多step的对齐检查，默认值为1。当输入steps >1 时要求 `option["diff_phase"]` 为 `"forward"`，且传入了optimizer
 
-### 注意事项与样例代码：
+### 注意事项
+#### 关于device
+auto_diff 工具的工作与 device 无关，如果需要进行 cpu/gpu 的对齐，只需要传入device 为 cpu/gpu 的模型以及输入即可
+- 在调用paddle模型构造函数以及input data初始化前，使用 paddle.set_device(xxx)
+- 在构造torch模型后，使用 torch_module = torch_module.to(xxx)， torch_input = torch_input.to(xxx)
+
+### 样例代码：
 
 #### case1 模型定义与auto_diff基本使用
 -   在使用auto_diff时，需要传入paddle模型与torch模型，在模型定义时，需要将forward中所使用的子模型在 `__init__` 函数中定义，并保证其中的子模型定义顺序一致，具体可见下方示例代码
