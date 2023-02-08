@@ -64,6 +64,8 @@ class TestCaseName(unittest.TestCase):
         ), "Failed. expected success."
 
     def test_cpu_gpu(self):
+        if not paddle.device.is_compiled_with_cuda():
+            return
         paddle.set_device("cpu")
         layer = SimpleLayer()
         module = SimpleModule()
@@ -75,6 +77,8 @@ class TestCaseName(unittest.TestCase):
         ), "Failed. expected success."
 
     def test_gpu_cpu(self):
+        if not paddle.device.is_compiled_with_cuda():
+            return
         paddle.set_device("gpu")
         layer = SimpleLayer()
         module = SimpleModule().to("cpu")
@@ -85,6 +89,8 @@ class TestCaseName(unittest.TestCase):
         ), "Failed. expected success."
 
     def test_gpu_gpu(self):
+        if not paddle.device.is_compiled_with_cuda():
+            return
         paddle.set_device("gpu")
         layer = SimpleLayer()
         module = SimpleModule().to("cuda")
