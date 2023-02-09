@@ -184,7 +184,7 @@ class PaDiff_Cmd(Cmd):
             pts = self._get_tensors(p_item, mode)
             tts = self._get_tensors(t_item, mode)
             for (tt,), (pt,) in zip(tts, pts):
-                res = self._compare_and_show_message(tt.detach().numpy(), pt.numpy())
+                res = self._compare_and_show_message(tt.detach().cpu().numpy(), pt.numpy())
                 if res == False:
                     print("At idx:`{}` in mode `{}`, diff found, compare stopped.\n".format(idx, mode))
                     return False

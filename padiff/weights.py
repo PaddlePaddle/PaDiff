@@ -120,12 +120,13 @@ def _assign_weight(
         torch_param,
         settings,
     )
+    t_device = torch_param.device
     np_value = paddle.randn(paddle_param.shape).numpy()
     paddle.assign(paddle.to_tensor(np_value), paddle_param)
     if settings["transpose"]:
-        torch_param.data = torch.as_tensor(numpy.transpose(np_value)).type(torch_param.dtype)
+        torch_param.data = torch.as_tensor(numpy.transpose(np_value)).type(torch_param.dtype).to(t_device)
     else:
-        torch_param.data = torch.as_tensor(np_value).type(torch_param.dtype)
+        torch_param.data = torch.as_tensor(np_value).type(torch_param.dtype).to(t_device)
 
 
 def assign_weight(layer, module, layer_map=LayerMap()):
@@ -186,9 +187,9 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
             settings,
         )
         p_param = paddle_param.numpy()
-        t_param = torch_param.detach().numpy()
+        t_param = torch_param.detach().cpu().numpy()
         p_grad = paddle_param.grad.numpy() if paddle_param.grad is not None else None
-        t_grad = torch_param.grad.detach().numpy() if torch_param.grad is not None else None
+        t_grad = torch_param.grad.detach().cpu().numpy() if torch_param.grad is not None else None
         if settings["transpose"]:
             t_param = numpy.transpose(t_param)
             if t_grad is not None:
@@ -254,6 +255,8 @@ def remove_inplace(layer, module):
 
 
 def special_init(paddle_layer, torch_module):
+    # NOTICE: make sure torch params is in the same device after init
+
     def init_LSTM(layer, module):
         for (name, paddle_param), torch_param in zip(
             layer.named_parameters(prefix="", include_sublayers=False),
@@ -281,7 +284,6 @@ def special_init(paddle_layer, torch_module):
             else:
                 name_param_dict[pname] = numpy.concatenate((name_param_dict[pname], param_np), axis=0)
 
-        device = torch.device("cuda:0")
         for i, param in enumerate(module.named_parameters()):
             pname, pa = param[0], param[1]
             if "in_proj" in pname or "multihead_attn" in pname:
@@ -290,8 +292,8 @@ def special_init(paddle_layer, torch_module):
                 param_np = layer.state_dict()[pname].numpy()
             if pname.endswith("weight"):
                 param_np = numpy.transpose(param_np)
-
-            param[1].data = torch.from_numpy(param_np)
+            device = param[1].device
+            param[1].data = torch.from_numpy(param_np).to(device)
 
     special_init_tools = {
         "LSTM": init_LSTM,
