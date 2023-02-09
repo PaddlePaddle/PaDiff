@@ -82,54 +82,65 @@ class PaDiffModule(ModuleType):
         self._real = spec._real
         self._module_type = spec._module_type
 
-        self._cache = {}
+        self._wrapped_cache = {}
+
+        self._in_api_flag = False
+
+    def need_wrapped(self, name, obj):
+        return callable(obj)
 
     def __getattr__(self, name: str):
-        if name not in self._cache.keys():
-            obj = self._real.__getattribute__(name)
-            if callable(obj):
-                # only when this api is called, a Layer/Module is built
-                def wrapped(func, *args, **kwargs):
-                    # get Layer and register hook
-                    if self._module_type == "paddle":
+        obj = self._real.__getattribute__(name)
 
-                        class PaddleApi(self._real.nn.Layer):
-                            def __init__(self, func):
-                                self._func = func
+        # do not create multi report items, if this api is only called another
+        if self._in_api_flag or not self.need_wrapped(name, obj):
+            return obj
+        else:
+            # only when this api is called, a Layer/Module is built
+            def wrapped(func, *args, **kwargs):
+                self._in_api_flag = True
 
-                            def forward(self, *args, **kwargs):
-                                self._func(*args, **kwargs)
+                # get Layer and register hook
+                if self._module_type == "paddle":
 
-                        layer = PaddleApi(func)
-                        # need idx to support single step, set idx -1 here to skip api in single step mode
-                        handle = layer.register_forward_post_hook(partial(torch_layer_hook, idx=-1))
+                    class PaddleApi(self._real.nn.Layer):
+                        def __init__(self, func):
+                            self._func = func
 
-                    elif self._module_type == "torch":
+                        def forward(self, *args, **kwargs):
+                            self._func(*args, **kwargs)
 
-                        class TorchApi(self._real.nn.Module):
-                            def __init__(self, func):
-                                self.func = func
+                    layer = PaddleApi(func)
+                    # need idx to support single step, set idx -1 here to skip api in single step mode
+                    handle = layer.register_forward_post_hook(partial(paddle_layer_hook, idx=-1))
 
-                            def forward(self, *args, **kwargs):
-                                self.func(*args, **kwargs)
+                elif self._module_type == "torch":
 
-                        layer = TorchApi(obj)
-                        handle = layer.register_forward_hook(partial(torch_layer_hook, idx=-1))
+                    class TorchApi(self._real.nn.Module):
+                        def __init__(self, func):
+                            self.func = func
 
-                    else:
-                        raise RuntimeError("Import Err: module_type not in (paddle, torch)")
+                        def forward(self, *args, **kwargs):
+                            self.func(*args, **kwargs)
 
-                    # call forward
-                    layer(*args, **kwargs)
+                    layer = TorchApi(func)
+                    handle = layer.register_forward_hook(partial(torch_layer_hook, idx=-1))
 
-                    # remove hook
-                    handle.remove()
+                else:
+                    raise RuntimeError("Import Err: module_type not in (paddle, torch)")
 
-                self._cache[name] = partial(wrapped, func=obj)
-            else:
-                self._cache[name] = obj
+                # call forward
+                layer(*args, **kwargs)
 
-        return self._cache[name]
+                # remove hook
+                handle.remove()
+
+                self._in_api_flag = False
+
+            if name not in self._wrapped_cache.keys():
+                self._wrapped_cache[name] = partial(wrapped, func=obj)
+
+            return self._wrapped_cache[name]
 
 
 sys.meta_path = [PaDiffFinder()] + sys.meta_path
