@@ -59,8 +59,6 @@ def auto_diff(
     paddle_input, torch_input = example_inp
     assert isinstance(paddle_input, dict), "Invalid Argument."
     assert isinstance(torch_input, dict), "Invalid Argument."
-    paddle.set_device("cpu")
-    module = module.to("cpu")
 
     if loss_fn is not None:
         paddle_loss, torch_loss = loss_fn

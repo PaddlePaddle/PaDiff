@@ -76,7 +76,7 @@ class EqualAction(Action):
         paddle_tensors = paddle_item.compare_tensors()
         for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):
             try:
-                assert_tensor_equal(tt.detach().numpy(), pt.numpy(), cfg)
+                assert_tensor_equal(tt.detach().cpu().numpy(), pt.numpy(), cfg)
             except Exception as e:
                 if is_debug:
                     print("Mean of inputs:")

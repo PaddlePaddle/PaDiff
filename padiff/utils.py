@@ -298,7 +298,7 @@ def log(*args):
 def max_diff(paddle_output, torch_output):
     _max_diff = 0
     for (pt,), (tt,) in zip(for_each_tensor(paddle_output), for_each_tensor(torch_output)):
-        temp = np.abs(tt.detach().numpy() - pt.detach().numpy()).max()
+        temp = np.abs(tt.detach().cpu().numpy() - pt.detach().numpy()).max()
         if temp > _max_diff:
             _max_diff = temp
 

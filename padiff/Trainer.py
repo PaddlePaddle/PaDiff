@@ -135,7 +135,7 @@ def paddle_layer_hook(module, input, output, idx):
 
         def tt2pt(tt):
             if isinstance(tt, torch.Tensor):
-                return paddle.to_tensor(tt.detach().numpy())
+                return paddle.to_tensor(tt.detach().cpu().numpy())
             else:
                 return tt
 
