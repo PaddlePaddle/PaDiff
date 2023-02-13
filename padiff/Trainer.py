@@ -110,6 +110,8 @@ def tensor_hook(x_grad, bwd_item, nth_tensor):
 
 def torch_layer_hook(module, input, output, idx):
     rep = current_torch_report()
+    if rep is None:
+        return None
     frame_info, frames = extract_frame_summary()
     fwd_item = rep.put_item("forward", input, output, module, idx, frame_info, frames)
     bwd_item = rep.put_item("backward", input, output, module, idx, frame_info, frames)
@@ -120,8 +122,10 @@ def torch_layer_hook(module, input, output, idx):
 
 
 def paddle_layer_hook(module, input, output, idx):
-    options = yamls.options
     p_rep = current_paddle_report()
+    if p_rep is None:
+        return None
+    options = yamls.options
     frame_info, frames = extract_frame_summary()
     fwd_item = p_rep.put_item("forward", input, output, module, idx, frame_info, frames)
     bwd_item = p_rep.put_item("backward", input, output, module, idx, frame_info, frames)

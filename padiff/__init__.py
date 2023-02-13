@@ -12,29 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .auto_diff import auto_diff
-from .utils import LayerMap
-
-__all__ = [
-    "auto_diff",
-    "LayerMap",
-]
-
-__version__ = "0.1.0"
-
-from . import configs
-
 
 # for api -> Layer
 
-import sys
+import sys, os
+import inspect
 from functools import partial
 from contextlib import contextmanager
 from types import ModuleType
 import importlib
 from importlib.machinery import ModuleSpec
 from importlib.abc import MetaPathFinder, Loader
-from .Trainer import paddle_layer_hook, torch_layer_hook
 
 
 @contextmanager
@@ -86,61 +74,105 @@ class PaDiffModule(ModuleType):
 
         self._in_api_flag = False
 
-    def need_wrapped(self, name, obj):
-        return callable(obj)
-
     def __getattr__(self, name: str):
-        obj = self._real.__getattribute__(name)
+        if name in self._wrapped_cache.keys():
+            return self._wrapped_cache[name]
+        try:
+            obj = self._real.__getattribute__(name)
+        except:
+            return self.__getattribute__(name)
 
-        # do not create multi report items, if this api is only called another
-        if self._in_api_flag or not self.need_wrapped(name, obj):
-            return obj
-        else:
+        if inspect.ismodule(obj):
+            spec = ModuleSpec(self.name + "." + name, PaDiffLoader())
+            spec._real = obj
+            spec._module_type = self._module_type
+            obj = PaDiffModule(spec)
+            self._wrapped_cache[name] = obj
+            return self._wrapped_cache[name]
+
+        # a function, and not in api
+        if not self._in_api_flag and inspect.isfunction(obj):
+            if name == "flatten" and self.name == "paddle.fluid.layers.utils":
+                self._wrapped_cache[name] = obj
+                return self._wrapped_cache[name]
+
             # only when this api is called, a Layer/Module is built
-            def wrapped(func, *args, **kwargs):
+            def wrapped(*args, **kwargs):
+                from .Trainer import paddle_layer_hook, torch_layer_hook
+
                 self._in_api_flag = True
+
+                out = obj(*args, **kwargs)
+
+                # only transform apis which ret Tensor
+                if out is None or all(
+                    [not isinstance(x, (paddle.Tensor, torch.Tensor)) for x in paddle.fluid.layers.utils.flatten(out)]
+                ):
+                    self._in_api_flag = False
+                    return out
 
                 # get Layer and register hook
                 if self._module_type == "paddle":
 
-                    class PaddleApi(self._real.nn.Layer):
+                    class PaddleApi(paddle.nn.Layer):
                         def __init__(self, func):
+                            super(PaddleApi, self).__init__()
                             self._func = func
 
                         def forward(self, *args, **kwargs):
-                            self._func(*args, **kwargs)
+                            return self._func(*args, **kwargs)
 
-                    layer = PaddleApi(func)
+                    layer = PaddleApi(obj)
                     # need idx to support single step, set idx -1 here to skip api in single step mode
                     handle = layer.register_forward_post_hook(partial(paddle_layer_hook, idx=-1))
 
                 elif self._module_type == "torch":
 
-                    class TorchApi(self._real.nn.Module):
+                    class TorchApi(torch.nn.Module):
                         def __init__(self, func):
+                            super(TorchApi, self).__init__()
                             self.func = func
 
                         def forward(self, *args, **kwargs):
-                            self.func(*args, **kwargs)
+                            return self.func(*args, **kwargs)
 
-                    layer = TorchApi(func)
+                    layer = TorchApi(obj)
                     handle = layer.register_forward_hook(partial(torch_layer_hook, idx=-1))
 
                 else:
                     raise RuntimeError("Import Err: module_type not in (paddle, torch)")
 
                 # call forward
-                layer(*args, **kwargs)
+                sys.stdout = open(os.devnull, "w")
+                out = layer(*args, **kwargs)
+                sys.stdout = sys.__stdout__
 
                 # remove hook
                 handle.remove()
 
                 self._in_api_flag = False
+                return out
 
-            if name not in self._wrapped_cache.keys():
-                self._wrapped_cache[name] = partial(wrapped, func=obj)
-
+            self._wrapped_cache[name] = wrapped
             return self._wrapped_cache[name]
+
+        return obj
 
 
 sys.meta_path = [PaDiffFinder()] + sys.meta_path
+
+
+from .auto_diff import auto_diff
+from .utils import LayerMap
+
+__all__ = [
+    "auto_diff",
+    "LayerMap",
+]
+
+__version__ = "0.1.0"
+
+from . import configs
+
+import paddle
+import torch

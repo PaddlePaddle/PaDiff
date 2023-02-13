@@ -179,6 +179,7 @@ def report_guard(torch_report, paddle_report):
 
 def current_paddle_report():
     if global_paddle_report is None:
+        return None
         raise RuntimeError(
             "Please call `current_paddle_report()` within contextmanager `report_guard(Report(), Report())`."
         )
@@ -187,6 +188,7 @@ def current_paddle_report():
 
 def current_torch_report():
     if global_torch_report is None:
+        return None
         raise RuntimeError(
             "Please call `current_torch_report()` within contextmanager `report_guard(Report(), Report())`."
         )
@@ -225,6 +227,11 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
     """
     torch_fwd_items = torch_rep.get_fwd_items()
     paddle_fwd_items = paddle_rep.get_fwd_items()
+
+    # temp use
+    torch_fwd_items = list(filter(lambda x: x.net_id != -1, torch_fwd_items))
+    paddle_fwd_items = list(filter(lambda x: x.net_id != -1, paddle_fwd_items))
+
     torch_fwd_items = TableView(torch_fwd_items, lambda x: x.net_id)
     paddle_tree_view = TreeView(paddle_fwd_items)
 
