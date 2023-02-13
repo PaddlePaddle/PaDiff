@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from padiff import auto_diff
 import unittest
 
 import paddle
 import torch
 import torchvision
-
-from padiff import auto_diff
 
 
 class TestCaseName(unittest.TestCase):

@@ -25,6 +25,12 @@ from importlib.machinery import ModuleSpec
 from importlib.abc import MetaPathFinder, Loader
 
 
+SKIP_NAMES = {
+    "flatten": "paddle.fluid.layers.utils",
+    "wrap": "torch.fx",
+}
+
+
 @contextmanager
 def ReleaseFinder():
     myfinder = sys.meta_path.pop(0)
@@ -80,7 +86,7 @@ class PaDiffModule(ModuleType):
         try:
             obj = self._real.__getattribute__(name)
         except:
-            return self.__getattribute__(name)
+            return self._real.__getattr__(name)
 
         if inspect.ismodule(obj):
             spec = ModuleSpec(self.name + "." + name, PaDiffLoader())
@@ -92,7 +98,7 @@ class PaDiffModule(ModuleType):
 
         # a function, and not in api
         if not self._in_api_flag and inspect.isfunction(obj):
-            if name == "flatten" and self.name == "paddle.fluid.layers.utils":
+            if name in SKIP_NAMES.keys() and SKIP_NAMES[name] == self.name:
                 self._wrapped_cache[name] = obj
                 return self._wrapped_cache[name]
 
