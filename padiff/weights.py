@@ -120,13 +120,11 @@ def _assign_weight(
         torch_param,
         settings,
     )
-    t_device = torch_param.device
-    np_value = paddle.randn(paddle_param.shape).numpy()
-    paddle.assign(paddle.to_tensor(np_value), paddle_param)
+    np_value = torch_param.data.detach().cpu().numpy()
     if settings["transpose"]:
-        torch_param.data = torch.as_tensor(numpy.transpose(np_value)).type(torch_param.dtype).to(t_device)
+        paddle.assign(paddle.to_tensor(numpy.transpose(np_value)), paddle_param)
     else:
-        torch_param.data = torch.as_tensor(np_value).type(torch_param.dtype).to(t_device)
+        paddle.assign(paddle.to_tensor(np_value), paddle_param)
 
 
 def assign_weight(layer, module, layer_map=LayerMap()):
