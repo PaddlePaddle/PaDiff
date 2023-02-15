@@ -122,9 +122,9 @@ def _assign_weight(
     )
     np_value = torch_param.data.detach().cpu().numpy()
     if settings["transpose"]:
-        paddle.assign(paddle.to_tensor(numpy.transpose(np_value)), paddle_param)
-    else:
-        paddle.assign(paddle.to_tensor(np_value), paddle_param)
+        np_value = numpy.transpose(np_value)
+
+    paddle.assign(paddle.to_tensor(np_value), paddle_param)
 
 
 def assign_weight(layer, module, layer_map=LayerMap()):
