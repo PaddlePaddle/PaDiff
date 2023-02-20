@@ -75,6 +75,8 @@ class PaDiffFinder(MetaPathFinder):
                 continue
             spec = find_spec(fullname, path, target)
             if spec is not None:
+                spec._finder = finder
+                spec._fullname = fullname
                 return spec
 
         return None
@@ -85,16 +87,19 @@ class PaDiffLoader(Loader):
         self._loader = _loader
 
     def exec_module(self, module):
+        _module_type = module.__spec__._module_type
+
         self._loader.exec_module(module)
 
-        # module._module_type = module.__spec__._module_type
-        # module._wrapped_cache = {}
-        # module._in_api_flag = False
+        setattr(module, "_module_type", _module_type)
+        setattr(module, "_wrapped_cache", {})
+        setattr(module, "_in_api_flag", False)
 
         # try:
-        #     get_method = self.__getattribute__
-        #     self.__origin_getattribute__ = get_method
-        #     self.__getattribute__ = __my_getattribute__
+        #     if hasattr(module, '__getattribute__'):
+        #         get_method = module.__getattribute__
+        #         setattr(module, '__origin_getattribute__', get_method)
+        #     setattr(module, '__getattribute__', __my_getattribute__)
         # except:
         #     print(str(module) + "getattribute set failed")
 
