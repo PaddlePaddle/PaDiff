@@ -19,7 +19,7 @@ import sys, os
 import inspect
 from functools import partial
 from contextlib import contextmanager
-from types import ModuleType
+from types import ModuleType, MethodType
 import importlib
 from importlib.machinery import ModuleSpec
 from importlib.abc import MetaPathFinder, Loader
@@ -65,6 +65,7 @@ class PaDiffFinder(MetaPathFinder):
             return spec
         return None
 
+    # find module by using sys defined finders
     def sys_find_spec(self, fullname, path, target=None):
         for finder in sys.meta_path:
             if isinstance(finder, PaDiffFinder):
@@ -88,67 +89,101 @@ class PaDiffLoader(Loader):
 
     def exec_module(self, module):
         _module_type = module.__spec__._module_type
+        setattr(module, "__importing__", True)
 
         self._loader.exec_module(module)
+
+        padiff_dict = {}
+        padiff_dict.update(module.__dict__)
+
+        if hasattr(module, "__getattribute__"):
+
+            def attr_err(self, name):
+                self.__dict__.clear()
+                raise AttributeError
+
+            setattr(module, "__getattribute__", MethodType(attr_err, module))
+
+        if hasattr(module, "__getattr__"):
+            get_method = getattr(module, "__getattr__")
+            setattr(module, "__origin_getattr__", get_method)
+
+        # we want clear module.__dict__ to make sure __getattr__ will be called
+        # at the same time, we need reserve modules in module.__dict__
+        # if not, the module name can not be found in globals() ==> it will be in globals()['__padiff_dict__']
+
+        # module.__dict__.clear()
+        # to_remove = []
+        # for k, v in module.__dict__.items():
+        #     if not inspect.ismodule(v):
+        #         to_remove.append(k)
+
+        # for k in to_remove:
+        #     module.__dict__.pop(k)
 
         setattr(module, "_module_type", _module_type)
         setattr(module, "_wrapped_cache", {})
         setattr(module, "_in_api_flag", False)
-
-        # try:
-        #     if hasattr(module, '__getattribute__'):
-        #         get_method = module.__getattribute__
-        #         setattr(module, '__origin_getattribute__', get_method)
-        #     setattr(module, '__getattribute__', __my_getattribute__)
-        # except:
-        #     print(str(module) + "getattribute set failed")
+        setattr(module, "__padiff_dict__", padiff_dict)
+        setattr(module, "__getattr__", MethodType(__my_getattr__, module))
+        setattr(module, "__importing__", False)
 
     def create_module(self, spec):
         # return PaDiffModule(spec)
         return None
 
 
-class PaDiffModule(ModuleType):
-    def __init__(self, spec):
-        self._module_type = spec._module_type
-        self._wrapped_cache = {}
-        self._in_api_flag = False
-        self._importing = True
+# class PaDiffModule(ModuleType):
+#     def __init__(self, spec):
+#         self._module_type = spec._module_type
+#         self._wrapped_cache = {}
+#         self._in_api_flag = False
+#         self._importing = True
 
 
-def __my_getattribute__(self, name):
+def __my_getattr__(self, name):
+    # breakpoint()
+
+    if name == "__padiff_dict__":
+        return self.__dict__["__padiff_dict__"]
+
+    self.__dict__.update(self.__padiff_dict__)
+
+    # if name in self.__padiff_dict__['_wrapped_cache'].keys():
+    #     return self.__padiff_dict__['_wrapped_cache'][name]
+
     if name in self._wrapped_cache.keys():
         return self._wrapped_cache[name]
 
     try:
-        obj = self._orig_getattribute(name)
+        obj = self.__padiff_dict__[name]
     except:
-        obj = self.__dict__[name]
+        try:
+            obj = self.__padiff_dict__["__origin_getattr__"](name)
+        except:
+            raise AttributeError
+
+    if self.__importing__:
+        return obj
 
     if inspect.ismodule(obj):
         return obj
 
     # a function, and not in api
     if not self._in_api_flag and inspect.isfunction(obj):
-        if name in SKIP_NAMES.keys() and SKIP_NAMES[name] == self._real.__name__:
+
+        # avoid recursive
+        if name in SKIP_NAMES.keys() and SKIP_NAMES[name] == self.__padiff_dict__["__name__"]:
             self._wrapped_cache[name] = obj
+            return obj
+
+        # do not return wrapped while importing
+        if self._module_type not in sys.modules.keys() or sys.modules[self._module_type].__importing__ is True:
             return obj
 
         # only when this api is called, a Layer/Module is built
         def wrapped(*args, **kwargs):
             self._in_api_flag = True
-
-            out = obj(*args, **kwargs)
-
-            import paddle, torch
-
-            # from paddle.fluid.layers.utils import flatten
-            # only transform apis which ret Tensor
-            if out is None or all(
-                [not isinstance(x, (paddle.Tensor, torch.Tensor)) for x in paddle.fluid.layers.utils.flatten(out)]
-            ):
-                self._in_api_flag = False
-                return out
 
             # get Layer and register hook
             if self._module_type == "paddle":
@@ -188,9 +223,9 @@ def __my_getattribute__(self, name):
                 raise RuntimeError("Import Err: module_type not in (paddle, torch)")
 
             # call forward
-            sys.stdout = open(os.devnull, "w")
+            # sys.stdout = open(os.devnull, "w")
             out = layer(*args, **kwargs)
-            sys.stdout = sys.__stdout__
+            # sys.stdout = sys.__stdout__
 
             # remove hook
             handle.remove()
@@ -209,6 +244,7 @@ sys.meta_path = [PaDiffFinder()] + sys.meta_path
 
 import paddle
 import torch
+
 
 from .auto_diff import auto_diff
 from .utils import LayerMap
