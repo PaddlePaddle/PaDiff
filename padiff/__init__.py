@@ -84,7 +84,7 @@ def wrap_func(fullname, func):
 
         if fullname.startswith("paddle"):
 
-            from .Trainer import paddle_layer_hook
+            from .hooks import paddle_api_hook
 
             class PaddleApi(paddle.nn.Layer):
                 def __init__(self, func):
@@ -97,11 +97,11 @@ def wrap_func(fullname, func):
 
             layer = PaddleApi(func)
             # need idx to support single step, set idx -1 here to skip api in single step mode
-            handle = layer.register_forward_post_hook(partial(paddle_layer_hook, idx=-1))
+            handle = layer.register_forward_post_hook(partial(paddle_api_hook, idx=-1))
 
         elif fullname.startswith("torch"):
 
-            from .Trainer import torch_layer_hook
+            from .hooks import torch_api_hook
 
             class TorchApi(torch.nn.Module):
                 def __init__(self, func):
@@ -113,7 +113,7 @@ def wrap_func(fullname, func):
                     return self.func(*args, **kwargs)
 
             layer = TorchApi(func)
-            handle = layer.register_forward_hook(partial(torch_layer_hook, idx=-1))
+            handle = layer.register_forward_hook(partial(torch_api_hook, idx=-1))
 
         else:
             raise RuntimeError("Import Err: module_type not in (paddle, torch)")
@@ -138,7 +138,7 @@ class PaDiffLoader(Loader):
             for name in module.__all__:
                 obj = module.__dict__[name]
                 if inspect.isfunction(obj):
-                    module.__dict__[name] = wrap_func(module.__name__ + name, obj)
+                    module.__dict__[name] = wrap_func(module.__name__ + "." + name, obj)
         else:
             for k, v in module.__dict__.items():
                 if inspect.isfunction(v):
@@ -151,8 +151,10 @@ class PaDiffLoader(Loader):
 
 sys.meta_path = [PaDiffFinder()] + sys.meta_path
 
-
 __version__ = "0.1.0"
+
+import paddle
+import torch
 
 from . import configs
 from .utils import LayerMap

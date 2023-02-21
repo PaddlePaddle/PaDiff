@@ -12,19 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
-from functools import partial
-from .report import current_torch_report, current_paddle_report, report_guard
-from .stack_info import *
+from .report import report_guard
 from .utils import (
-    for_each_grad_tensor,
     log,
     max_diff,
     tensors_mean,
-    map_structure_and_replace_key,
 )
 from .weights import remove_inplace, assign_weight
-from .yaml_loader import global_yaml_loader as yamls
+from .hooks import _register_paddle_hooker, _register_torch_hooker
 
 
 class Trainer(object):
@@ -100,87 +95,3 @@ class Trainer(object):
         if self.has_opt:
             self.paddle_opt.clear_grad()
             self.torch_opt.zero_grad()
-
-
-def tensor_hook(x_grad, bwd_item, nth_tensor):
-    # print (nth_tensor, bwd_item.input_grads, bwd_item.input)
-    bwd_item.set_input_grads(nth_tensor, x_grad)
-    return x_grad
-
-
-def torch_layer_hook(module, input, output, idx):
-    rep = current_torch_report()
-
-    if rep is None:
-        return None
-    if output is None or all([not isinstance(x, torch.Tensor) for x in paddle.fluid.layers.utils.flatten(output)]):
-        return None
-
-    frame_info, frames = extract_frame_summary()
-    fwd_item = rep.put_item("forward", input, output, module, idx, frame_info, frames)
-    bwd_item = rep.put_item("backward", input, output, module, idx, frame_info, frames)
-    bwd_item.set_forward(fwd_item)
-    for i, (t,) in enumerate(for_each_grad_tensor(input)):
-        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
-    return None
-
-
-def paddle_layer_hook(module, input, output, idx):
-    p_rep = current_paddle_report()
-
-    if p_rep is None:
-        return None
-
-    if output is None or all([not isinstance(x, paddle.Tensor) for x in paddle.fluid.layers.utils.flatten(output)]):
-        return None
-
-    options = yamls.options
-    frame_info, frames = extract_frame_summary()
-    fwd_item = p_rep.put_item("forward", input, output, module, idx, frame_info, frames)
-    bwd_item = p_rep.put_item("backward", input, output, module, idx, frame_info, frames)
-    bwd_item.set_forward(fwd_item)
-    for i, (t,) in enumerate(for_each_grad_tensor(input)):
-        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
-
-    if options["single_step"] and idx != -1:
-        t_rep = current_torch_report()
-        t_fwd_item = t_rep.find_item(p_rep, idx)
-
-        def tt2pt(tt):
-            if isinstance(tt, torch.Tensor):
-                return paddle.to_tensor(tt.detach().cpu().numpy())
-            else:
-                return tt
-
-        return map_structure_and_replace_key(tt2pt, [t_fwd_item.output], output)
-    else:
-        return None
-
-
-@contextlib.contextmanager
-def _register_paddle_hooker(layer, layer_map):
-    remove_handles = []
-    # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
-    idx = 0
-    layers = layer_map.layers(layer)
-    for mod in layers:
-        handle = mod.register_forward_post_hook(partial(paddle_layer_hook, idx=idx))
-        remove_handles.append(handle)
-        idx += 1
-    yield
-    for h in remove_handles:
-        h.remove()
-
-
-@contextlib.contextmanager
-def _register_torch_hooker(module, layer_map):
-    remove_handles = []
-    idx = 0
-    modules = layer_map.layers(module)
-    for mod in modules:
-        handle = mod.register_forward_hook(partial(torch_layer_hook, idx=idx))
-        remove_handles.append(handle)
-        idx += 1
-    yield
-    for h in remove_handles:
-        h.remove()
