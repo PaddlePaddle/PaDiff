@@ -152,15 +152,13 @@ class PaDiffLoader(Loader):
 sys.meta_path = [PaDiffFinder()] + sys.meta_path
 
 
-import paddle
-import torch
+__version__ = "0.1.0"
 
+from . import configs
+from .utils import LayerMap
+from .auto_diff import auto_diff
 
 __all__ = [
     "auto_diff",
     "LayerMap",
 ]
-
-__version__ = "0.1.0"
-
-from . import configs
