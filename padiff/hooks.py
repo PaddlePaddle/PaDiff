@@ -36,7 +36,7 @@ def tensor_hook(x_grad, bwd_item, nth_tensor):
 # torch_api_hook,paddle_api_hook are used to record info to reports
 def torch_api_hook(module, input, output, idx):
     """
-    Notice: only wrapped api and layer in one2one will trigger this hook. They are leaves.
+    Notice: only wrapped api and mapped one2one layer will trigger this hook. They are leaves.
     """
     t_rep = current_torch_report()
 
@@ -49,7 +49,8 @@ def torch_api_hook(module, input, output, idx):
         return None
 
     # if an api under _layer_ignore_sublayer, do not create report
-    if module in t_rep.layer_map._layer_ignore_sublayer:
+    # except a mapped one2one layer (if not an api)
+    if t_rep.stack._top().net in t_rep.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):
         return None
 
     frame_info, frames = extract_frame_summary()
@@ -76,7 +77,7 @@ def paddle_api_hook(module, input, output, idx):
     if output is None or all([not isinstance(x, paddle.Tensor) for x in paddle.fluid.layers.utils.flatten(output)]):
         return None
 
-    if module in p_rep.layer_map._layer_ignore_sublayer:
+    if p_rep.stack._top().net in p_rep.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):
         return None
 
     options = yamls.options
