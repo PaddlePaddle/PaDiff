@@ -32,17 +32,18 @@ SKIP_NAMES = {
     "map_structure": "paddle.fluid.layers.utils",
 }
 
+WANT_WRAP = (
+    "paddle",
+    "paddle.nn.functional",
+    "torch",
+    "torch.nn.functional",
+    "torch.spectial",
+)
+
 
 def module_filter(name):
-    paddle_wanted = (
-        "paddle",
-        "paddle.nn.functional",
-    )
-    torch_wanted = ("torch", "torch.nn.funtional", "torch.spectial")
-    if name in paddle_wanted:
-        return True, "paddle"
-    if name in torch_wanted:
-        return True, "torch"
+    if name in WANT_WRAP:
+        return True, name.partition(".")[0]
     return False, None
 
 
@@ -91,6 +92,7 @@ def wrap_func(fullname, func):
                     super(PaddleApi, self).__init__()
                     self._func = func
                     self.__name__ = fullname
+                    self.__api__ = True
 
                 def forward(self, *args, **kwargs):
                     return self._func(*args, **kwargs)
@@ -108,6 +110,7 @@ def wrap_func(fullname, func):
                     super(TorchApi, self).__init__()
                     self.func = func
                     self.__name__ = fullname
+                    self.__api__ = True
 
                 def forward(self, *args, **kwargs):
                     return self.func(*args, **kwargs)
@@ -136,17 +139,43 @@ class PaDiffLoader(Loader):
 
         if hasattr(module, "__all__"):
             for name in module.__all__:
+                if name.startswith("_"):
+                    continue
                 obj = module.__dict__[name]
                 if inspect.isfunction(obj):
                     module.__dict__[name] = wrap_func(module.__name__ + "." + name, obj)
         else:
             for k, v in module.__dict__.items():
+                if k.startswith("_"):
+                    continue
                 if inspect.isfunction(v):
-                    module.__dict__[k] = wrap_func(k, v)
+                    module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
+                elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
+                    module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
 
     def create_module(self, spec):
         # return PaDiffModule(spec)
         return None
+
+
+for name in WANT_WRAP:
+    if name in sys.modules.keys():
+        module = sys.modules[name]
+        if hasattr(module, "__all__"):
+            for name in module.__all__:
+                if name.startswith("_"):
+                    continue
+                obj = module.__dict__[name]
+                if inspect.isfunction(obj):
+                    module.__dict__[name] = wrap_func(module.__name__ + "." + name, obj)
+        else:
+            for k, v in module.__dict__.items():
+                if k.startswith("_"):
+                    continue
+                if inspect.isfunction(v):
+                    module.__dict__[k] = wrap_func(k, v)
+                elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
+                    module.__dict__[k] = wrap_func(k, v)
 
 
 sys.meta_path = [PaDiffFinder()] + sys.meta_path

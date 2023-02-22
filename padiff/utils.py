@@ -461,17 +461,28 @@ class LayerMap(object):
         ignored = set()
         if ign_cls == None:
             ign_cls = self._ignore_cls
-        for sublayer in self.layers(layer):
+        for sublayer in self.layers_skip_ignore(layer):
             if isinstance(sublayer, ign_cls):
                 ignored.add(sublayer)
         self._layer_ignore.update(ignored)
 
-    def _traversal_layers(self, net):
+    def _traversal_layers_with_ignore(self, net):
         for child in net.children():
             if child not in self._layer_ignore:
                 yield child
             if child not in self._layer_ignore_sublayer:
-                for sublayer in self._traversal_layers(child):
+                for sublayer in self._traversal_layers_with_ignore(child):
+                    yield sublayer
+
+    def _traversal_layers_for_build_structure(self, net):
+        for child in net.children():
+            # layer in _layer_ignore should be retained
+            # include layer in _layer_ignore_sublayer
+            # based on this, api decide whether to generate a ReportItem (by checkout sublayer it belongs)
+            yield child
+            # do not go deep
+            if child not in self._layer_ignore_sublayer:
+                for sublayer in self._traversal_layers_for_build_structure(child):
                     yield sublayer
 
     def special_init_layers(self):
@@ -481,14 +492,19 @@ class LayerMap(object):
         # layers in layer_map should be inited in `special_init`, so they will be skipped here
         layers = [layer]
         if isinstance(layer, paddle.nn.Layer):
-            layers.extend(filter(lambda x: x not in self.map.keys(), self._traversal_layers(layer)))
+            layers.extend(filter(lambda x: x not in self.map.keys(), self._traversal_layers_with_ignore(layer)))
         elif isinstance(layer, torch.nn.Module):
-            layers.extend(filter(lambda x: x not in self.map.values(), self._traversal_layers(layer)))
+            layers.extend(filter(lambda x: x not in self.map.values(), self._traversal_layers_with_ignore(layer)))
         else:
             raise RuntimeError("Invalid model type: {}".format(type(layer)))
         return layers
 
-    def layers(self, layer):
+    def structure_layers(self, layer):
         layers = [layer]
-        layers.extend(self._traversal_layers(layer))
+        layers.extend(self._traversal_layers_for_build_structure(layer))
+        return layers
+
+    def layers_skip_ignore(self, layer):
+        layers = [layer]
+        layers.extend(self._traversal_layers_with_ignore(layer))
         return layers

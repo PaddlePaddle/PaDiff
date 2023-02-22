@@ -26,6 +26,10 @@ from .utils import (
     assert_tensor_equal,
 )
 
+"""
+    Report definition
+"""
+
 
 class Counter:
     def __init__(self):
@@ -110,6 +114,12 @@ class Report:
         self.items = []
         self.counter = None
         self.loss = None
+        self.stack = LayerStack(name)
+
+        # self.layer_map is used to confirm whether an API report is needed
+        # if api belongs to an layer which is ignored, we do not need it's report
+        # layer_map is set in Trainer.set_report
+        self.layer_map = None
 
     def put_item(self, type, input, output, net, net_id, frame_info, frames):
         step = self.counter.get_id()
@@ -151,6 +161,102 @@ class Report:
         return "\n".join(strings)
 
 
+"""
+    LayerStack
+"""
+
+
+class LayerStack(object):
+    """
+    this class is used to build module structure
+    """
+
+    def __init__(self, type_):
+        super(LayerStack, self).__init__()
+        self.type = type_
+        self.stack = []
+
+        self.root = None
+
+    def _push(self, value):
+        self.stack.append(value)
+
+    def _pop(self):
+        return self.stack.pop()
+
+    def _top(self):
+        return self.stack[-1]
+
+    def _empty(self):
+        return len(self.stack) == 0
+
+    def push_layer(self, module):
+        net = NetWrap(module)
+        if not self._empty():
+            net.father = self._top()
+            self._top().sons.append(net)
+        else:
+            if self.root is None:
+                self.root = net
+            else:
+                raise RuntimeError("found multy root layers!")
+        self._push(net)
+
+    def pop_layer(self, module):
+        assert id(self._top().net) == id(module)
+        self._pop()
+
+    def push_api(self, api, fwd, bwd):
+        # an api
+        if hasattr(api, "__api__"):
+            net = NetWrap(api)
+            net.is_api = True
+            net.leaf_num = 1
+            if not self._empty():
+                self._top().sons.append(api)
+            net.set_report(fwd, bwd)
+            for N in self.stack:
+                N.leafs.append(net)
+
+        # a layer in one2one dict
+        elif id(api) == id(self._top().net):
+            net = self._top()
+            net.is_layer_mapped = True
+            net.set_report(fwd, bwd)
+            for N in self.stack[:-1]:
+                N.leafs.append(net)
+
+        else:
+            raise RuntimeError("api hook err when `push_api` !")
+
+
+class NetWrap(object):
+    def __init__(self, net):
+        self.net = net
+        self.sons = []
+        self.father = None
+
+        # leafs under this net
+        self.leafs = []
+
+        self.is_api = False
+        self.is_layer_mapped = False
+
+        # if is_leaf, report should exist
+        self.is_leaf = False
+        self.fwd_report = None
+        self.bwd_report = None
+
+    def set_report(self, fwd, bwd):
+        self.fwd_report = fwd
+        self.bwd_report = bwd
+        self.is_leaf = True
+
+
+"""
+    report_guard
+"""
+
 global_torch_report = None
 global_paddle_report = None
 global_torch_counter = Counter()
@@ -165,11 +271,15 @@ def report_guard(torch_report, paddle_report):
     try:
         global_torch_report = torch_report
         global_paddle_report = paddle_report
+
         torch_report.counter = global_torch_counter
         paddle_report.counter = global_paddle_counter
+
         torch_report.counter.clear()
         paddle_report.counter.clear()
+
         yield
+
     finally:
         global_torch_report = old_t
         global_paddle_report = old_p
@@ -193,6 +303,11 @@ def current_torch_report():
             "Please call `current_torch_report()` within contextmanager `report_guard(Report(), Report())`."
         )
     return global_torch_report
+
+
+"""
+    report analys
+"""
 
 
 def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
@@ -220,7 +335,7 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
     torch_item.print_stacks()
 
 
-def check_forward_and_backward(torch_rep, paddle_rep, cfg):
+def _check_forward_and_backward(torch_rep, paddle_rep, cfg):
     """
     TODO(@xiongkun):
     More abundant printing methods can be supported later，For example, interactive printing mode，Tree Printing mode，Currently, only list printing is supported.
@@ -297,4 +412,9 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
 
     # total status
     log("SUCCESS !!!")
+    return True
+
+
+def check_forward_and_backward(torch_rep, paddle_rep, cfg):
+    breakpoint()
     return True

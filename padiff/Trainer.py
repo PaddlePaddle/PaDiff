@@ -23,7 +23,7 @@ from .hooks import _register_paddle_hooker, _register_torch_hooker
 
 
 class Trainer(object):
-    def __init__(self, layer, module, loss_fn, opt):
+    def __init__(self, layer, module, loss_fn, opt, layer_map):
         self.layer = layer  # paddle layer
         self.module = module  # torch module
         if loss_fn is not None:
@@ -36,22 +36,27 @@ class Trainer(object):
         else:
             self.has_opt = False
 
+        # layer_map should be part of the module
+        self.layer_map = layer_map
+
         remove_inplace(self.layer, self.module)
 
         self.paddle_rep = None
         self.torch_rep = None
 
-    def assign_weight_(self, layer_map):
-        assign_weight(self.layer, self.module, layer_map=layer_map)
+    def assign_weight_(self):
+        assign_weight(self.layer, self.module, self.layer_map)
 
     def set_report(self, paddle_rep, torch_rep):
+        paddle_rep.layer_map = self.layer_map
+        torch_rep.layer_map = self.layer_map
         self.paddle_rep = paddle_rep
         self.torch_rep = torch_rep
 
-    def train_step(self, example_inp, options, layer_map):
+    def train_step(self, example_inp, options):
         paddle_input, torch_input = example_inp
         with report_guard(self.torch_rep, self.paddle_rep):
-            with _register_torch_hooker(self.module, layer_map):
+            with _register_torch_hooker(self.module, self.layer_map):
                 try:
                     torch_output = self.module(**torch_input)
                     if options["loss_fn"]:
@@ -70,7 +75,7 @@ class Trainer(object):
                         )
                     )
 
-            with _register_paddle_hooker(self.layer, layer_map):
+            with _register_paddle_hooker(self.layer, self.layer_map):
                 try:
                     paddle_output = self.layer(**paddle_input)
                     if options["loss_fn"]:

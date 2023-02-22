@@ -62,9 +62,9 @@ class TestCaseName(unittest.TestCase):
         trainer.clear_grad()
         trainer.train_step(inp, options=options, layer_map=LayerMap())
 
-        # (SimpleLayerm, linear, relu) * (fwd, bwd) = 6
-        assert len(paddle_report.items) == 6
-        assert len(torch_report.items) == 6
+        # (linear, relu) * (fwd, bwd) = 6
+        assert len(paddle_report.items) == 4
+        assert len(torch_report.items) == 4
 
 
 if __name__ == "__main__":

@@ -35,23 +35,35 @@ def tensor_hook(x_grad, bwd_item, nth_tensor):
 
 # torch_api_hook,paddle_api_hook are used to record info to reports
 def torch_api_hook(module, input, output, idx):
-    rep = current_torch_report()
+    """
+    Notice: only wrapped api and layer in one2one will trigger this hook. They are leaves.
+    """
+    t_rep = current_torch_report()
 
-    if rep is None:
+    # not in report_guard
+    if t_rep is None:
         return None
+
+    # if this api is not processing tensors, do not create report
     if output is None or all([not isinstance(x, torch.Tensor) for x in paddle.fluid.layers.utils.flatten(output)]):
         return None
 
     frame_info, frames = extract_frame_summary()
-    fwd_item = rep.put_item("forward", input, output, module, idx, frame_info, frames)
-    bwd_item = rep.put_item("backward", input, output, module, idx, frame_info, frames)
+    fwd_item = t_rep.put_item("forward", input, output, module, idx, frame_info, frames)
+    bwd_item = t_rep.put_item("backward", input, output, module, idx, frame_info, frames)
     bwd_item.set_forward(fwd_item)
+
+    t_rep.stack.push_api(module, fwd_item, bwd_item)
+
     for i, (t,) in enumerate(for_each_grad_tensor(input)):
         t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
     return None
 
 
 def paddle_api_hook(module, input, output, idx):
+    """
+    Notice: only wrapped api and layer in one2one will trigger this hook. They are leaves.
+    """
     p_rep = current_paddle_report()
 
     if p_rep is None:
@@ -65,9 +77,13 @@ def paddle_api_hook(module, input, output, idx):
     fwd_item = p_rep.put_item("forward", input, output, module, idx, frame_info, frames)
     bwd_item = p_rep.put_item("backward", input, output, module, idx, frame_info, frames)
     bwd_item.set_forward(fwd_item)
+
+    p_rep.stack.push_api(module, fwd_item, bwd_item)
+
     for i, (t,) in enumerate(for_each_grad_tensor(input)):
         t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
 
+    # if single_step, need return torch output
     if options["single_step"] and idx != -1:
         t_rep = current_torch_report()
         t_fwd_item = t_rep.find_item(p_rep, idx)
@@ -88,60 +104,28 @@ def paddle_api_hook(module, input, output, idx):
 """
 
 
-class LayerStack(object):
-    def __init__(self, type_):
-        super(LayerStack, self).__init__()
-        self.type = type_
-        self.stack = []
-        self.sons = {}
-
-    def _push(self, value):
-        self.stack.append(value)
-
-    def _pop(self):
-        return self.stack.pop()
-
-    def _top(self):
-        return self.stack[-1]
-
-    def _empty(self):
-        return len(self.stack) == 0
-
-    @property
-    def current(self):
-        return self._top()
-
-    def in_layer(self, module):
-        if not self._empty():
-            self.sons[self.current].append(module)
-        self._push(module)
-        self.sons[module] = []
-
-    def out_layer(self, module):
-        assert id(self.current) == id(module)
-        self._pop()
-
-    def in_api(self, api):
-        if not self._empty():
-            if self.current not in self.sons.keys():
-                self.sons[self.current] = []
-            self.sons[self.current].append(api)
+def paddle_pre_layer_hook(layer, input):
+    rep = current_paddle_report()
+    rep.stack.push_layer(layer)
+    return None
 
 
-def torch_pre_layer_hook(module, input, output, idx):
-    pass
+def paddle_post_layer_hook(layer, input, output):
+    rep = current_paddle_report()
+    rep.stack.pop_layer(layer)
+    return None
 
 
-def paddle_pre_layer_hook(module, input, output, idx):
-    pass
+def torch_pre_layer_hook(module, input):
+    rep = current_torch_report()
+    rep.stack.push_layer(module)
+    return None
 
 
-def torch_post_layer_hook(module, input, output, idx):
-    pass
-
-
-def paddle_post_layer_hook(module, input, output, idx):
-    pass
+def torch_post_layer_hook(module, input, output):
+    rep = current_torch_report()
+    rep.stack.pop_layer(module)
+    return None
 
 
 @contextlib.contextmanager
@@ -149,10 +133,15 @@ def _register_paddle_hooker(layer, layer_map):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
-    layers = layer_map.layers(layer)
+    layers = layer_map.structure_layers(layer)
     for mod in layers:
-        handle = mod.register_forward_post_hook(partial(paddle_api_hook, idx=idx))
-        remove_handles.append(handle)
+        pre_handle = mod.register_forward_pre_hook(paddle_pre_layer_hook)
+        # call api_hook before post_layer_hook => current will be module itself
+        if mod in layer_map._layer_one2one.keys():
+            handle = mod.register_forward_post_hook(partial(paddle_api_hook, idx=idx))
+            remove_handles.append(handle)
+        post_handle = mod.register_forward_post_hook(paddle_post_layer_hook)
+        remove_handles.extend([pre_handle, post_handle])
         idx += 1
     yield
     for h in remove_handles:
@@ -163,10 +152,14 @@ def _register_paddle_hooker(layer, layer_map):
 def _register_torch_hooker(module, layer_map):
     remove_handles = []
     idx = 0
-    modules = layer_map.layers(module)
+    modules = layer_map.structure_layers(module)
     for mod in modules:
-        handle = mod.register_forward_hook(partial(torch_api_hook, idx=idx))
-        remove_handles.append(handle)
+        pre_handle = mod.register_forward_pre_hook(torch_pre_layer_hook)
+        if mod in layer_map._layer_one2one.values():
+            handle = mod.register_forward_hook(partial(torch_api_hook, idx=idx))
+            remove_handles.append(handle)
+        post_handle = mod.register_forward_hook(torch_post_layer_hook)
+        remove_handles.extend([pre_handle, post_handle])
         idx += 1
     yield
     for h in remove_handles:

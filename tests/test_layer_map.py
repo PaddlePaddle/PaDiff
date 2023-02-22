@@ -13,11 +13,9 @@
 # limitations under the License.
 
 import unittest
-
+from padiff import auto_diff, LayerMap
 import paddle
 import torch
-
-from padiff import auto_diff, LayerMap
 
 
 class SimpleLayer1(paddle.nn.Layer):

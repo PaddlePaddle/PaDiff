@@ -73,9 +73,10 @@ def auto_diff(
         options["opt"] = True
 
     # prepare models and options
-    trainer = Trainer(layer, module, loss_fn, optimizer)
+
     layer_map = init_LayerMap(layer, module, layer_map)
-    _preprocess(trainer, auto_weights, options, layer_map)
+    trainer = Trainer(layer, module, loss_fn, optimizer, layer_map)
+    _preprocess(trainer, auto_weights, options)
 
     if steps > 1:
         if options["diff_phase"] == "forward" or options["opt"] == False:
@@ -90,7 +91,7 @@ def auto_diff(
         trainer.set_report(paddle_report, torch_report)
 
         trainer.clear_grad()
-        trainer.train_step(example_inp, options=options, layer_map=layer_map)
+        trainer.train_step(example_inp, options=options)
 
         weight_check, grad_check = check_weight_grad(
             trainer.layer, trainer.module, options=options, layer_map=layer_map
@@ -110,8 +111,8 @@ def auto_diff(
     return ret
 
 
-def _preprocess(trainer, auto_weights, options, layer_map):
+def _preprocess(trainer, auto_weights, options):
     reset_log_dir()
     init_options(options)
     if auto_weights:
-        trainer.assign_weight_(layer_map)
+        trainer.assign_weight_()
