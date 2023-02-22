@@ -48,6 +48,10 @@ def torch_api_hook(module, input, output, idx):
     if output is None or all([not isinstance(x, torch.Tensor) for x in paddle.fluid.layers.utils.flatten(output)]):
         return None
 
+    # if an api under _layer_ignore_sublayer, do not create report
+    if module in t_rep.layer_map._layer_ignore_sublayer:
+        return None
+
     frame_info, frames = extract_frame_summary()
     fwd_item = t_rep.put_item("forward", input, output, module, idx, frame_info, frames)
     bwd_item = t_rep.put_item("backward", input, output, module, idx, frame_info, frames)
@@ -70,6 +74,9 @@ def paddle_api_hook(module, input, output, idx):
         return None
 
     if output is None or all([not isinstance(x, paddle.Tensor) for x in paddle.fluid.layers.utils.flatten(output)]):
+        return None
+
+    if module in p_rep.layer_map._layer_ignore_sublayer:
         return None
 
     options = yamls.options

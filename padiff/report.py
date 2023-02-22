@@ -436,17 +436,17 @@ def tree_print(root, prefix):
         if i == len(prefix) - 1:
             print(s, end="")
         else:
-            if s == "|--- ":
-                print("|    ", end="")
-            elif s == "+--- ":
-                print("     ", end="")
+            if s == " |--- ":
+                print(" |    ", end="")
+            elif s == " +--- ":
+                print("      ", end="")
 
     print(str(root))
 
     for i, child in enumerate(root.sons):
-        pre = "|--- "
+        pre = " |--- "
         if i == len(root.sons) - 1:
-            pre = "+--- "
+            pre = " +--- "
         prefix.append(pre)
         tree_print(child, prefix)
         prefix.pop()
