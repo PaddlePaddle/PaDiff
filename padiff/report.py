@@ -213,7 +213,7 @@ class LayerStack(object):
             net.is_api = True
             net.leaf_num = 1
             if not self._empty():
-                self._top().sons.append(api)
+                self._top().sons.append(net)
             net.set_report(fwd, bwd)
             for N in self.stack:
                 N.leafs.append(net)
@@ -251,6 +251,14 @@ class NetWrap(object):
         self.fwd_report = fwd
         self.bwd_report = bwd
         self.is_leaf = True
+
+    def __str__(self):
+        if self.is_api:
+            return "(api) " + self.net.__name__
+        elif self.is_layer_mapped:
+            return "(net in map) " + self.net.__class__.__name__
+        else:
+            return "(net) " + self.net.__class__.__name__
 
 
 """
@@ -417,4 +425,69 @@ def _check_forward_and_backward(torch_rep, paddle_rep, cfg):
 
 def check_forward_and_backward(torch_rep, paddle_rep, cfg):
     breakpoint()
+    tree_print(torch_rep.stack.root, [])
+    tree_print(paddle_rep.stack.root, [])
     return True
+
+
+# used to print module as a tree
+def tree_print(root, prefix):
+    for i, s in enumerate(prefix):
+        if i == len(prefix) - 1:
+            print(s, end="")
+        else:
+            if s == "|--- ":
+                print("|    ", end="")
+            elif s == "+--- ":
+                print("     ", end="")
+
+    print(str(root))
+
+    for i, child in enumerate(root.sons):
+        pre = "|--- "
+        if i == len(root.sons) - 1:
+            pre = "+--- "
+        prefix.append(pre)
+        tree_print(child, prefix)
+        prefix.pop()
+
+
+# del all wrap layers
+def del_wrap_layers(root):
+    def copy_node_attrs(root):
+        retval = NetWrap(root.net)
+        for attr in ("is_api", "is_layer_mapped", "is_leaf", "fwd_report", "bwd_report"):
+            val = getattr(root, attr)
+            setattr(retval, attr, val)
+        return retval
+
+    # base cases
+    # if len(root.leafs) == 0: a leaf layer
+    if len(root.leafs) == 0:
+        retval = copy_node_attrs(root)
+        return retval
+    # if len(root.leafs) == 1: a wrap layer
+    if len(root.leafs) == 1:
+        retval = copy_node_attrs(root.leafs[0])
+        return retval
+
+    # about ret:
+    # 1. ret is a leaf layer
+    # 2. ret is a normal layer who called multi apis
+
+    # about retval to return:
+    # 1. root is a wrapper, so, return retval directly
+    #    this case is imposible: should return in base case
+    # 2. root is not a wrapper, needs:
+    #    create new node and reset sons, leafs
+    #    reset fathers for nodes returned
+
+    retval = copy_node_attrs(root)
+
+    for child in root.sons:
+        ret = del_wrap_layers(child)
+        ret.father = retval
+        retval.sons.append(ret)
+        retval.leafs.extend(ret.leafs)
+
+    return retval
