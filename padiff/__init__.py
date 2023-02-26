@@ -35,7 +35,7 @@ SKIP_NAMES = {
 WANT_WRAP = (
     "paddle",
     "paddle.nn.functional",
-    "torch",
+    "paddle.nn.functional.conv",
     "torch.nn.functional",
     "torch.spectial",
 )
@@ -143,21 +143,13 @@ class PaDiffLoader(Loader):
     def exec_module(self, module):
         self._loader.exec_module(module)
 
-        if hasattr(module, "__all__"):
-            for name in module.__all__:
-                if name.startswith("_"):
-                    continue
-                obj = module.__dict__[name]
-                if inspect.isfunction(obj):
-                    module.__dict__[name] = wrap_func(module.__name__ + "." + name, obj)
-        else:
-            for k, v in module.__dict__.items():
-                if k.startswith("_"):
-                    continue
-                if inspect.isfunction(v):
-                    module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
-                elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
-                    module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
+        for k, v in module.__dict__.items():
+            if k == "flatten":
+                continue
+            if inspect.isfunction(v):
+                module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
+            elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
+                module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
 
     def create_module(self, spec):
         # return PaDiffModule(spec)
@@ -167,21 +159,14 @@ class PaDiffLoader(Loader):
 for name in WANT_WRAP:
     if name in sys.modules.keys():
         module = sys.modules[name]
-        if hasattr(module, "__all__"):
-            for name in module.__all__:
-                if name.startswith("_"):
-                    continue
-                obj = module.__dict__[name]
-                if inspect.isfunction(obj):
-                    module.__dict__[name] = wrap_func(module.__name__ + "." + name, obj)
-        else:
-            for k, v in module.__dict__.items():
-                if k.startswith("_"):
-                    continue
-                if inspect.isfunction(v):
-                    module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
-                elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
-                    module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
+
+        for k, v in module.__dict__.items():
+            if k == "flatten":
+                continue
+            if inspect.isfunction(v):
+                module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
+            elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
+                module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
 
 
 sys.meta_path = [PaDiffFinder()] + sys.meta_path

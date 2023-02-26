@@ -41,7 +41,8 @@ def torch_api_hook(module, input, output, idx):
     t_rep = current_torch_report()
 
     # not in report_guard
-    if t_rep is None:
+    # if stack is emtpy, this api might be used in loss function or optimizer, skip
+    if t_rep is None or t_rep.stack._top() is None:
         return None
 
     # if this api is not processing tensors, do not create report
@@ -73,7 +74,7 @@ def paddle_api_hook(module, input, output, idx):
 
     p_rep = current_paddle_report()
 
-    if p_rep is None:
+    if p_rep is None or p_rep.stack._top() is None:
         return None
 
     if output is None or all([not isinstance(x, paddle.Tensor) for x in paddle.fluid.layers.utils.flatten(output)]):

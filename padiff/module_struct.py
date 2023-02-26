@@ -38,6 +38,8 @@ class LayerStack(object):
         return self.stack.pop()
 
     def _top(self):
+        if len(self.stack) == 0:
+            return None
         return self.stack[-1]
 
     def _empty(self):
