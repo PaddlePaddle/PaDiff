@@ -49,7 +49,8 @@ def torch_api_hook(module, input, output, idx):
         return None
 
     # if an api under _layer_ignore_sublayer, do not create report
-    # except a mapped one2one layer (if not an api)
+    # a layer under _layer_ignore_sublayer will not register this hook
+    # except a mapped one2one layer
     if t_rep.stack._top().net in t_rep.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):
         return None
 
@@ -69,6 +70,7 @@ def paddle_api_hook(module, input, output, idx):
     """
     Notice: only wrapped api and layer in one2one will trigger this hook. They are leaves.
     """
+
     p_rep = current_paddle_report()
 
     if p_rep is None:
@@ -115,6 +117,9 @@ def paddle_api_hook(module, input, output, idx):
 def paddle_pre_layer_hook(layer, input):
     rep = current_paddle_report()
     rep.stack.push_layer(layer)
+    if layer in rep.layer_map._layer_one2one.values():
+        rep.stack._top().is_one2one_layer = True
+        rep.stack._top().is_leaf = True
     return None
 
 
@@ -127,6 +132,9 @@ def paddle_post_layer_hook(layer, input, output):
 def torch_pre_layer_hook(module, input):
     rep = current_torch_report()
     rep.stack.push_layer(module)
+    if module in rep.layer_map._layer_one2one.keys():
+        rep.stack._top().is_one2one_layer = True
+        rep.stack._top().is_leaf = True
     return None
 
 
@@ -141,11 +149,12 @@ def _register_paddle_hooker(layer, layer_map):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
-    layers = layer_map.structure_layers(layer)
+    layers = layer_map.layers_skip_ignore(layer)
     for mod in layers:
         pre_handle = mod.register_forward_pre_hook(paddle_pre_layer_hook)
         # call api_hook before post_layer_hook => current will be module itself
-        if mod in layer_map._layer_one2one.keys():
+        # if mod in layer_map._layer_one2one.keys():
+        if True:
             handle = mod.register_forward_post_hook(partial(paddle_api_hook, idx=idx))
             remove_handles.append(handle)
         post_handle = mod.register_forward_post_hook(paddle_post_layer_hook)
@@ -160,10 +169,11 @@ def _register_paddle_hooker(layer, layer_map):
 def _register_torch_hooker(module, layer_map):
     remove_handles = []
     idx = 0
-    modules = layer_map.structure_layers(module)
+    modules = layer_map.layers_skip_ignore(module)
     for mod in modules:
         pre_handle = mod.register_forward_pre_hook(torch_pre_layer_hook)
-        if mod in layer_map._layer_one2one.values():
+        # if mod in layer_map._layer_one2one.values():
+        if True:
             handle = mod.register_forward_hook(partial(torch_api_hook, idx=idx))
             remove_handles.append(handle)
         post_handle = mod.register_forward_hook(torch_post_layer_hook)

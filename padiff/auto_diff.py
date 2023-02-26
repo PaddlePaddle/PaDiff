@@ -100,7 +100,8 @@ def auto_diff(
         ret = ret and weight_check and grad_check
 
         if ret == False:
-            log(f"\nDiff found in step {step_id}")
+            print("")
+            log(f"Diff found in Train Step {step_id}\n")
             break
 
     if options["cmd"]:

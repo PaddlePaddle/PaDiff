@@ -138,7 +138,7 @@ def assign_weight(layer, module, layer_map=LayerMap()):
         module (torch.nn.Module): input torch module
     """
 
-    for paddle_sublayer, torch_submodule in layer_map.special_init_layers():
+    for torch_submodule, paddle_sublayer in layer_map.special_init_layers():
         assign_config = yamls.assign_yaml.get(paddle_sublayer.__class__.__name__, None)
         if assign_config is None or assign_config.get("init", False) == False:
             log(

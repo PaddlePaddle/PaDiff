@@ -56,15 +56,15 @@ class TestCaseName(unittest.TestCase):
 
         paddle_report = Report("paddle")
         torch_report = Report("torch")
-        trainer = Trainer(layer, module, None, None)
+        trainer = Trainer(layer, module, None, None, LayerMap())
         trainer.set_report(paddle_report, torch_report)
 
         trainer.clear_grad()
-        trainer.train_step(inp, options=options, layer_map=LayerMap())
+        trainer.train_step(inp, options=options)
 
-        # (linear, relu) * (fwd, bwd) = 6
-        assert len(paddle_report.items) == 4
-        assert len(torch_report.items) == 4
+        # [layer(SimpleLayer, Linear) + api(linear, relu)] * (fwd, bwd) = 8
+        assert len(paddle_report.items) == 8
+        assert len(torch_report.items) == 8
 
 
 if __name__ == "__main__":

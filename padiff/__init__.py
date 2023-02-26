@@ -97,6 +97,9 @@ def wrap_func(fullname, func):
                 def forward(self, *args, **kwargs):
                     return self._func(*args, **kwargs)
 
+                def __str__(self):
+                    return self.__name__
+
             layer = PaddleApi(func)
             # need idx to support single step, set idx -1 here to skip api in single step mode
             handle = layer.register_forward_post_hook(partial(paddle_api_hook, idx=-1))
@@ -114,6 +117,9 @@ def wrap_func(fullname, func):
 
                 def forward(self, *args, **kwargs):
                     return self.func(*args, **kwargs)
+
+                def __str__(self):
+                    return self.__name__
 
             layer = TorchApi(func)
             handle = layer.register_forward_hook(partial(torch_api_hook, idx=-1))
@@ -173,9 +179,9 @@ for name in WANT_WRAP:
                 if k.startswith("_"):
                     continue
                 if inspect.isfunction(v):
-                    module.__dict__[k] = wrap_func(k, v)
+                    module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
                 elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
-                    module.__dict__[k] = wrap_func(k, v)
+                    module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
 
 
 sys.meta_path = [PaDiffFinder()] + sys.meta_path

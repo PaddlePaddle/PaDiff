@@ -74,8 +74,11 @@ class TestCaseName(unittest.TestCase):
         paddle_report = Report("Paddle")
         module = SimpleModule()
         example_inp = paddle.rand((100, 100)).numpy().astype("float32")
+        layer_map = LayerMap()
+        torch_report.layer_map = layer_map
+        paddle_report.layer_map = layer_map
         with report_guard(torch_report=torch_report, paddle_report=paddle_report):
-            with _register_torch_hooker(module, LayerMap()):
+            with _register_torch_hooker(module, layer_map):
                 try:
                     torch_input = torch.as_tensor(example_inp)
                     torch_input.requires_grad = True

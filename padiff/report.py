@@ -25,6 +25,7 @@ from .utils import (
     log,
     assert_tensor_equal,
 )
+from .module_struct import LayerStack, copy_module_struct, print_struct_info, reorder_and_match_reports
 
 """
     Report definition
@@ -105,6 +106,9 @@ class ReportItem:
         strings = []
         strings.append("ReportItem: \n    type={}".format(self.type))
         strings.append("    step_idx: {}".format(self.step))
+        strings.append(
+            "    net: {}\n".format(self.__name__ if hasattr(self, "__api__") else self.net.__class__.__name__)
+        )
         return "\n".join(strings)
 
 
@@ -162,163 +166,11 @@ class Report:
 
 
 """
-    LayerStack
-"""
-
-
-class LayerStack(object):
-    """
-    this class is used to build module structure
-    """
-
-    def __init__(self, type_):
-        super(LayerStack, self).__init__()
-        self.type = type_
-        self.stack = []
-
-        self.root = None
-
-    def _push(self, value):
-        self.stack.append(value)
-
-    def _pop(self):
-        return self.stack.pop()
-
-    def _top(self):
-        return self.stack[-1]
-
-    def _empty(self):
-        return len(self.stack) == 0
-
-    def push_layer(self, module):
-        net = NetWrap(module)
-        if not self._empty():
-            net.father = self._top()
-            self._top().sons.append(net)
-        else:
-            if self.root is None:
-                self.root = net
-            else:
-                raise RuntimeError("found multy root layers!")
-        self._push(net)
-
-    def pop_layer(self, module):
-        assert id(self._top().net) == id(module)
-        self._pop()
-
-    def push_api(self, api, fwd, bwd):
-        # an api
-        if hasattr(api, "__api__"):
-            net = NetWrap(api)
-            net.is_api = True
-            net.leaf_num = 1
-            if not self._empty():
-                self._top().sons.append(net)
-            net.set_report(fwd, bwd)
-            for N in self.stack:
-                N.leafs.append(net)
-
-        # a layer in one2one dict
-        elif id(api) == id(self._top().net):
-            net = self._top()
-            net.is_layer_mapped = True
-            net.set_report(fwd, bwd)
-            for N in self.stack[:-1]:
-                N.leafs.append(net)
-
-        else:
-            raise RuntimeError("api hook err when `push_api` !")
-
-
-class NetWrap(object):
-    def __init__(self, net):
-        self.net = net
-        self.sons = []
-        self.father = None
-
-        # leafs under this net
-        self.leafs = []
-
-        self.is_api = False
-        self.is_layer_mapped = False
-
-        # if is_leaf, report should exist
-        self.is_leaf = False
-        self.fwd_report = None
-        self.bwd_report = None
-
-    def set_report(self, fwd, bwd):
-        self.fwd_report = fwd
-        self.bwd_report = bwd
-        self.is_leaf = True
-
-    def __str__(self):
-        if self.is_api:
-            return "(api) " + self.net.__name__
-        elif self.is_layer_mapped:
-            return "(net in map) " + self.net.__class__.__name__
-        else:
-            return "(net) " + self.net.__class__.__name__
-
-
-"""
-    report_guard
-"""
-
-global_torch_report = None
-global_paddle_report = None
-global_torch_counter = Counter()
-global_paddle_counter = Counter()
-
-
-@contextlib.contextmanager
-def report_guard(torch_report, paddle_report):
-    global global_torch_report, global_paddle_report
-    old_t = global_torch_report
-    old_p = global_paddle_report
-    try:
-        global_torch_report = torch_report
-        global_paddle_report = paddle_report
-
-        torch_report.counter = global_torch_counter
-        paddle_report.counter = global_paddle_counter
-
-        torch_report.counter.clear()
-        paddle_report.counter.clear()
-
-        yield
-
-    finally:
-        global_torch_report = old_t
-        global_paddle_report = old_p
-        torch_report.counter = None
-        paddle_report.counter = None
-
-
-def current_paddle_report():
-    if global_paddle_report is None:
-        return None
-        raise RuntimeError(
-            "Please call `current_paddle_report()` within contextmanager `report_guard(Report(), Report())`."
-        )
-    return global_paddle_report
-
-
-def current_torch_report():
-    if global_torch_report is None:
-        return None
-        raise RuntimeError(
-            "Please call `current_torch_report()` within contextmanager `report_guard(Report(), Report())`."
-        )
-    return global_torch_report
-
-
-"""
     report analys
 """
 
 
-def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
+def print_info(paddle_item, torch_item, exc, step_idx, grad=False, t_root=None, p_root=None):
     log("FAILED !!!")
     if grad:
         log(
@@ -333,7 +185,11 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
             )
         )
     log("    Type of layer is  : {} vs {}".format(type(torch_item.net), type(paddle_item.net)))
+
     print(str(exc))
+
+    if t_root is not None and p_root is not None:
+        print_struct_info(t_root, p_root)
 
     print("\n\nPaddle Stacks:")
     print("=========================")
@@ -423,71 +279,156 @@ def _check_forward_and_backward(torch_rep, paddle_rep, cfg):
     return True
 
 
-def check_forward_and_backward(torch_rep, paddle_rep, cfg):
-    breakpoint()
-    tree_print(torch_rep.stack.root, [])
-    tree_print(paddle_rep.stack.root, [])
+def check_forward_and_backward(torch_rep, paddle_rep, options):
+    t_root = copy_module_struct(torch_rep.stack.root)[0]
+    p_root = copy_module_struct(paddle_rep.stack.root)[0]
+
+    try:
+        reorder_and_match_reports(t_root, p_root, torch_rep, paddle_rep)
+    except Exception:
+        return False
+
+    # forward check
+    res = check_forward(t_root, p_root, options)
+    if res == False:
+        return False
+    log("forward stage compared.")
+
+    # loss check
+    if options["loss_fn"]:
+        try:
+            assert_tensor_equal(paddle_rep.loss, torch_rep.loss, options)
+            log("loss compared.")
+        except Exception as e:
+            log("*** Diff found in loss, Checkout your loss function! ***")
+            log("loss compare:\n")
+            print("{}".format(str(e)))
+            return False
+
+    if options["diff_phase"] == "forward":
+        log("Diff_phase is `forward`. Backward compare skipped.")
+        log("SUCCESS !!!")
+        return True
+
+    # backward check
+    res = check_backward(t_root, p_root, options)
+    if res == False:
+        return False
+    log("backward stage compared.")
+
+    log("SUCCESS !!!")
     return True
 
 
-# used to print module as a tree
-def tree_print(root, prefix):
-    for i, s in enumerate(prefix):
-        if i == len(prefix) - 1:
-            print(s, end="")
-        else:
-            if s == " |--- ":
-                print(" |    ", end="")
-            elif s == " +--- ":
-                print("      ", end="")
+def check_forward(t_root, p_root, options):
+    if t_root.is_leaf and p_root.is_leaf:
+        act = get_action(t_root.net, p_root.net)
+        torch_item = t_root.fwd_report
+        paddle_item = p_root.fwd_report
+        assert torch_item.type == paddle_item.type and paddle_item.type == "forward"
+        try:
+            act(torch_item, paddle_item, options)
+            return True
+        except Exception as e:
+            if options["single_step"]:
+                log("Under single_step mode:")
+            print_info(paddle_item, torch_item, e, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
+            return False
 
-    print(str(root))
+    if len(t_root.children) != len(p_root.children):
+        log(f"in torch {str(t_root)} and paddle {str(p_root)} have different number of report items.")
+        log("  Possible reasons:")
+        log("  1. modules used different api, this case can be avoid by using LayerMap.")
+        log("  2. modules have different struct, make sure your modules:")
+        print_struct_info(t_root.origin, p_root.origin)
+        return False
 
-    for i, child in enumerate(root.sons):
-        pre = " |--- "
-        if i == len(root.sons) - 1:
-            pre = " +--- "
-        prefix.append(pre)
-        tree_print(child, prefix)
-        prefix.pop()
+    for t_child, p_child in zip(t_root.children, p_root.children):
+        res = check_forward(t_child, p_child, options)
+        if res == False:
+            return False
+
+    return True
 
 
-# del all wrap layers
-def del_wrap_layers(root):
-    def copy_node_attrs(root):
-        retval = NetWrap(root.net)
-        for attr in ("is_api", "is_layer_mapped", "is_leaf", "fwd_report", "bwd_report"):
-            val = getattr(root, attr)
-            setattr(retval, attr, val)
-        return retval
+def check_backward(t_root, p_root, options):
+    if t_root.is_leaf and p_root.is_leaf:
+        act = get_action(t_root.net, p_root.net)
+        torch_item = t_root.bwd_report
+        paddle_item = p_root.bwd_report
+        assert torch_item.type == paddle_item.type and paddle_item.type == "backward"
+        try:
+            act(torch_item, paddle_item, options)
+            return True
+        except Exception as e:
+            if options["single_step"]:
+                log("Under single_step mode:")
+            print_info(paddle_item, torch_item, e, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
+            return False
 
-    # base cases
-    # if len(root.leafs) == 0: a leaf layer
-    if len(root.leafs) == 0:
-        retval = copy_node_attrs(root)
-        return retval
-    # if len(root.leafs) == 1: a wrap layer
-    if len(root.leafs) == 1:
-        retval = copy_node_attrs(root.leafs[0])
-        return retval
+    if len(t_root.children) != len(p_root.children):
+        log(f"in torch {str(t_root)} and paddle {str(p_root)} have different number of report items.")
+        log("  Possible reasons:")
+        log("  1. modules used different api, this case can be avoid by using LayerMap.")
+        log("  2. modules have different struct, make sure your modules:")
+        print_struct_info(t_root.origin, p_root.origin)
+        return False
 
-    # about ret:
-    # 1. ret is a leaf layer
-    # 2. ret is a normal layer who called multi apis
+    for t_child, p_child in zip(reversed(t_root.children), reversed(p_root.children)):
+        res = check_backward(t_child, p_child, options)
+        if res == False:
+            return False
 
-    # about retval to return:
-    # 1. root is a wrapper, so, return retval directly
-    #    this case is imposible: should return in base case
-    # 2. root is not a wrapper, needs:
-    #    create new node and reset sons, leafs
-    #    reset fathers for nodes returned
+    return True
 
-    retval = copy_node_attrs(root)
 
-    for child in root.sons:
-        ret = del_wrap_layers(child)
-        ret.father = retval
-        retval.sons.append(ret)
-        retval.leafs.extend(ret.leafs)
+"""
+    report_guard
+"""
 
-    return retval
+global_torch_report = None
+global_paddle_report = None
+global_torch_counter = Counter()
+global_paddle_counter = Counter()
+
+
+@contextlib.contextmanager
+def report_guard(torch_report, paddle_report):
+    global global_torch_report, global_paddle_report
+    old_t = global_torch_report
+    old_p = global_paddle_report
+    try:
+        global_torch_report = torch_report
+        global_paddle_report = paddle_report
+
+        torch_report.counter = global_torch_counter
+        paddle_report.counter = global_paddle_counter
+
+        torch_report.counter.clear()
+        paddle_report.counter.clear()
+
+        yield
+
+    finally:
+        global_torch_report = old_t
+        global_paddle_report = old_p
+        torch_report.counter = None
+        paddle_report.counter = None
+
+
+def current_paddle_report():
+    if global_paddle_report is None:
+        return None
+        raise RuntimeError(
+            "Please call `current_paddle_report()` within contextmanager `report_guard(Report(), Report())`."
+        )
+    return global_paddle_report
+
+
+def current_torch_report():
+    if global_torch_report is None:
+        return None
+        raise RuntimeError(
+            "Please call `current_torch_report()` within contextmanager `report_guard(Report(), Report())`."
+        )
+    return global_torch_report
