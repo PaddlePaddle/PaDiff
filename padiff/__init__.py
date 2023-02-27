@@ -18,19 +18,11 @@
 import sys, os
 import inspect
 from functools import partial
-from contextlib import contextmanager
-from types import ModuleType, MethodType
-import importlib
-from importlib.machinery import ModuleSpec
-from importlib.abc import MetaPathFinder, Loader
 
+from importlib.abc import MetaPathFinder, Loader
 from importlib.machinery import SourceFileLoader, ExtensionFileLoader, PathFinder
 
-SKIP_NAMES = {
-    "flatten": "paddle.fluid.layers.utils",
-    "wrap": "torch.fx",
-    "map_structure": "paddle.fluid.layers.utils",
-}
+from .file_loader import global_json_loader as api_mapping
 
 WANT_WRAP = (
     "paddle",

@@ -20,7 +20,7 @@ from .utils import (
     for_each_grad_tensor,
     map_structure_and_replace_key,
 )
-from .yaml_loader import global_yaml_loader as yamls
+from .file_loader import global_yaml_loader as yamls
 
 """
     torch_api_hook, paddle_api_hook are used to create report items

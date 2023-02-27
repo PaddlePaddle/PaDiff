@@ -22,7 +22,7 @@ import torch
 
 
 from .utils import log, map_for_each_sublayer, assert_tensor_equal, LayerMap
-from .yaml_loader import global_yaml_loader as yamls
+from .file_loader import global_yaml_loader as yamls
 
 
 def process_each_weight(process, layer, module, layer_map=LayerMap()):
