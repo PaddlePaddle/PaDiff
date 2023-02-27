@@ -22,19 +22,11 @@ from functools import partial
 from importlib.abc import MetaPathFinder, Loader
 from importlib.machinery import SourceFileLoader, ExtensionFileLoader, PathFinder
 
-from .file_loader import global_json_loader as api_mapping
-
-WANT_WRAP = (
-    "paddle",
-    "paddle.nn.functional",
-    "paddle.nn.functional.conv",
-    "torch.nn.functional",
-    "torch.spectial",
-)
+from .file_loader import global_json_loader as jsons
 
 
 def module_filter(name):
-    if name in WANT_WRAP:
+    if name in jsons.paddle_apis.keys() or name in jsons.torch_apis.keys():
         return True, name.partition(".")[0]
     return False, None
 
@@ -133,32 +125,47 @@ class PaDiffLoader(Loader):
         self._loader = _loader
 
     def exec_module(self, module):
+        if module.__spec__._module_type == "paddle":
+            apis = jsons.paddle_apis[module.__name__]
+        elif module.__spec__._module_type == "torch":
+            apis = jsons.torch_apis[module.__name__]
+        else:
+            apis = []
+
         self._loader.exec_module(module)
 
-        for k, v in module.__dict__.items():
-            if k == "flatten":
-                continue
-            if inspect.isfunction(v):
-                module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
-            elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
-                module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
+        for api in apis:
+            if api in module.__dict__.keys():
+                obj = module.__dict__[api]
+                if inspect.isfunction(obj):
+                    module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
+                elif inspect.isbuiltin(obj) and module.__name__.startswith("torch"):
+                    module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
+
+        # for k, v in module.__dict__.items():
+        #     if k == "flatten":
+        #         continue
+        #     if inspect.isfunction(v):
+        #         module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
+        #     elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
+        #         module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
 
     def create_module(self, spec):
-        # return PaDiffModule(spec)
         return None
 
 
-for name in WANT_WRAP:
+for name in jsons.TORCH_MODULE:
     if name in sys.modules.keys():
         module = sys.modules[name]
+        apis = jsons.torch_apis[name]
 
-        for k, v in module.__dict__.items():
-            if k == "flatten":
-                continue
-            if inspect.isfunction(v):
-                module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
-            elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
-                module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
+        for api in apis:
+            if api in module.__dict__.keys():
+                obj = module.__dict__[api]
+                if inspect.isfunction(obj):
+                    module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
+                elif inspect.isbuiltin(obj) and module.__name__.startswith("torch"):
+                    module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
 
 
 sys.meta_path = [PaDiffFinder()] + sys.meta_path

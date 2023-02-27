@@ -34,7 +34,7 @@ class TestCaseName(unittest.TestCase):
         inp = paddle.rand((10, 3, 224, 224)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cpu")})
         assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 5e-2}) is True
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 5e-2, "compare_mode": "strict"}) is True
         ), "Failed. expected success."
 
 
