@@ -161,13 +161,6 @@ def copy_module_struct(root):
 
 
 def reorder_and_match_reports(t_root, p_root, t_rep, p_rep):
-    """
-    recoder tree's nodes with init order in place
-    based on torch module and reorder paddle module
-
-    Notice:
-        for one2one layers, they may not in order too (though they are leaves)
-    """
     if len(t_root.children) == 0 and len(p_root.children) == 0:
         return
 
@@ -209,17 +202,14 @@ def reorder_and_match_reports(t_root, p_root, t_rep, p_rep):
 
         p_root.children = new_children
 
+        setattr(p_root, "reordered", True)
+
     except Exception as e:
-        log("Exception found while reorder_and_match_reports")
+        log("Exception occurs in `reorder_and_match_reports`, Error msg:")
         print(str(e))
         log("This err occurs at:")
         print_struct_info(t_root, p_root)
         raise e
-
-    for t_child, p_child in zip(t_root.children, p_root.children):
-        reorder_and_match_reports(t_child, p_child, p_rep, t_rep)
-
-    return
 
 
 def reorder_api(t_apis, p_apis):
@@ -232,12 +222,6 @@ def reorder_api(t_apis, p_apis):
 
 
 def reorder_one2one(t_oos, p_oos, layer_map):
-    """
-    reorder p_oos based on t_oos
-    TODO(wuzhafnei): need better match logic there
-    Temporarily, just keep in order
-    """
-
     def swap(items, l, r):
         temp = items[l]
         items[l] = items[r]
@@ -254,6 +238,22 @@ def reorder_one2one(t_oos, p_oos, layer_map):
             swap(p_oos, p_idx, idx)
         else:
             raise RuntimeError("Duplicate key or values, check your LayerMap")
+
+    return
+
+
+def reorder_and_match_reports_recursively(t_root, p_root, t_rep, p_rep):
+    """
+    recoder tree's nodes with init order in place
+    based on torch module and reorder paddle module
+
+    Notice:
+        for one2one layers, they may not in order too (though they are leaves)
+    """
+    reorder_and_match_reports(t_root, p_root, t_rep, p_rep)
+
+    for t_child, p_child in zip(t_root.children, p_root.children):
+        reorder_and_match_reports_recursively(t_child, p_child, p_rep, t_rep)
 
     return
 
