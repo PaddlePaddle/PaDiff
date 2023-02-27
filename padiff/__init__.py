@@ -176,7 +176,6 @@ __version__ = "0.1.0"
 import paddle
 import torch
 
-from . import configs
 from .utils import LayerMap
 from .auto_diff import auto_diff
 
