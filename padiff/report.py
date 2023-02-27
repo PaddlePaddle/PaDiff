@@ -332,7 +332,7 @@ def check_forward(t_root, p_root, t_rep, p_rep, options):
         return True
     except Exception as e:
         compare_info = e
-        if len(t_root.children) == 0 or len(p_root.is_leaf) == 0:
+        if len(t_root.children) == 0 or len(p_root.children) == 0:
             print_info(paddle_item, torch_item, e, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
             return False
 
@@ -368,7 +368,7 @@ def check_backward(t_root, p_root, t_rep, p_rep, options):
         return True
     except Exception as e:
         compare_info = e
-        if len(t_root.children) == 0 or len(p_root.is_leaf) == 0:
+        if len(t_root.children) == 0 or len(p_root.children) == 0:
             print_info(paddle_item, torch_item, e, -1, grad=True, t_root=t_root.origin, p_root=p_root.origin)
             return False
 
