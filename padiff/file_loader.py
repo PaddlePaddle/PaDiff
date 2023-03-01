@@ -92,6 +92,8 @@ class json_loader:
             "paddle",
             "paddle.linalg",
             "paddle.fft",
+            "paddle.incubate.sparse",
+            "paddle.signal",
         ]
 
         json_path = os.path.join(os.path.dirname(__file__), "configs", "api_mapping.json")

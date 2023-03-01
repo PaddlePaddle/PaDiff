@@ -137,18 +137,8 @@ class PaDiffLoader(Loader):
         for api in apis:
             if api in module.__dict__.keys():
                 obj = module.__dict__[api]
-                if inspect.isfunction(obj):
+                if inspect.isfunction(obj) or inspect.isbuiltin(obj):
                     module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
-                elif inspect.isbuiltin(obj) and module.__name__.startswith("torch"):
-                    module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
-
-        # for k, v in module.__dict__.items():
-        #     if k == "flatten":
-        #         continue
-        #     if inspect.isfunction(v):
-        #         module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
-        #     elif inspect.isbuiltin(v) and module.__name__.startswith("torch"):
-        #         module.__dict__[k] = wrap_func(module.__name__ + "." + k, v)
 
     def create_module(self, spec):
         return None
@@ -162,9 +152,18 @@ for name in jsons.TORCH_MODULE:
         for api in apis:
             if api in module.__dict__.keys():
                 obj = module.__dict__[api]
-                if inspect.isfunction(obj):
+                if inspect.isfunction(obj) or inspect.isbuiltin(obj):
                     module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
-                elif inspect.isbuiltin(obj) and module.__name__.startswith("torch"):
+
+for name in jsons.PADDLE_MODULE:
+    if name in sys.modules.keys():
+        module = sys.modules[name]
+        apis = jsons.paddle_apis[name]
+
+        for api in apis:
+            if api in module.__dict__.keys():
+                obj = module.__dict__[api]
+                if inspect.isfunction(obj) or inspect.isbuiltin(obj):
                     module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
 
 
