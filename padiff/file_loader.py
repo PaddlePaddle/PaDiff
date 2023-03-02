@@ -14,6 +14,12 @@
 
 import yaml
 import os
+import json
+
+
+"""
+    yaml_loader
+"""
 
 
 class yaml_loader:
@@ -66,3 +72,64 @@ class yaml_loader:
 
 
 global_yaml_loader = yaml_loader()
+
+
+"""
+    json_loader
+"""
+
+
+class json_loader:
+    def __init__(self):
+        self.TORCH_MODULE = [
+            "torch.nn.functional",
+            "torch",
+            "torch.linalg",
+            "torch.fft",
+        ]
+        self.PADDLE_MODULE = [
+            "paddle.nn.functional",
+            "paddle",
+            "paddle.linalg",
+            "paddle.fft",
+            "paddle.incubate.sparse",
+            "paddle.signal",
+        ]
+
+        json_path = os.path.join(os.path.dirname(__file__), "configs", "api_mapping.json")
+        with open(json_path, "r") as file:
+            self.api_mapping = json.load(file)
+
+        self.torch_apis = {}
+        self.paddle_apis = {}
+
+        for k, v in self.api_mapping.items():
+            if "paddle_api" not in v.keys():
+                continue
+
+            torch_fullname = k
+            torch_module = torch_fullname.rpartition(".")[0]
+            torch_api = torch_fullname.rpartition(".")[2]
+
+            paddle_fullname = v["paddle_api"]
+            paddle_module = paddle_fullname.rpartition(".")[0]
+            paddle_api = paddle_fullname.rpartition(".")[2]
+
+            if torch_module not in self.TORCH_MODULE or paddle_module not in self.PADDLE_MODULE:
+                continue
+
+            if torch_module not in self.torch_apis.keys():
+                self.torch_apis[torch_module] = [torch_api]
+            else:
+                self.torch_apis[torch_module].append(torch_api)
+
+            if paddle_module not in self.paddle_apis.keys():
+                self.paddle_apis[paddle_module] = [paddle_api]
+            else:
+                self.paddle_apis[paddle_module].append(paddle_api)
+
+        # Deprecated
+        self.torch_apis["torch.nn.functional"].remove("sigmoid")
+
+
+global_json_loader = json_loader()

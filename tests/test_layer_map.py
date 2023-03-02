@@ -13,11 +13,9 @@
 # limitations under the License.
 
 import unittest
-
+from padiff import auto_diff
 import paddle
 import torch
-
-from padiff import auto_diff, LayerMap
 
 
 class SimpleLayer1(paddle.nn.Layer):
@@ -173,15 +171,18 @@ class TestCaseName(unittest.TestCase):
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
 
-        layer_map = LayerMap()
-        layer_map.ignore(layer.nop)
+        # ignore wrap layers automatically now
+        assert auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
 
-        assert auto_diff(
-            layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}
-        ), "Failed. expected success."
+        # layer_map = LayerMap()
+        # layer_map.ignore(layer.nop)
 
-        with self.assertRaises(Exception, msg="Sucess, expected exception."):
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
+        # assert auto_diff(
+        #     layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}
+        # ), "Failed. expected success."
+
+        # with self.assertRaises(Exception, msg="Sucess, expected exception."):
+        # auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
 
 
 if __name__ == "__main__":

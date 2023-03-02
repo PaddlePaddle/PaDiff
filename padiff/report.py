@@ -25,6 +25,16 @@ from .utils import (
     log,
     assert_tensor_equal,
 )
+from .module_struct import (
+    LayerStack,
+    copy_module_struct,
+    print_struct_info,
+    reorder_and_match_reports,
+)
+
+"""
+    Report definition
+"""
 
 
 class Counter:
@@ -101,6 +111,9 @@ class ReportItem:
         strings = []
         strings.append("ReportItem: \n    type={}".format(self.type))
         strings.append("    step_idx: {}".format(self.step))
+        strings.append(
+            "    net: {}\n".format(self.__name__ if hasattr(self, "__api__") else self.net.__class__.__name__)
+        )
         return "\n".join(strings)
 
 
@@ -110,6 +123,12 @@ class Report:
         self.items = []
         self.counter = None
         self.loss = None
+        self.stack = LayerStack(name)
+
+        # self.layer_map is used to confirm whether an API report is needed
+        # if api belongs to an layer which is ignored, we do not need it's report
+        # layer_map is set in Trainer.set_report
+        self.layer_map = None
 
     def put_item(self, type, input, output, net, net_id, frame_info, frames):
         step = self.counter.get_id()
@@ -151,49 +170,14 @@ class Report:
         return "\n".join(strings)
 
 
-global_torch_report = None
-global_paddle_report = None
-global_torch_counter = Counter()
-global_paddle_counter = Counter()
+"""
+    report analys
+"""
 
 
-@contextlib.contextmanager
-def report_guard(torch_report, paddle_report):
-    global global_torch_report, global_paddle_report
-    old_t = global_torch_report
-    old_p = global_paddle_report
-    try:
-        global_torch_report = torch_report
-        global_paddle_report = paddle_report
-        torch_report.counter = global_torch_counter
-        paddle_report.counter = global_paddle_counter
-        torch_report.counter.clear()
-        paddle_report.counter.clear()
-        yield
-    finally:
-        global_torch_report = old_t
-        global_paddle_report = old_p
-        torch_report.counter = None
-        paddle_report.counter = None
-
-
-def current_paddle_report():
-    if global_paddle_report is None:
-        raise RuntimeError(
-            "Please call `current_paddle_report()` within contextmanager `report_guard(Report(), Report())`."
-        )
-    return global_paddle_report
-
-
-def current_torch_report():
-    if global_torch_report is None:
-        raise RuntimeError(
-            "Please call `current_torch_report()` within contextmanager `report_guard(Report(), Report())`."
-        )
-    return global_torch_report
-
-
-def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
+def print_info(paddle_item, torch_item, exc, step_idx, grad=False, t_root=None, p_root=None):
+    if step_idx == -1:
+        step_idx = torch_item.step
     log("FAILED !!!")
     if grad:
         log(
@@ -208,7 +192,11 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
             )
         )
     log("    Type of layer is  : {} vs {}".format(type(torch_item.net), type(paddle_item.net)))
+
     print(str(exc))
+
+    if t_root is not None and p_root is not None:
+        print_struct_info(t_root, p_root)
 
     print("\n\nPaddle Stacks:")
     print("=========================")
@@ -218,13 +206,18 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False):
     torch_item.print_stacks()
 
 
-def check_forward_and_backward(torch_rep, paddle_rep, cfg):
+def _check_forward_and_backward(torch_rep, paddle_rep, cfg):
     """
     TODO(@xiongkun):
     More abundant printing methods can be supported later，For example, interactive printing mode，Tree Printing mode，Currently, only list printing is supported.
     """
     torch_fwd_items = torch_rep.get_fwd_items()
     paddle_fwd_items = paddle_rep.get_fwd_items()
+
+    # temp use
+    torch_fwd_items = list(filter(lambda x: x.net_id != -1, torch_fwd_items))
+    paddle_fwd_items = list(filter(lambda x: x.net_id != -1, paddle_fwd_items))
+
     torch_fwd_items = TableView(torch_fwd_items, lambda x: x.net_id)
     paddle_tree_view = TreeView(paddle_fwd_items)
 
@@ -291,3 +284,165 @@ def check_forward_and_backward(torch_rep, paddle_rep, cfg):
     # total status
     log("SUCCESS !!!")
     return True
+
+
+def check_forward_and_backward(torch_rep, paddle_rep, options):
+    t_root = copy_module_struct(torch_rep.stack.root)[0]
+    p_root = copy_module_struct(paddle_rep.stack.root)[0]
+
+    # forward check
+    res = check_forward(t_root, p_root, torch_rep, paddle_rep, options)
+    if res == False:
+        return False
+    log("forward stage compared.")
+
+    # loss check
+    if options["loss_fn"]:
+        try:
+            assert_tensor_equal(paddle_rep.loss, torch_rep.loss, options)
+            log("loss compared.")
+        except Exception as e:
+            log("*** Diff found in loss, Checkout your loss function! ***")
+            log("loss compare:\n")
+            print("{}".format(str(e)))
+            return False
+
+    if options["diff_phase"] == "forward":
+        log("Diff_phase is `forward`. Backward compare skipped.")
+        log("SUCCESS !!!")
+        return True
+
+    # backward check
+    res = check_backward(t_root, p_root, torch_rep, paddle_rep, options)
+    if res == False:
+        return False
+    log("backward stage compared.")
+
+    log("SUCCESS !!!")
+    return True
+
+
+def check_forward(t_root, p_root, t_rep, p_rep, options):
+    act = get_action(t_root.net, p_root.net)
+    torch_item = t_root.fwd_report
+    paddle_item = p_root.fwd_report
+    assert torch_item.type == paddle_item.type and paddle_item.type == "forward"
+    try:
+        act(torch_item, paddle_item, options)
+        return True
+    except Exception as e:
+        compare_info = e
+        if len(t_root.children) == 0 or len(p_root.children) == 0:
+            print_info(paddle_item, torch_item, e, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
+            return False
+
+    # reorder current level
+    try:
+        if not hasattr(p_root, "reordered"):
+            reorder_and_match_reports(t_root, p_root, t_rep, p_rep)
+    except:
+        log(f"While checking forward, diff found at torch: {t_root.net} vs paddle: {p_root.net}")
+        log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again as above.")
+        log("Compare detail:")
+        print_info(paddle_item, torch_item, compare_info, -1, grad=False)
+        return False
+
+    for t_child, p_child in zip(t_root.children, p_root.children):
+        res = check_forward(t_child, p_child, t_rep, p_rep, options)
+        if res == False:
+            return False
+
+    # sublayers is compared ok, but diff found at father layer
+    log(f"Sublayers of torch: {t_root.net} and paddle: {p_root.net} are corresponded, but diff found at their output!")
+    print_info(paddle_item, torch_item, compare_info, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
+    return False
+
+
+def check_backward(t_root, p_root, t_rep, p_rep, options):
+    act = get_action(t_root.net, p_root.net)
+    torch_item = t_root.bwd_report
+    paddle_item = p_root.bwd_report
+    assert torch_item.type == paddle_item.type and paddle_item.type == "backward"
+    try:
+        act(torch_item, paddle_item, options)
+        return True
+    except Exception as e:
+        compare_info = e
+        if len(t_root.children) == 0 or len(p_root.children) == 0:
+            print_info(paddle_item, torch_item, e, -1, grad=True, t_root=t_root.origin, p_root=p_root.origin)
+            return False
+
+    # reorder current level
+    try:
+        if not hasattr(p_root, "reordered"):
+            reorder_and_match_reports(t_root, p_root, t_rep, p_rep)
+    except:
+        log(f"While checking backward, diff found at torch: {t_root.net} vs paddle: {p_root.net}")
+        log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again as above.")
+        log("Compare detail:")
+        print_info(paddle_item, torch_item, compare_info, -1, grad=True)
+        return False
+
+    for t_child, p_child in zip(reversed(t_root.children), reversed(p_root.children)):
+        res = check_backward(t_child, p_child, t_rep, p_rep, options)
+        if res == False:
+            return False
+
+    # sublayers is compared ok, but diff found at father layer
+    log(
+        f"Grad of sublayers of torch: {t_root.net} and paddle: {p_root.net} are corresponded, but diff found at their output grad!"
+    )
+    print_info(paddle_item, torch_item, compare_info, -1, grad=True, t_root=t_root.origin, p_root=p_root.origin)
+    return False
+
+
+"""
+    report_guard
+"""
+
+global_torch_report = None
+global_paddle_report = None
+global_torch_counter = Counter()
+global_paddle_counter = Counter()
+
+
+@contextlib.contextmanager
+def report_guard(torch_report, paddle_report):
+    global global_torch_report, global_paddle_report
+    old_t = global_torch_report
+    old_p = global_paddle_report
+    try:
+        global_torch_report = torch_report
+        global_paddle_report = paddle_report
+
+        torch_report.counter = global_torch_counter
+        paddle_report.counter = global_paddle_counter
+
+        torch_report.counter.clear()
+        paddle_report.counter.clear()
+
+        yield
+
+    finally:
+        global_torch_report = old_t
+        global_paddle_report = old_p
+        torch_report.counter = None
+        paddle_report.counter = None
+
+
+def current_paddle_report():
+    if global_paddle_report is None:
+        return None
+        raise RuntimeError(
+            "Please call `current_paddle_report()` within contextmanager `report_guard(Report(), Report())`."
+        )
+    return global_paddle_report
+
+
+def current_torch_report():
+    if global_torch_report is None:
+        return None
+        raise RuntimeError(
+            "Please call `current_torch_report()` within contextmanager `report_guard(Report(), Report())`."
+        )
+    return global_torch_report

@@ -23,7 +23,7 @@ import numpy as np
 import paddle
 import torch
 from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
-
+from .file_loader import global_yaml_loader as yamls
 
 # process Tensor
 
@@ -393,6 +393,8 @@ def init_options(options):
             print("  {}: `{}`".format(key, options[key]))
     print("}")
 
+    yamls.options = options
+
 
 def init_LayerMap(layer, module, layer_map):
     if layer_map is None:
@@ -410,9 +412,16 @@ def init_LayerMap(layer, module, layer_map):
     return layer_map
 
 
+def is_wrap_layer(layer):
+    if isinstance(layer, paddle.nn.Layer):
+        return len(list(layer.parameters(include_sublayers=False))) == 0
+    elif isinstance(layer, torch.nn.Module):
+        return len(list(layer.parameters(recurse=False))) == 0
+
+
 class LayerMap(object):
     def __init__(self):
-        self._layer_one2one = {}  # key: paddle.nn.Layer, value: torch.nn.Module
+        self._layer_one2one = {}  # key: torch.nn.Module, value: paddle.nn.Layer
         self._layer_ignore = set()  # ignore layer in this set
         self._layer_ignore_sublayer = set()  # ignore sublayer of layers in this set (do not include themselves)
 
@@ -425,7 +434,7 @@ class LayerMap(object):
     def modify_layer_map(layer_map):
         swap_keys = []
         for key in layer_map.keys():
-            if not isinstance(key, paddle.nn.Layer):
+            if not isinstance(key, torch.nn.Module):
                 swap_keys.append(key)
         for key in swap_keys:
             layer_map[layer_map[key]] = key
@@ -459,17 +468,19 @@ class LayerMap(object):
         ignored = set()
         if ign_cls == None:
             ign_cls = self._ignore_cls
-        for sublayer in self.layers(layer):
+        for sublayer in self.layers_skip_ignore(layer):
             if isinstance(sublayer, ign_cls):
                 ignored.add(sublayer)
         self._layer_ignore.update(ignored)
 
-    def _traversal_layers(self, net):
+    def _traversal_layers_with_ignore(self, net):
         for child in net.children():
-            if child not in self._layer_ignore:
+            if (child not in self._layer_ignore and not is_wrap_layer(child)) or (
+                child in self.map.keys() or child in self.map.values()
+            ):
                 yield child
             if child not in self._layer_ignore_sublayer:
-                for sublayer in self._traversal_layers(child):
+                for sublayer in self._traversal_layers_with_ignore(child):
                     yield sublayer
 
     def special_init_layers(self):
@@ -479,14 +490,15 @@ class LayerMap(object):
         # layers in layer_map should be inited in `special_init`, so they will be skipped here
         layers = [layer]
         if isinstance(layer, paddle.nn.Layer):
-            layers.extend(filter(lambda x: x not in self.map.keys(), self._traversal_layers(layer)))
+            layers.extend(filter(lambda x: x not in self.map.values(), self._traversal_layers_with_ignore(layer)))
         elif isinstance(layer, torch.nn.Module):
-            layers.extend(filter(lambda x: x not in self.map.values(), self._traversal_layers(layer)))
+            layers.extend(filter(lambda x: x not in self.map.keys(), self._traversal_layers_with_ignore(layer)))
         else:
             raise RuntimeError("Invalid model type: {}".format(type(layer)))
         return layers
 
-    def layers(self, layer):
+    def layers_skip_ignore(self, layer):
+        # NOTICE: root level always in return vals, though it could be a wrap layer
         layers = [layer]
-        layers.extend(self._traversal_layers(layer))
+        layers.extend(self._traversal_layers_with_ignore(layer))
         return layers

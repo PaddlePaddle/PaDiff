@@ -12,22 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
-from functools import partial
-from .report import current_torch_report, current_paddle_report, report_guard
-from .stack_info import *
+from .report import report_guard
 from .utils import (
-    for_each_grad_tensor,
     log,
     max_diff,
     tensors_mean,
-    map_structure_and_replace_key,
 )
 from .weights import remove_inplace, assign_weight
+from .hooks import _register_paddle_hooker, _register_torch_hooker
 
 
 class Trainer(object):
-    def __init__(self, layer, module, loss_fn, opt):
+    def __init__(self, layer, module, loss_fn, opt, layer_map):
         self.layer = layer  # paddle layer
         self.module = module  # torch module
         if loss_fn is not None:
@@ -40,22 +36,27 @@ class Trainer(object):
         else:
             self.has_opt = False
 
+        # layer_map should be part of the module
+        self.layer_map = layer_map
+
         remove_inplace(self.layer, self.module)
 
         self.paddle_rep = None
         self.torch_rep = None
 
-    def assign_weight_(self, layer_map):
-        assign_weight(self.layer, self.module, layer_map=layer_map)
+    def assign_weight_(self):
+        assign_weight(self.layer, self.module, self.layer_map)
 
     def set_report(self, paddle_rep, torch_rep):
+        paddle_rep.layer_map = self.layer_map
+        torch_rep.layer_map = self.layer_map
         self.paddle_rep = paddle_rep
         self.torch_rep = torch_rep
 
-    def train_step(self, example_inp, options, layer_map):
+    def train_step(self, example_inp, options):
         paddle_input, torch_input = example_inp
         with report_guard(self.torch_rep, self.paddle_rep):
-            with _register_torch_hooker(self.module, options, layer_map):
+            with _register_torch_hooker(self.module, self.layer_map):
                 try:
                     torch_output = self.module(**torch_input)
                     if options["loss_fn"]:
@@ -74,7 +75,7 @@ class Trainer(object):
                         )
                     )
 
-            with _register_paddle_hooker(self.layer, options, layer_map):
+            with _register_paddle_hooker(self.layer, self.layer_map):
                 try:
                     paddle_output = self.layer(**paddle_input)
                     if options["loss_fn"]:
@@ -99,73 +100,3 @@ class Trainer(object):
         if self.has_opt:
             self.paddle_opt.clear_grad()
             self.torch_opt.zero_grad()
-
-
-def tensor_hook(x_grad, bwd_item, nth_tensor):
-    # print (nth_tensor, bwd_item.input_grads, bwd_item.input)
-    bwd_item.set_input_grads(nth_tensor, x_grad)
-    return x_grad
-
-
-def torch_layer_hook(module, input, output, idx, options):
-    rep = current_torch_report()
-    frame_info, frames = extract_frame_summary()
-    fwd_item = rep.put_item("forward", input, output, module, idx, frame_info, frames)
-    bwd_item = rep.put_item("backward", input, output, module, idx, frame_info, frames)
-    bwd_item.set_forward(fwd_item)
-    for i, (t,) in enumerate(for_each_grad_tensor(input)):
-        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
-    return None
-
-
-def paddle_layer_hook(module, input, output, idx, options):
-    p_rep = current_paddle_report()
-    frame_info, frames = extract_frame_summary()
-    fwd_item = p_rep.put_item("forward", input, output, module, idx, frame_info, frames)
-    bwd_item = p_rep.put_item("backward", input, output, module, idx, frame_info, frames)
-    bwd_item.set_forward(fwd_item)
-    for i, (t,) in enumerate(for_each_grad_tensor(input)):
-        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
-
-    if options["single_step"]:
-        t_rep = current_torch_report()
-        t_fwd_item = t_rep.find_item(p_rep, idx)
-
-        def tt2pt(tt):
-            if isinstance(tt, torch.Tensor):
-                return paddle.to_tensor(tt.detach().cpu().numpy())
-            else:
-                return tt
-
-        return map_structure_and_replace_key(tt2pt, [t_fwd_item.output], output)
-    else:
-        return None
-
-
-@contextlib.contextmanager
-def _register_paddle_hooker(layer, options, layer_map):
-    remove_handles = []
-    # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
-    idx = 0
-    layers = layer_map.layers(layer)
-    for mod in layers:
-        handle = mod.register_forward_post_hook(partial(paddle_layer_hook, idx=idx, options=options))
-        remove_handles.append(handle)
-        idx += 1
-    yield
-    for h in remove_handles:
-        h.remove()
-
-
-@contextlib.contextmanager
-def _register_torch_hooker(module, options, layer_map):
-    remove_handles = []
-    idx = 0
-    modules = layer_map.layers(module)
-    for mod in modules:
-        handle = mod.register_forward_hook(partial(torch_layer_hook, idx=idx, options=options))
-        remove_handles.append(handle)
-        idx += 1
-    yield
-    for h in remove_handles:
-        h.remove()
