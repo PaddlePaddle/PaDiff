@@ -77,7 +77,7 @@ def auto_diff(
     trainer = Trainer(layer, module, loss_fn, optimizer, layer_map)
     if auto_weights:
         if not trainer.assign_weight_():
-            exit()
+            return False
 
     if steps > 1:
         if options["diff_phase"] == "forward" or options["opt"] == False:
