@@ -260,29 +260,41 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
             assert_tensor_equal(p_param, t_param, settings)
         except Exception as e:
             _weight_check = False
-            info = "After training, weight value is different for param `{}`.\n\
-                    between paddle: `{}`, torch: `{}` \n\
-                    {}\n\n".format(
-                param_name, paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__, str(e)
+            info = (
+                "=" * 25 + "\n" + "After training, weight value is different for param `{}`.\n"
+                "between paddle: `{}`, torch: `{}` \n"
+                "{}\n\n".format(
+                    param_name, paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__, str(e)
+                )
             )
-            raise RuntimeError(info)
+            log_file("weight_diff.log", "a", info)
 
         # check grad
         try:
             assert_tensor_equal(p_grad, t_grad, settings)
         except Exception as e:
             _grad_check = False
-            info = "After training, grad value is different for param `{}`.\n\
-                    between paddle: `{}`, torch: `{}` \n\
-                    {}\n\n".format(
-                param_name, paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__, str(e)
+            info = (
+                "=" * 25 + "\n" + "After training, grad value is different for param `{}`.\n"
+                "between paddle: `{}`, torch: `{}` \n"
+                "{}\n\n".format(
+                    param_name, paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__, str(e)
+                )
             )
-            raise RuntimeError(info)
+            log_file("grad_diff.log", "a", info)
 
-    try:
-        process_each_weight(_check_weight_grad, layer, module, layer_map)
-    finally:
-        return _weight_check, _grad_check
+    process_each_weight(_check_weight_grad, layer, module, layer_map)
+
+    print("")
+    if _weight_check == False:
+        log(f"Diff found in model weights, check report `{diff_log_path + '/weight_diff.log'}`.")
+    if _grad_check == False:
+        log(f"Diff found in model grad, check report `{diff_log_path + '/grad_diff.log'}`.")
+
+    if _weight_check and _grad_check:
+        log("weight and grad compared.")
+
+    return _weight_check, _grad_check
 
 
 def remove_inplace(layer, module):

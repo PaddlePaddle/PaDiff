@@ -94,10 +94,10 @@ def auto_diff(
         trainer.clear_grad()
         trainer.train_step(example_inp, options=options)
 
+        ret = check_forward_and_backward(torch_report, paddle_report, options)
         weight_check, grad_check = check_weight_grad(
             trainer.layer, trainer.module, options=options, layer_map=layer_map
         )
-        ret = check_forward_and_backward(torch_report, paddle_report, options)
         ret = ret and weight_check and grad_check
 
         if ret == False:
