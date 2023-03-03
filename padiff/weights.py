@@ -25,6 +25,43 @@ from .utils import log, map_for_each_sublayer, assert_tensor_equal, LayerMap
 from .file_loader import global_yaml_loader as yamls
 
 
+def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
+    print("\nPaddle Model")
+    print("=" * 25)
+    print_weight_struct(layer, mark=paddle_sublayer, prefix=[" " * 4])
+    print("\n\nTorch Model:")
+    print("=" * 25)
+    print_weight_struct(module, mark=torch_submodule, prefix=[" " * 4])
+
+
+def print_weight_struct(net, mark=None, prefix=[]):
+    # breakpoint()
+    for i, s in enumerate(prefix):
+        if i == len(prefix) - 1:
+            print(s, end="")
+        else:
+            if s == " |--- ":
+                print(" |    ", end="")
+            elif s == " +--- ":
+                print("      ", end="")
+            else:
+                print(s, end="")
+
+    if mark is net:
+        print(str(net.__class__.__name__) + "    <---  *** HERE ***")
+    else:
+        print(str(net.__class__.__name__))
+
+    children = list(net.children())
+    for i, child in enumerate(children):
+        pre = " |--- "
+        if i == len(children) - 1:
+            pre = " +--- "
+        prefix.append(pre)
+        print_weight_struct(child, mark, prefix)
+        prefix.pop()
+
+
 def process_each_weight(process, layer, module, layer_map=LayerMap()):
     """
     Apply process for each pair of parameters in layer(paddle) and module(torch)
@@ -44,16 +81,8 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
         paddle_param,
         torch_param,
     ):
-        try:
-            settings = yamls.get_weight_settings(paddle_sublayer, torch_submodule, param_name)
-        except Exception as e:
-            p_model_log = os.path.join(sys.path[0], "diff_log", "paddle_model_struct.log")
-            t_model_log = os.path.join(sys.path[0], "diff_log", "torch_model_struct.log")
-            with open(p_model_log, "w") as log:
-                log.write(str(layer))
-            with open(t_model_log, "w") as log:
-                log.write(str(module))
-            raise e
+
+        settings = yamls.get_weight_settings(paddle_sublayer, torch_submodule, param_name)
 
         process(
             paddle_sublayer,
@@ -74,14 +103,21 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
             paddle_sublayer.named_parameters(prefix="", include_sublayers=False),
             torch_submodule.parameters(recurse=False),
         ):
-            _process_runner(
-                process,
-                paddle_sublayer,
-                torch_submodule,
-                name,
-                paddle_param,
-                torch_param,
-            )
+            try:
+                _process_runner(
+                    process,
+                    paddle_sublayer,
+                    torch_submodule,
+                    name,
+                    paddle_param,
+                    torch_param,
+                )
+            except Exception as e:
+                print(f"Error occurred while process parameter `{name}`!")
+                print("Error Msg:")
+                print(f"{str(e)}")
+                weight_struct_info(layer, module, paddle_sublayer, torch_submodule)
+                raise e
 
 
 def _shape_check(

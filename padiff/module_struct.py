@@ -276,7 +276,7 @@ def tree_print(root, mark=None, prefix=[]):
                 print(s, end="")
 
     if mark is root:
-        print(str(root) + "  <---  here")
+        print(str(root) + "    <---  *** HERE ***")
     else:
         print(str(root))
 
