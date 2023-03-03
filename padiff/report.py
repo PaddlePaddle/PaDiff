@@ -196,6 +196,8 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False, t_root=None, 
     print(str(exc))
 
     if t_root is not None and p_root is not None:
+        print("\n\n")
+        log("Check model struct:")
         print_struct_info(t_root, p_root)
 
     print("\n\nPaddle Stacks:")

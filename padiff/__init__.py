@@ -175,9 +175,11 @@ import paddle
 import torch
 
 from .utils import LayerMap
+from .weights import assign_weight
 from .auto_diff import auto_diff
 
 __all__ = [
     "auto_diff",
     "LayerMap",
+    "assign_weight",
 ]

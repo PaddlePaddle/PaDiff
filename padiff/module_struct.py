@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .utils import TableView, log
+from .utils import TableView, log, log_file, diff_log_path
 
 """
     class definition
@@ -207,7 +207,8 @@ def reorder_and_match_reports(t_root, p_root, t_rep, p_rep):
     except Exception as e:
         log("Exception occurs in `reorder_and_match_reports`, Error msg:")
         print(str(e))
-        log("This err occurs at:")
+        print("\n\n")
+        log("Check model struct:")
         print_struct_info(t_root, p_root)
         raise e
 
@@ -264,29 +265,35 @@ def reorder_and_match_reports_recursively(t_root, p_root, t_rep, p_rep):
 
 # used to print module as a tree
 def tree_print(root, mark=None, prefix=[]):
+
+    cur_str = ""
     for i, s in enumerate(prefix):
         if i == len(prefix) - 1:
-            print(s, end="")
+            cur_str += s
         else:
             if s == " |--- ":
-                print(" |    ", end="")
+                cur_str += " |    "
             elif s == " +--- ":
-                print("      ", end="")
+                cur_str += "      "
             else:
-                print(s, end="")
+                cur_str += s
 
+    cur_str += str(root)
     if mark is root:
-        print(str(root) + "    <---  *** HERE ***")
-    else:
-        print(str(root))
+        cur_str += "    <---  *** HERE ***"
+
+    ret_strs = [cur_str]
 
     for i, child in enumerate(root.children):
         pre = " |--- "
         if i == len(root.children) - 1:
             pre = " +--- "
         prefix.append(pre)
-        tree_print(child, mark, prefix)
+        retval = tree_print(child, mark, prefix)
+        ret_strs.extend(retval)
         prefix.pop()
+
+    return ret_strs
 
 
 def get_path(node):
@@ -306,10 +313,22 @@ def print_struct_info(t_node, p_node):
     while p_root.father is not None:
         p_root = p_root.father
 
-    print("\n\nTorch Model:")
-    print("=" * 25)
-    tree_print(t_root, mark=t_node, prefix=[" " * 4])
+    t_title = "Torch Model\n" + "=" * 25 + "\n"
+    t_retval = tree_print(t_root, mark=t_node, prefix=[" " * 4])
+    t_info = t_title + "\n".join(t_retval)
 
-    print("\nPaddle Model:")
-    print("=" * 25)
-    tree_print(p_root, mark=p_node, prefix=[" " * 4])
+    p_title = "Paddle Model\n" + "=" * 25 + "\n"
+    p_retval = tree_print(p_root, mark=p_node, prefix=[" " * 4])
+    p_info = p_title + "\n".join(p_retval)
+
+    if len(p_retval) + len(t_retval) > 100:
+        log_file("paddle_struct.log", "w", p_info)
+        log_file("torch_struct.log", "w", t_info)
+        log(
+            f"Model Struct saved to `{diff_log_path + '/torch_struct.log'}` and `{diff_log_path + '/paddle_struct.log'}`."
+        )
+        log("Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !")
+
+    else:
+        print(p_info)
+        print(t_info)

@@ -18,7 +18,6 @@ import torch
 from .report import Report, check_forward_and_backward
 from .utils import (
     log,
-    reset_log_dir,
     init_options,
     init_LayerMap,
 )
@@ -73,10 +72,12 @@ def auto_diff(
         options["opt"] = True
 
     # prepare models and options
-
+    init_options(options)
     layer_map = init_LayerMap(layer, module, layer_map)
     trainer = Trainer(layer, module, loss_fn, optimizer, layer_map)
-    _preprocess(trainer, auto_weights, options)
+    if auto_weights:
+        if not trainer.assign_weight_():
+            exit()
 
     if steps > 1:
         if options["diff_phase"] == "forward" or options["opt"] == False:
@@ -110,10 +111,3 @@ def auto_diff(
     # TODO(linjieccc): pytest failed if log clean is enabled
     # clean_log_dir()
     return ret
-
-
-def _preprocess(trainer, auto_weights, options):
-    reset_log_dir()
-    init_options(options)
-    if auto_weights:
-        trainer.assign_weight_()

@@ -45,7 +45,7 @@ class Trainer(object):
         self.torch_rep = None
 
     def assign_weight_(self):
-        assign_weight(self.layer, self.module, self.layer_map)
+        return assign_weight(self.layer, self.module, self.layer_map)
 
     def set_report(self, paddle_rep, torch_rep):
         paddle_rep.layer_map = self.layer_map

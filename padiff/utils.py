@@ -275,6 +275,7 @@ class TreeView:
 # logs
 
 diff_log_path = os.path.join(sys.path[0], "diff_log")
+__reset_log_dir__ = False
 
 
 def reset_log_dir():
@@ -286,6 +287,17 @@ def reset_log_dir():
 def clean_log_dir():
     if not os.listdir(diff_log_path):
         os.rmdir(diff_log_path)
+
+
+def log_file(filename, mode, info):
+    global __reset_log_dir__
+    if not __reset_log_dir__:
+        reset_log_dir()
+        __reset_log_dir__ = True
+
+    filepath = os.path.join(sys.path[0], "diff_log", filename)
+    with open(filepath, mode) as f:
+        f.write(info)
 
 
 def log(*args):
