@@ -16,11 +16,12 @@ from itertools import zip_longest
 
 import numpy
 import paddle
-import torch
 
 
 from .utils import log, map_for_each_sublayer, assert_tensor_equal, LayerMap, log_file, diff_log_path
 from .file_loader import global_yaml_loader as yamls
+
+from .special_init import special_init_tools
 
 
 def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
@@ -138,7 +139,7 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
                 log("Error Msg:\n")
                 print(f"{str(e)}")
                 weight_struct_info(layer, module, paddle_sublayer, torch_submodule)
-                raise e
+                raise RuntimeError(f"Error occured while process weight {name}")
 
 
 def _shape_check(
@@ -194,22 +195,31 @@ def assign_weight(layer, module, layer_map=LayerMap()):
     """
 
     for torch_submodule, paddle_sublayer in layer_map.special_init_layers():
-        assign_config = yamls.assign_yaml.get(paddle_sublayer.__class__.__name__, None)
-        if assign_config is None or assign_config.get("init", False) == False:
+        layer_name = paddle_sublayer.__class__.__name__
+        if layer_name not in special_init_tools.keys():
             log(
                 "*** Auto weight paddle layer `{}` and torch module `{}` is not supported ***".format(
                     paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__
                 )
             )
-            log("*** Checkout the parameters are inited by yourself!!! ***")
+            log("    Checkout the parameters are inited by yourself")
+            log("    ,or you can register your init method")
         else:
-            special_init(paddle_sublayer, torch_submodule)
+            try:
+                special_init_tools[layer_name](paddle_sublayer, torch_submodule)
+            except Exception as e:
+                print(f"Special init Layer`{layer_name}` failed.")
+                print(str(e))
+                log("Assign weight Failed !!!")
+                return False
+
     try:
         process_each_weight(_assign_weight, layer, module, layer_map)
         log("Assign weight success !!!")
         return True
-    except:
+    except Exception as e:
         log("Assign weight Failed !!!")
+        print(str(e))
         return False
 
 
@@ -311,52 +321,3 @@ def remove_inplace(layer, module):
             module.inplace = False
 
     map_for_each_sublayer(_remove_inplace, layer, module)
-
-
-def special_init(paddle_layer, torch_module):
-    # NOTICE: make sure torch params is in the same device after init
-
-    def init_LSTM(layer, module):
-        for (name, paddle_param), torch_param in zip(
-            layer.named_parameters(prefix="", include_sublayers=False),
-            module.parameters(recurse=False),
-        ):
-            settings = yamls.get_weight_settings(layer, module, name)
-            _assign_weight(layer, module, name, paddle_param, torch_param, settings)
-
-    def init_MultiHeadAttention(layer, module):
-        name_param_dict = {}
-        for i, param in enumerate(layer.named_parameters()):
-            pname = param[0]
-            if "cross_attn" in pname:
-                pname = pname.replace("cross_attn", "multihead_attn")
-            elif "q" not in pname and "k" not in pname and "v" not in pname:
-                continue
-            param_np = param[1].numpy()
-            pname = pname.replace("q_proj.", "in_proj_")
-            pname = pname.replace("k_proj.", "in_proj_")
-            pname = pname.replace("v_proj.", "in_proj_")
-            if pname not in name_param_dict:
-                name_param_dict[pname] = param_np
-            elif "_weight" in pname:
-                name_param_dict[pname] = numpy.concatenate((name_param_dict[pname], param_np), axis=1)
-            else:
-                name_param_dict[pname] = numpy.concatenate((name_param_dict[pname], param_np), axis=0)
-
-        for i, param in enumerate(module.named_parameters()):
-            pname, pa = param[0], param[1]
-            if "in_proj" in pname or "multihead_attn" in pname:
-                param_np = name_param_dict[pname]
-            else:
-                param_np = layer.state_dict()[pname].numpy()
-            if pname.endswith("weight"):
-                param_np = numpy.transpose(param_np)
-            device = param[1].device
-            param[1].data = torch.from_numpy(param_np).to(device)
-
-    special_init_tools = {
-        "LSTM": init_LSTM,
-        "MultiHeadAttention": init_MultiHeadAttention,
-    }
-    name = paddle_layer.__class__.__name__
-    special_init_tools[name](paddle_layer, torch_module)

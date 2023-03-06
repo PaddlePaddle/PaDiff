@@ -177,9 +177,11 @@ import torch
 from .utils import LayerMap
 from .weights import assign_weight
 from .auto_diff import auto_diff
+from .special_init import add_special_init
 
 __all__ = [
     "auto_diff",
     "LayerMap",
     "assign_weight",
+    "add_special_init",
 ]
