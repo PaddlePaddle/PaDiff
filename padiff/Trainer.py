@@ -23,14 +23,15 @@ from .hooks import _register_paddle_hooker, _register_torch_hooker
 
 
 class Trainer(object):
-    def __init__(self, layer, module, loss_fn, opt, layer_map):
+    def __init__(self, layer, module, loss_fn, opt, layer_map, options):
         self.layer = layer  # paddle layer
         self.module = module  # torch module
         if loss_fn is not None:
             self.paddle_loss = loss_fn[0]
             self.torch_loss = loss_fn[1]
-        if opt is not None:
+        if options["opt"]:
             self.has_opt = True
+            self.opt_type = options["opt_type"]
             self.paddle_opt = opt[0]
             self.torch_opt = opt[1]
         else:
@@ -45,7 +46,7 @@ class Trainer(object):
         self.torch_rep = None
 
     def assign_weight_(self):
-        assign_weight(self.layer, self.module, self.layer_map)
+        return assign_weight(self.layer, self.module, self.layer_map)
 
     def set_report(self, paddle_rep, torch_rep):
         paddle_rep.layer_map = self.layer_map
@@ -66,8 +67,11 @@ class Trainer(object):
                         loss = tensors_mean(torch_output, "torch")
                     if options["diff_phase"] == "both":
                         loss.backward()
-                        if options["opt"]:
-                            self.torch_opt.step()
+                        if self.has_opt:
+                            if self.opt_type == "Lambda":
+                                self.torch_opt()
+                            elif self.opt_type == "Opt":
+                                self.torch_opt.step()
                 except Exception as e:
                     raise RuntimeError(
                         "Exception is thrown while running forward of torch_module, please check the legality of module.\n{}".format(
@@ -85,8 +89,11 @@ class Trainer(object):
                         loss = tensors_mean(paddle_output, "paddle")
                     if options["diff_phase"] == "both":
                         loss.backward()
-                        if options["opt"]:
-                            self.paddle_opt.step()
+                        if self.has_opt:
+                            if self.opt_type == "Lambda":
+                                self.paddle_opt()
+                            elif self.opt_type == "Opt":
+                                self.paddle_opt.step()
                 except Exception as e:
                     raise RuntimeError(
                         "Exception is thrown while running forward of paddle_layer, please check the legality of layer.\n{}".format(
@@ -97,6 +104,6 @@ class Trainer(object):
         log("Max elementwise output diff is {}\n".format(max_diff(paddle_output, torch_output)))
 
     def clear_grad(self):
-        if self.has_opt:
+        if self.has_opt and self.opt_type == "Opt":
             self.paddle_opt.clear_grad()
             self.torch_opt.zero_grad()

@@ -18,7 +18,6 @@ import torch
 from .report import Report, check_forward_and_backward
 from .utils import (
     log,
-    reset_log_dir,
     init_options,
     init_LayerMap,
 )
@@ -68,15 +67,19 @@ def auto_diff(
 
     if optimizer is not None:
         paddle_opt, torch_opt = optimizer
-        assert isinstance(paddle_opt, paddle.optimizer.Optimizer), "Invalid Optimizer."
-        assert isinstance(torch_opt, torch.optim.Optimizer), "Invalid Optimizer."
         options["opt"] = True
+        if isinstance(paddle_opt, paddle.optimizer.Optimizer) and isinstance(torch_opt, torch.optim.Optimizer):
+            options["opt_type"] = "Opt"
+        else:
+            options["opt_type"] = "Lambda"
 
     # prepare models and options
-
+    init_options(options)
     layer_map = init_LayerMap(layer, module, layer_map)
-    trainer = Trainer(layer, module, loss_fn, optimizer, layer_map)
-    _preprocess(trainer, auto_weights, options)
+    trainer = Trainer(layer, module, loss_fn, optimizer, layer_map, options)
+    if auto_weights:
+        if not trainer.assign_weight_():
+            return False
 
     if steps > 1:
         if options["diff_phase"] == "forward" or options["opt"] == False:
@@ -93,10 +96,10 @@ def auto_diff(
         trainer.clear_grad()
         trainer.train_step(example_inp, options=options)
 
+        ret = check_forward_and_backward(torch_report, paddle_report, options)
         weight_check, grad_check = check_weight_grad(
             trainer.layer, trainer.module, options=options, layer_map=layer_map
         )
-        ret = check_forward_and_backward(torch_report, paddle_report, options)
         ret = ret and weight_check and grad_check
 
         if ret == False:
@@ -110,10 +113,3 @@ def auto_diff(
     # TODO(linjieccc): pytest failed if log clean is enabled
     # clean_log_dir()
     return ret
-
-
-def _preprocess(trainer, auto_weights, options):
-    reset_log_dir()
-    init_options(options)
-    if auto_weights:
-        trainer.assign_weight_()
