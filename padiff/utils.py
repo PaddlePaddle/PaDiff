@@ -340,9 +340,6 @@ def assert_tensor_equal(tensor1, tensor2, options):
     """if equal: return None
     else: raise Error and Error Message.
     """
-    if tensor1.numel() == 0 or tensor2.numel() == 0:
-        warnings.warn("Found Tensor shape is [0], compare skipped!")
-        return
     atol = options["atol"]
     rtol = options["rtol"]
     compare_mode = options["compare_mode"]
