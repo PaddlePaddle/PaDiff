@@ -68,11 +68,15 @@ def auto_diff(
     if optimizer is not None:
         paddle_opt, torch_opt = optimizer
         options["opt"] = True
+        if isinstance(paddle_opt, paddle.optimizer.Optimizer) and isinstance(torch_opt, torch.optim.Optimizer):
+            options["opt_type"] = "Opt"
+        else:
+            options["opt_type"] = "Lambda"
 
     # prepare models and options
     init_options(options)
     layer_map = init_LayerMap(layer, module, layer_map)
-    trainer = Trainer(layer, module, loss_fn, optimizer, layer_map)
+    trainer = Trainer(layer, module, loss_fn, optimizer, layer_map, options)
     if auto_weights:
         if not trainer.assign_weight_():
             return False
@@ -89,6 +93,7 @@ def auto_diff(
         torch_report = Report("torch")
         trainer.set_report(paddle_report, torch_report)
 
+        trainer.clear_grad()
         trainer.train_step(example_inp, options=options)
 
         ret = check_forward_and_backward(torch_report, paddle_report, options)
