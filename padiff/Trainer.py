@@ -67,7 +67,7 @@ class Trainer(object):
                     if options["diff_phase"] == "both":
                         loss.backward()
                         if options["opt"]:
-                            self.torch_opt.step()
+                            self.torch_opt()
                 except Exception as e:
                     raise RuntimeError(
                         "Exception is thrown while running forward of torch_module, please check the legality of module.\n{}".format(
@@ -86,7 +86,7 @@ class Trainer(object):
                     if options["diff_phase"] == "both":
                         loss.backward()
                         if options["opt"]:
-                            self.paddle_opt.step()
+                            self.paddle_opt()
                 except Exception as e:
                     raise RuntimeError(
                         "Exception is thrown while running forward of paddle_layer, please check the legality of layer.\n{}".format(

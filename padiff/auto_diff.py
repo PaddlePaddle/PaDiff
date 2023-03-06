@@ -67,8 +67,6 @@ def auto_diff(
 
     if optimizer is not None:
         paddle_opt, torch_opt = optimizer
-        assert isinstance(paddle_opt, paddle.optimizer.Optimizer), "Invalid Optimizer."
-        assert isinstance(torch_opt, torch.optim.Optimizer), "Invalid Optimizer."
         options["opt"] = True
 
     # prepare models and options
@@ -91,7 +89,6 @@ def auto_diff(
         torch_report = Report("torch")
         trainer.set_report(paddle_report, torch_report)
 
-        trainer.clear_grad()
         trainer.train_step(example_inp, options=options)
 
         ret = check_forward_and_backward(torch_report, paddle_report, options)
