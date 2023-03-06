@@ -59,7 +59,7 @@ def _clone_tensor(inp):
     clone into cpu to save GPU memory.
     """
     if isinstance(inp, (torch.Tensor, paddle.Tensor)):
-        if list(inp.shape) == [0]:
+        if inp.numel() == 0:
             if isinstance(inp, torch.Tensor):
                 return torch.tensor([], dtype=inp.dtype)
             else:
@@ -340,7 +340,7 @@ def assert_tensor_equal(tensor1, tensor2, options):
     """if equal: return None
     else: raise Error and Error Message.
     """
-    if list(tensor1.shape) == [0] or list(tensor2.shape) == [0]:
+    if tensor1.numel() == 0 or tensor2.numel() == 0:
         warnings.warn("Found Tensor shape is [0], compare skipped!")
         return
     atol = options["atol"]
