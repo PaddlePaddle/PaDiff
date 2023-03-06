@@ -59,6 +59,11 @@ def _clone_tensor(inp):
     clone into cpu to save GPU memory.
     """
     if isinstance(inp, (torch.Tensor, paddle.Tensor)):
+        if inp.numel() == 0:
+            if isinstance(inp, torch.Tensor):
+                return torch.tensor([], dtype=inp.dtype)
+            else:
+                return paddle.to_tensor([], dtype=inp.dtype)
         new_t = inp.detach().cpu().clone()
         if is_require_grad(inp):
             set_require_grad(new_t)
@@ -310,6 +315,8 @@ def log(*args):
 def max_diff(paddle_output, torch_output):
     _max_diff = 0
     for (pt,), (tt,) in zip(for_each_tensor(paddle_output), for_each_tensor(torch_output)):
+        if tt.numel() == 0 or pt.numel() == 0:
+            continue
         temp = np.abs(tt.detach().cpu().numpy() - pt.detach().numpy()).max()
         if temp > _max_diff:
             _max_diff = temp
@@ -357,13 +364,13 @@ def tensors_mean(inp, mode):
     if mode == "torch":
         means = []
         for t in for_each_tensor(inp):
-            means.append(t[0].mean())
+            means.append(t[0].to(torch.float32).mean())
         loss = torch.stack(means).mean()
         return loss
     elif mode == "paddle":
         means = []
         for t in for_each_tensor(inp):
-            means.append(t[0].mean())
+            means.append(t[0].astype("float32").mean())
         loss = paddle.stack(means).mean()
         return loss
     else:

@@ -16,6 +16,8 @@ from .utils import assert_tensor_equal
 import torch
 import paddle
 
+import warnings
+
 
 class ActionPool:
     def __init__(self):
@@ -75,6 +77,9 @@ class EqualAction(Action):
         torch_tensors = torch_item.compare_tensors()
         paddle_tensors = paddle_item.compare_tensors()
         for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):
+            if tt.numel() == 0 or pt.numel() == 0:
+                warnings.warn("Found Tensor shape is [0], compare skipped!")
+                continue
             try:
                 assert_tensor_equal(tt.detach().cpu().numpy(), pt.numpy(), cfg)
             except Exception as e:
