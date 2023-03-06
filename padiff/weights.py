@@ -21,7 +21,7 @@ import paddle
 from .utils import log, map_for_each_sublayer, assert_tensor_equal, LayerMap, log_file, diff_log_path
 from .file_loader import global_yaml_loader as yamls
 
-from .special_init import special_init_tools
+from .special_init import global_special_init_pool as init_pool
 
 
 def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
@@ -196,7 +196,7 @@ def assign_weight(layer, module, layer_map=LayerMap()):
 
     for torch_submodule, paddle_sublayer in layer_map.special_init_layers():
         layer_name = paddle_sublayer.__class__.__name__
-        if layer_name not in special_init_tools.keys():
+        if layer_name not in init_pool.funcs.keys():
             log(
                 "*** Auto weight paddle layer `{}` and torch module `{}` is not supported ***".format(
                     paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__
@@ -206,7 +206,7 @@ def assign_weight(layer, module, layer_map=LayerMap()):
             log("    ,or you can register your init method")
         else:
             try:
-                special_init_tools[layer_name](paddle_sublayer, torch_submodule)
+                init_pool.funcs[layer_name](paddle_sublayer, torch_submodule)
             except Exception as e:
                 print(f"Special init Layer`{layer_name}` failed.")
                 print(str(e))
