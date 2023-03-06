@@ -357,13 +357,13 @@ def tensors_mean(inp, mode):
     if mode == "torch":
         means = []
         for t in for_each_tensor(inp):
-            means.append(t[0].mean())
+            means.append(t[0].to(torch.float32).mean())
         loss = torch.stack(means).mean()
         return loss
     elif mode == "paddle":
         means = []
         for t in for_each_tensor(inp):
-            means.append(t[0].mean())
+            means.append(t[0].astype("float32").mean())
         loss = paddle.stack(means).mean()
         return loss
     else:
