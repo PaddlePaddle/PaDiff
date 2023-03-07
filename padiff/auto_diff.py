@@ -102,7 +102,7 @@ def auto_diff(
         weight_check, grad_check = check_weight_grad(
             trainer.layer, trainer.module, options=options, layer_map=layer_map
         )
-        ret = weight_check or grad_check
+        ret = weight_check and grad_check
         if ret == False:
             break
 
