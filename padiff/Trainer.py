@@ -101,7 +101,7 @@ class Trainer(object):
                         )
                     )
 
-        log("Max elementwise output diff is {}\n".format(max_diff(paddle_output, torch_output)))
+        log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
 
     def clear_grad(self):
         if self.has_opt and self.opt_type == "Opt":

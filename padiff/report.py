@@ -196,7 +196,7 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False, t_root=None, 
     print(str(exc))
 
     if t_root is not None and p_root is not None:
-        print("\n\n")
+        print("\n")
         log("Check model struct:")
         print_struct_info(t_root, p_root)
 
@@ -311,7 +311,6 @@ def check_forward_and_backward(torch_rep, paddle_rep, options):
 
     if options["diff_phase"] == "forward":
         log("Diff_phase is `forward`. Backward compare skipped.")
-        log("SUCCESS !!!")
         return True
 
     # backward check
@@ -320,7 +319,6 @@ def check_forward_and_backward(torch_rep, paddle_rep, options):
         return False
     log("backward stage compared.")
 
-    log("SUCCESS !!!")
     return True
 
 

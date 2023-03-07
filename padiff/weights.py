@@ -16,72 +16,21 @@ from itertools import zip_longest
 
 import numpy
 import paddle
+import torch
 
-
-from .utils import log, map_for_each_sublayer, assert_tensor_equal, LayerMap, log_file, diff_log_path
+from .utils import (
+    log,
+    map_for_each_sublayer,
+    assert_tensor_equal,
+    LayerMap,
+    path_info,
+    weight_struct_info,
+    log_file,
+    diff_log_path,
+)
 from .file_loader import global_yaml_loader as yamls
 
 from .special_init import global_special_init_pool as init_pool
-
-
-def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
-    t_title = "Torch Model\n" + "=" * 25 + "\n"
-    t_retval = print_weight_struct(module, mark=torch_submodule, prefix=[" " * 4])
-    t_info = t_title + "\n".join(t_retval)
-
-    p_title = "Paddle Model\n" + "=" * 25 + "\n"
-    p_retval = print_weight_struct(layer, mark=paddle_sublayer, prefix=[" " * 4])
-    p_info = p_title + "\n".join(p_retval)
-
-    if len(p_retval) + len(t_retval) > 100:
-        log_file("paddle_weight_check.log", "w", p_info)
-        log_file("torch_weight_check.log", "w", t_info)
-        log(
-            f"Model Struct saved to `{diff_log_path + '/torch_weight_check.log'}` and `{diff_log_path + '/paddle_weight_check.log'}`."
-        )
-        log("Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !")
-    else:
-        log("Print model Struct while checking model weights:")
-        print(t_info)
-        print(p_info)
-
-    print("\nHint:")
-    print("      1. check the init order of param or layer in definition is the same.")
-    print(
-        "      2. try to use `LayerMap` to skip the diff in models, you can find the instructions at `https://github.com/PaddlePaddle/PaDiff`."
-    )
-
-
-def print_weight_struct(net, mark=None, prefix=[]):
-    cur_str = ""
-    for i, s in enumerate(prefix):
-        if i == len(prefix) - 1:
-            cur_str += s
-        else:
-            if s == " |--- ":
-                cur_str += " |    "
-            elif s == " +--- ":
-                cur_str += "      "
-            else:
-                cur_str += s
-
-    cur_str += str(net.__class__.__name__)
-    if mark is net:
-        cur_str += "    <---  *** HERE ***"
-
-    ret_strs = [cur_str]
-
-    children = list(net.children())
-    for i, child in enumerate(children):
-        pre = " |--- "
-        if i == len(children) - 1:
-            pre = " +--- "
-        prefix.append(pre)
-        retval = print_weight_struct(child, mark, prefix)
-        ret_strs.extend(retval)
-        prefix.pop()
-
-    return ret_strs
 
 
 def process_each_weight(process, layer, module, layer_map=LayerMap()):
@@ -194,6 +143,9 @@ def assign_weight(layer, module, layer_map=LayerMap()):
         module (torch.nn.Module): input torch module
     """
 
+    assert isinstance(layer, paddle.nn.Layer), "The first param of assign_weight should be a paddle.nn.Layer"
+    assert isinstance(module, torch.nn.Module), "The second param of assign_weight should be a torch.nn.Module"
+
     for torch_submodule, paddle_sublayer in layer_map.special_init_layers():
         layer_name = paddle_sublayer.__class__.__name__
         if layer_name not in init_pool.funcs.keys():
@@ -274,7 +226,7 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
                 "=" * 25 + "\n" + "After training, weight value is different for param `{}`.\n"
                 "between paddle: `{}`, torch: `{}` \n"
                 "{}\n\n".format(
-                    param_name, paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__, str(e)
+                    param_name, path_info(paddle_sublayer, layer), path_info(torch_submodule, module), str(e)
                 )
             )
             log_file("weight_diff.log", "a", info)
@@ -295,7 +247,6 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
 
     process_each_weight(_check_weight_grad, layer, module, layer_map)
 
-    print("")
     if _weight_check == False:
         log(f"Diff found in model weights, check report `{diff_log_path + '/weight_diff.log'}`.")
     if _grad_check == False:
