@@ -12,18 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .special_init_pool import global_special_init_pool, add_special_init
 
-import os
-import importlib
+# NOTICE: make sure torch params is in the same device after init
 
-cur_dir = os.path.split(os.path.realpath(__file__))[0]
-for filename in os.listdir(cur_dir):
-    if filename.startswith("init_") and filename.endswith(".py"):
-        module_name = filename.rpartition(".")[0]
-        importlib.import_module(__name__ + "." + module_name)
 
-__all__ = [
-    "global_special_init_pool",
-    "add_special_init",
-]
+class SpecialInitPool(object):
+    def __init__(self):
+        self.funcs = {}
+
+    def register(self, name):
+        def do_reg(func):
+            self.funcs[name] = func
+            return func
+
+        return do_reg
+
+
+global_special_init_pool = SpecialInitPool()
+
+
+def add_special_init(inp_dict):
+    global_special_init_pool.funcs.update(inp_dict)

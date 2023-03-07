@@ -13,9 +13,11 @@
 # limitations under the License.
 
 
+from .special_init_pool import global_special_init_pool as init_pool
 import paddle
 
-# this api is realized in weights.py using `_assign_weight`
+
+@init_pool.register("LSTM")
 def init_LSTM(layer, module):
     for (name, paddle_param), torch_param in zip(
         layer.named_parameters(prefix="", include_sublayers=False),

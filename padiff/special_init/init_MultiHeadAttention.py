@@ -13,10 +13,12 @@
 # limitations under the License.
 
 
+from .special_init_pool import global_special_init_pool as init_pool
 import numpy
 import torch
 
 
+@init_pool.register("MultiHeadAttention")
 def init_MultiHeadAttention(layer, module):
     name_param_dict = {}
     for i, param in enumerate(layer.named_parameters()):
