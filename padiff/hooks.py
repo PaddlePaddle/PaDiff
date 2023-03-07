@@ -21,6 +21,8 @@ from .utils import (
     map_structure_and_replace_key,
 )
 from .file_loader import global_yaml_loader as yamls
+import paddle
+import torch
 
 """
     torch_api_hook, paddle_api_hook are used to create report items
@@ -101,6 +103,19 @@ def paddle_api_hook(module, input, output, idx):
 
         def tt2pt(tt):
             if isinstance(tt, torch.Tensor):
+                if tt.numel() == 0:
+                    if tt.dtype == torch.float32 or tt.dtype == torch.float:
+                        return paddle.to_tensor([], dtype="float32")
+                    if tt.dtype == torch.float64:
+                        return paddle.to_tensor([], dtype="float64")
+                    if tt.dtype == torch.float16:
+                        return paddle.to_tensor([], dtype="float16")
+                    if tt.dtype == torch.int32 or tt.dtype == torch.int:
+                        return paddle.to_tensor([], dtype="int32")
+                    if tt.dtype == torch.int16:
+                        return paddle.to_tensor([], dtype="int16")
+                    if tt.dtype == torch.int64:
+                        return paddle.to_tensor([], dtype="int64")
                 return paddle.to_tensor(tt.detach().cpu().numpy())
             else:
                 return tt
