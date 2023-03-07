@@ -198,12 +198,12 @@ def assign_weight(layer, module, layer_map=LayerMap()):
         layer_name = paddle_sublayer.__class__.__name__
         if layer_name not in init_pool.funcs.keys():
             log(
-                "*** Auto weight paddle layer `{}` and torch module `{}` is not supported ***".format(
+                "*** Special init paddle layer `{}` and torch module `{}` is not supported ***".format(
                     paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__
                 )
             )
             log("    Checkout the parameters are inited by yourself")
-            log("    ,or you can register your init method")
+            log("    ,or you can register your init method!")
         else:
             try:
                 init_pool.funcs[layer_name](paddle_sublayer, torch_submodule)
