@@ -101,7 +101,7 @@ def paddle_api_hook(module, input, output, idx):
         t_rep = current_torch_report()
         t_fwd_item = t_rep.find_item(p_rep, idx)
 
-        def tt2pt(tt):
+        def torch_tensor_to_paddle_tensor(tt):
             if isinstance(tt, torch.Tensor):
                 if tt.numel() == 0:
                     if tt.dtype == torch.float32 or tt.dtype == torch.float:
@@ -122,7 +122,7 @@ def paddle_api_hook(module, input, output, idx):
             else:
                 return tt
 
-        return map_structure_and_replace_key(tt2pt, [t_fwd_item.output], output)
+        return map_structure_and_replace_key(torch_tensor_to_paddle_tensor, [t_fwd_item.output], output)
     else:
         return None
 

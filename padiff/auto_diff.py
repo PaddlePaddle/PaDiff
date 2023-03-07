@@ -31,7 +31,7 @@ torch.set_printoptions(precision=10)
 
 
 def auto_diff(
-    layer, module, example_inp, auto_weights=True, options={}, layer_map=None, loss_fn=None, optimizer=None, steps=1
+    layer, module, example_inp, auto_weights=False, options={}, layer_map=None, loss_fn=None, optimizer=None, steps=1
 ):
     """
     Given example inputs, automatically find the first layer with precision diff.
