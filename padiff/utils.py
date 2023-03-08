@@ -369,10 +369,6 @@ def print_weight_struct(net, mark=None, prefix=[]):
     return ret_strs
 
 
-def path_info(sublayer, layer):
-    pass
-
-
 # tensor compute
 
 
@@ -556,6 +552,20 @@ class LayerMap(object):
                 ignored.add(sublayer)
         self._layer_ignore.update(ignored)
 
+    def _traversal_layers_with_ignore_add_path(self, net, path):
+        for name, child in net.named_children():
+            path.append(name)
+            if (child not in self._layer_ignore and not is_wrap_layer(child)) or (
+                child in self.map.keys() or child in self.map.values()
+            ):
+                if not hasattr(child, "padiff_path"):
+                    setattr(child, "padiff_path", ".".join(path))
+                yield child
+            if child not in self._layer_ignore_sublayer:
+                for sublayer in self._traversal_layers_with_ignore_add_path(child, path):
+                    yield sublayer
+            path.pop()
+
     def _traversal_layers_with_ignore(self, net):
         for child in net.children():
             if (child not in self._layer_ignore and not is_wrap_layer(child)) or (
@@ -572,10 +582,15 @@ class LayerMap(object):
     def weight_init_layers(self, layer):
         # layers in layer_map should be inited in `special_init`, so they will be skipped here
         layers = [layer]
+        path = [layer.__class__.__name__]
         if isinstance(layer, paddle.nn.Layer):
-            layers.extend(filter(lambda x: x not in self.map.values(), self._traversal_layers_with_ignore(layer)))
+            layers.extend(
+                filter(lambda x: x not in self.map.values(), self._traversal_layers_with_ignore_add_path(layer, path))
+            )
         elif isinstance(layer, torch.nn.Module):
-            layers.extend(filter(lambda x: x not in self.map.keys(), self._traversal_layers_with_ignore(layer)))
+            layers.extend(
+                filter(lambda x: x not in self.map.keys(), self._traversal_layers_with_ignore_add_path(layer, path))
+            )
         else:
             raise RuntimeError("Invalid model type: {}".format(type(layer)))
         return layers

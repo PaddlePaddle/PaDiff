@@ -23,7 +23,6 @@ from .utils import (
     map_for_each_sublayer,
     assert_tensor_equal,
     LayerMap,
-    path_info,
     weight_struct_info,
     log_file,
     diff_log_path,
@@ -48,17 +47,19 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
         process,
         paddle_sublayer,
         torch_submodule,
-        param_name,
+        paddle_pname,
+        torch_pname,
         paddle_param,
         torch_param,
     ):
 
-        settings = yamls.get_weight_settings(paddle_sublayer, torch_submodule, param_name)
+        settings = yamls.get_weight_settings(paddle_sublayer, torch_submodule, paddle_pname)
 
         process(
             paddle_sublayer,
             torch_submodule,
-            param_name,
+            paddle_pname,
+            torch_pname,
             paddle_param,
             torch_param,
             settings,
@@ -70,31 +71,35 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
     for paddle_sublayer, torch_submodule in zip_longest(layers, modules, fillvalue=None):
         if paddle_sublayer is None or torch_submodule is None:
             raise RuntimeError("Torch and Paddle return difference number of sublayers. Check your model.")
-        for (name, paddle_param), torch_param in zip(
+        for (paddle_pname, paddle_param), (torch_pname, torch_param) in zip(
             paddle_sublayer.named_parameters(prefix="", include_sublayers=False),
-            torch_submodule.parameters(recurse=False),
+            torch_submodule.named_parameters(prefix="", recurse=False),
         ):
             try:
                 _process_runner(
                     process,
                     paddle_sublayer,
                     torch_submodule,
-                    name,
+                    paddle_pname,
+                    torch_pname,
                     paddle_param,
                     torch_param,
                 )
             except Exception as e:
-                log(f"Error occurred while process parameter `{name}`!")
+                log(
+                    f"Error occurred while process paddle parameter `{paddle_pname}` and torch parameter `{torch_pname}`!"
+                )
                 log("Error Msg:\n")
                 print(f"{str(e)}")
                 weight_struct_info(layer, module, paddle_sublayer, torch_submodule)
-                raise RuntimeError(f"Error occured while process weight {name}")
+                raise RuntimeError("Error occured while `process_each_weight`")
 
 
 def _shape_check(
     paddle_sublayer,
     torch_submodule,
-    param_name,
+    paddle_pname,
+    torch_pname,
     paddle_param,
     torch_param,
     settings,
@@ -104,17 +109,18 @@ def _shape_check(
     if settings["transpose"]:
         t_shape.reverse()
     assert p_shape == t_shape, (
-        "Shape of param `{}` is not the same. {} vs {}\n"
+        "Shape of paddle param `{}` and torch param `{}` is not the same. {} vs {}\n"
         "Hint: \n"
         "      1. check whether your paddle model definition and torch model definition are corresponding.\n"
         "      2. check the weight shape of paddle:`{}` and torch:`{}` is the same.\n"
-    ).format(param_name, p_shape, t_shape, paddle_sublayer, torch_submodule)
+    ).format(paddle_pname, torch_pname, p_shape, t_shape, paddle_sublayer, torch_submodule)
 
 
 def _assign_weight(
     paddle_sublayer,
     torch_submodule,
-    param_name,
+    paddle_pname,
+    torch_pname,
     paddle_param,
     torch_param,
     settings,
@@ -122,7 +128,8 @@ def _assign_weight(
     _shape_check(
         paddle_sublayer,
         torch_submodule,
-        param_name,
+        paddle_pname,
+        torch_pname,
         paddle_param,
         torch_param,
         settings,
@@ -194,7 +201,8 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
     def _check_weight_grad(
         paddle_sublayer,
         torch_submodule,
-        param_name,
+        paddle_pname,
+        torch_pname,
         paddle_param,
         torch_param,
         settings,
@@ -203,7 +211,8 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
         _shape_check(
             paddle_sublayer,
             torch_submodule,
-            param_name,
+            paddle_pname,
+            torch_pname,
             paddle_param,
             torch_param,
             settings,
@@ -223,10 +232,16 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
         except Exception as e:
             _weight_check = False
             info = (
-                "=" * 25 + "\n" + "After training, weight value is different for param `{}`.\n"
+                "=" * 25 + "\n" + "After training, weight value is different.\n"
                 "between paddle: `{}`, torch: `{}` \n"
+                "paddle path:\n    {}\n"
+                "torch path:\n    {}\n"
                 "{}\n\n".format(
-                    param_name, path_info(paddle_sublayer, layer), path_info(torch_submodule, module), str(e)
+                    paddle_sublayer,
+                    torch_submodule,
+                    paddle_sublayer.padiff_path + "." + paddle_pname,
+                    torch_submodule.padiff_path + "." + torch_pname,
+                    str(e),
                 )
             )
             log_file("weight_diff.log", "a", info)
@@ -237,10 +252,16 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
         except Exception as e:
             _grad_check = False
             info = (
-                "=" * 25 + "\n" + "After training, grad value is different for param `{}`.\n"
+                "=" * 25 + "\n" + "After training, grad value is different.\n"
                 "between paddle: `{}`, torch: `{}` \n"
+                "paddle path:\n    {}\n"
+                "torch path:\n    {}\n"
                 "{}\n\n".format(
-                    param_name, paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__, str(e)
+                    paddle_sublayer,
+                    torch_submodule,
+                    paddle_sublayer.padiff_path + "." + paddle_pname,
+                    torch_submodule.padiff_path + "." + torch_pname,
+                    str(e),
                 )
             )
             log_file("grad_diff.log", "a", info)
