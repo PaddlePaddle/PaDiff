@@ -153,9 +153,6 @@ def assign_weight(layer, module, layer_map=LayerMap()):
     assert isinstance(layer, paddle.nn.Layer), "The first param of assign_weight should be a paddle.nn.Layer"
     assert isinstance(module, torch.nn.Module), "The second param of assign_weight should be a torch.nn.Module"
 
-    assert isinstance(layer, paddle.nn.Layer), "The first param of assign_weight should be a paddle.nn.Layer"
-    assert isinstance(module, torch.nn.Module), "The second param of assign_weight should be a torch.nn.Module"
-
     for torch_submodule, paddle_sublayer in layer_map.special_init_layers():
         layer_name = paddle_sublayer.__class__.__name__
         if layer_name not in init_pool.funcs.keys():
@@ -165,7 +162,7 @@ def assign_weight(layer, module, layer_map=LayerMap()):
                 )
             )
             log("    Checkout the parameters are inited by yourself")
-            log("    ,or you can register your init method!!")
+            log("    ,or you can register your init method!")
         else:
             try:
                 init_pool.funcs[layer_name](paddle_sublayer, torch_submodule)
