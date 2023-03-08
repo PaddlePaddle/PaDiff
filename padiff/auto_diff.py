@@ -53,7 +53,6 @@ def auto_diff(
     assert isinstance(layer, paddle.nn.Layer), "Invalid Argument."
     assert isinstance(module, torch.nn.Module), "Invalid Argument."
     assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
-    log("Start auto_diff, may need a while to generate reports...")
 
     paddle_input, torch_input = example_inp
     assert isinstance(paddle_input, dict), "Invalid Argument."
@@ -97,15 +96,20 @@ def auto_diff(
         trainer.train_step(example_inp, options=options)
 
         ret = check_forward_and_backward(torch_report, paddle_report, options)
+        if ret == False:
+            break
+
         weight_check, grad_check = check_weight_grad(
             trainer.layer, trainer.module, options=options, layer_map=layer_map
         )
-        ret = ret and weight_check and grad_check
-
+        ret = weight_check and grad_check
         if ret == False:
-            print("")
-            log(f"Diff found in Train Step {step_id}\n")
             break
+
+    if ret:
+        log("SUCCESS !!!\n")
+    else:
+        log("FAILED !!!\n")
 
     if options["cmd"]:
         PaDiff_Cmd(paddle_report, torch_report, options).cmdloop()
