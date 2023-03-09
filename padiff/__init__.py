@@ -144,30 +144,30 @@ class PaDiffLoader(Loader):
         return None
 
 
-for name in jsons.TORCH_MODULE:
-    if name in sys.modules.keys():
-        module = sys.modules[name]
-        apis = jsons.torch_apis[name]
+if os.getenv("PADIFF_API_LEVEL") == "ON":
+    for name in jsons.TORCH_MODULE:
+        if name in sys.modules.keys():
+            module = sys.modules[name]
+            apis = jsons.torch_apis[name]
 
-        for api in apis:
-            if api in module.__dict__.keys():
-                obj = module.__dict__[api]
-                if inspect.isfunction(obj) or inspect.isbuiltin(obj):
-                    module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
+            for api in apis:
+                if api in module.__dict__.keys():
+                    obj = module.__dict__[api]
+                    if inspect.isfunction(obj) or inspect.isbuiltin(obj):
+                        module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
 
-for name in jsons.PADDLE_MODULE:
-    if name in sys.modules.keys():
-        module = sys.modules[name]
-        apis = jsons.paddle_apis[name]
+    for name in jsons.PADDLE_MODULE:
+        if name in sys.modules.keys():
+            module = sys.modules[name]
+            apis = jsons.paddle_apis[name]
 
-        for api in apis:
-            if api in module.__dict__.keys():
-                obj = module.__dict__[api]
-                if inspect.isfunction(obj) or inspect.isbuiltin(obj):
-                    module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
+            for api in apis:
+                if api in module.__dict__.keys():
+                    obj = module.__dict__[api]
+                    if inspect.isfunction(obj) or inspect.isbuiltin(obj):
+                        module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
 
-
-sys.meta_path = [PaDiffFinder()] + sys.meta_path
+    sys.meta_path = [PaDiffFinder()] + sys.meta_path
 
 __version__ = "0.1.0"
 

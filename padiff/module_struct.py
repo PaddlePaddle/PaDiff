@@ -54,7 +54,7 @@ class LayerStack(object):
             if self.root is None:
                 self.root = net
             else:
-                raise RuntimeError("found multy root layers!")
+                raise RuntimeError("Found multy root layers! This err might caused by torch.utils.checkpoint.")
         self._push(net)
 
     def pop_layer(self, module):
