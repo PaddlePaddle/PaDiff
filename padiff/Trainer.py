@@ -32,7 +32,8 @@ class Trainer(object):
         self.layer = layer  # paddle layer
         self.module = module  # torch module
 
-        # afther running forward, paddle.nn.LSTM can change device (it is a bug)
+        # only afther running forward, paddle.nn.LSTM can change device (a bug)
+        # this is because paddle can not copy an empty tensor
         # so skip change paddle layer's device temporarily
         # self.layer.to("cpu")
         self.module.to("cpu")
