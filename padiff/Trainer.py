@@ -34,9 +34,10 @@ class Trainer(object):
 
         # only afther running forward, paddle.nn.LSTM can change device (a bug)
         # this is because paddle can not copy an empty tensor
-        # so skip change paddle layer's device temporarily
+        # so skip change device temporarily
+
         # self.layer.to("cpu")
-        self.module.to("cpu")
+        # self.module.to("cpu")
 
         if loss_fn is not None:
             self.paddle_loss = loss_fn[0]
@@ -69,7 +70,7 @@ class Trainer(object):
     def train_step(self, example_inp, options):
         paddle_input, torch_input = example_inp
         with report_guard(self.torch_rep, self.paddle_rep):
-            self.module.to(self.torch_device)
+            # self.module.to(self.torch_device)
             with _register_torch_hooker(self.module, self.layer_map):
                 try:
                     torch_output = self.module(**torch_input)
@@ -91,7 +92,7 @@ class Trainer(object):
                             str(e)
                         )
                     )
-            self.module.to("cpu")
+            # self.module.to("cpu")
             torch.cuda.empty_cache()
 
             # self.layer.to(self.paddle_device)
