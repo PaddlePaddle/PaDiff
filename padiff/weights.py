@@ -248,7 +248,8 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
 
         # check grad
         try:
-            assert_tensor_equal(p_grad, t_grad, settings)
+            if (p_grad is not None or t_grad is not None) and settings["diff_phase"] == "both":
+                assert_tensor_equal(p_grad, t_grad, settings)
         except Exception as e:
             _grad_check = False
             info = (

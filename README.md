@@ -6,6 +6,7 @@
 
 ## 最近更新
 
+-   添加了api级别对齐检查，可以通过设置环境变量来关闭：`export PADIFF_API_CHECK=OFF`
 -   更新对齐策略：自顶向下对齐
 -   更新模型遍历策略：现在会尽可能滤过wrap layer，大部分情况无需手动调用LayerMap
 -   提供了新接口：assign_weight接口，将torch模型的权重拷贝到paddle模型
