@@ -56,7 +56,7 @@ class TestCaseName(unittest.TestCase):
 
         paddle_report = Report("paddle")
         torch_report = Report("torch")
-        trainer = Trainer(layer, module, None, None, LayerMap())
+        trainer = Trainer(layer, module, None, None, LayerMap(), options)
         trainer.set_report(paddle_report, torch_report)
 
         trainer.clear_grad()
