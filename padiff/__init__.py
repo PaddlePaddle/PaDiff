@@ -144,7 +144,7 @@ class PaDiffLoader(Loader):
         return None
 
 
-if os.getenv("PADIFF_API_LEVEL") == "ON":
+if os.getenv("PADIFF_API_CHECK") != "OFF":
     for name in jsons.TORCH_MODULE:
         if name in sys.modules.keys():
             module = sys.modules[name]
