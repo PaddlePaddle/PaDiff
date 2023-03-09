@@ -32,10 +32,7 @@ class yaml_loader:
     def get_weight_settings(self, paddle_layer, torch_module, param_name):
         assign_config = self._assign_yaml.get(paddle_layer.__class__.__name__, None)
         settings = {
-            "atol": self.options["atol"],
-            "rtol": self.options["rtol"],
             "transpose": False,
-            "compare_mode": self.options["compare_mode"],
         }
 
         if assign_config is not None:
@@ -54,6 +51,8 @@ class yaml_loader:
         else:
             if assign_config["param"][param_name] == "transpose":
                 settings["transpose"] = True
+
+        settings.update(self._options)
 
         return settings
 
