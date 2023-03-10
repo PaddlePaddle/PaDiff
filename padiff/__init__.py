@@ -120,52 +120,46 @@ def wrap_func(fullname, func):
     return wrapped
 
 
+def wrap_api_method(module):
+    if module.__name__.startswith("paddle"):
+        apis = jsons.paddle_apis[module.__name__]
+    elif module.__name__.startswith("torch"):
+        apis = jsons.torch_apis[module.__name__]
+    else:
+        apis = []
+
+    for api in apis:
+        if api in module.__dict__.keys():
+            obj = module.__dict__[api]
+            if (inspect.isfunction(obj) or inspect.isbuiltin(obj)) and not hasattr(obj, "padiff_wrapped"):
+                module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
+                setattr(module.__dict__[api], "padiff_wrapped", True)
+
+    # add wrap method?
+
+
 class PaDiffLoader(Loader):
     def __init__(self, _loader):
         self._loader = _loader
 
     def exec_module(self, module):
-        if module.__spec__._module_type == "paddle":
-            apis = jsons.paddle_apis[module.__name__]
-        elif module.__spec__._module_type == "torch":
-            apis = jsons.torch_apis[module.__name__]
-        else:
-            apis = []
-
         self._loader.exec_module(module)
-
-        for api in apis:
-            if api in module.__dict__.keys():
-                obj = module.__dict__[api]
-                if inspect.isfunction(obj) or inspect.isbuiltin(obj):
-                    module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
+        wrap_api_method(module)
 
     def create_module(self, spec):
         return None
 
 
 if os.getenv("PADIFF_API_CHECK") != "OFF":
-    for name in jsons.TORCH_MODULE:
+    for name in jsons.TORCH_PATH:
         if name in sys.modules.keys():
             module = sys.modules[name]
-            apis = jsons.torch_apis[name]
+            wrap_api_method(module)
 
-            for api in apis:
-                if api in module.__dict__.keys():
-                    obj = module.__dict__[api]
-                    if inspect.isfunction(obj) or inspect.isbuiltin(obj):
-                        module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
-
-    for name in jsons.PADDLE_MODULE:
+    for name in jsons.PADDLE_PATH:
         if name in sys.modules.keys():
             module = sys.modules[name]
-            apis = jsons.paddle_apis[name]
-
-            for api in apis:
-                if api in module.__dict__.keys():
-                    obj = module.__dict__[api]
-                    if inspect.isfunction(obj) or inspect.isbuiltin(obj):
-                        module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
+            wrap_api_method(module)
 
     sys.meta_path = [PaDiffFinder()] + sys.meta_path
 

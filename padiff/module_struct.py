@@ -205,11 +205,6 @@ def reorder_and_match_reports(t_root, p_root, t_rep, p_rep):
         setattr(p_root, "reordered", True)
 
     except Exception as e:
-        log("Exception occurs in `reorder_and_match_reports`, Error msg:")
-        print(str(e))
-        print("\n")
-        log("Check model struct:")
-        print_struct_info(t_root, p_root)
         raise e
 
 
@@ -332,3 +327,13 @@ def print_struct_info(t_node, p_node):
     else:
         print(p_info)
         print(t_info)
+
+
+"""
+    for debug
+"""
+
+
+def debug_print(root):
+    ret = tree_print(root)
+    print("\n".join(ret))
