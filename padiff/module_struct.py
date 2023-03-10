@@ -327,3 +327,13 @@ def print_struct_info(t_node, p_node):
     else:
         print(p_info)
         print(t_info)
+
+
+"""
+    for debug
+"""
+
+
+def debug_print(root):
+    ret = tree_print(root)
+    print("\n".join(ret))

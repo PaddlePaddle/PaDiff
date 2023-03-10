@@ -80,13 +80,13 @@ global_yaml_loader = yaml_loader()
 
 class json_loader:
     def __init__(self):
-        self.TORCH_MODULE = [
+        self.TORCH_PATH = [
             "torch.nn.functional",
             "torch",
             "torch.linalg",
             "torch.fft",
         ]
-        self.PADDLE_MODULE = [
+        self.PADDLE_PATH = [
             "paddle.nn.functional",
             "paddle",
             "paddle.linalg",
@@ -114,7 +114,7 @@ class json_loader:
             paddle_module = paddle_fullname.rpartition(".")[0]
             paddle_api = paddle_fullname.rpartition(".")[2]
 
-            if torch_module not in self.TORCH_MODULE or paddle_module not in self.PADDLE_MODULE:
+            if torch_module not in self.TORCH_PATH or paddle_module not in self.PADDLE_PATH:
                 continue
 
             if torch_module not in self.torch_apis.keys():
@@ -128,7 +128,14 @@ class json_loader:
                 self.paddle_apis[paddle_module].append(paddle_api)
 
         # Deprecated
-        self.torch_apis["torch.nn.functional"].remove("sigmoid")
+        self.TORCH_IGNORE = {"torch.nn.functional": ["sigmoid"], "torch": ["as_tensor"]}
+        self.PADDLE_IGNORE = {"paddle": ["to_tensor"]}
+        for k, v in self.TORCH_IGNORE.items():
+            for item in v:
+                self.torch_apis[k].remove(item)
+        for k, v in self.PADDLE_IGNORE.items():
+            for item in v:
+                self.paddle_apis[k].remove(item)
 
 
 global_json_loader = json_loader()
