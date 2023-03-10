@@ -20,8 +20,6 @@ from .utils import (
 )
 from .weights import remove_inplace, assign_weight
 from .hooks import _register_paddle_hooker, _register_torch_hooker
-import paddle
-import torch
 
 
 class Trainer(object):
@@ -93,7 +91,7 @@ class Trainer(object):
                         )
                     )
             # self.module.to("cpu")
-            torch.cuda.empty_cache()
+            # torch.cuda.empty_cache()
 
             # self.layer.to(self.paddle_device)
             with _register_paddle_hooker(self.layer, self.layer_map):
@@ -118,7 +116,7 @@ class Trainer(object):
                         )
                     )
             # self.layer.to("cpu")
-            paddle.device.cuda.empty_cache()
+            # paddle.device.cuda.empty_cache()
 
         log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
 

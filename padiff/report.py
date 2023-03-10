@@ -336,11 +336,12 @@ def check_forward(t_root, p_root, t_rep, p_rep, options):
     try:
         if not hasattr(p_root, "reordered"):
             reorder_and_match_reports(t_root, p_root, t_rep, p_rep)
-    except:
-        log(f"While checking forward, diff found at torch: {t_root.net} vs paddle: {p_root.net}")
-        log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again as above.")
+    except Exception as e:
+        log(f"While checking forward, diff found at torch: {t_root} vs paddle: {p_root}")
+        log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again:")
+        print(str(e))
         log("Compare detail:")
-        print_info(paddle_item, torch_item, compare_info, -1, grad=False)
+        print_info(paddle_item, torch_item, compare_info, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
         return False
 
     for t_child, p_child in zip(t_root.children, p_root.children):
@@ -349,7 +350,7 @@ def check_forward(t_root, p_root, t_rep, p_rep, options):
             return False
 
     # sublayers is compared ok, but diff found at father layer
-    log(f"Sublayers of torch: {t_root.net} and paddle: {p_root.net} are corresponded, but diff found at their output!")
+    log(f"Sublayers of torch: {t_root} and paddle: {p_root} are corresponded, but diff found at their output!")
     print_info(paddle_item, torch_item, compare_info, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
     return False
 
@@ -372,11 +373,12 @@ def check_backward(t_root, p_root, t_rep, p_rep, options):
     try:
         if not hasattr(p_root, "reordered"):
             reorder_and_match_reports(t_root, p_root, t_rep, p_rep)
-    except:
-        log(f"While checking backward, diff found at torch: {t_root.net} vs paddle: {p_root.net}")
-        log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again as above.")
+    except Exception as e:
+        log(f"While checking backward, diff found at torch: {t_root} vs paddle: {p_root}")
+        log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again:")
+        print(str(e))
         log("Compare detail:")
-        print_info(paddle_item, torch_item, compare_info, -1, grad=True)
+        print_info(paddle_item, torch_item, compare_info, -1, grad=True, t_root=t_root.origin, p_root=p_root.origin)
         return False
 
     for t_child, p_child in zip(reversed(t_root.children), reversed(p_root.children)):
@@ -386,7 +388,7 @@ def check_backward(t_root, p_root, t_rep, p_rep, options):
 
     # sublayers is compared ok, but diff found at father layer
     log(
-        f"Grad of sublayers of torch: {t_root.net} and paddle: {p_root.net} are corresponded, but diff found at their output grad!"
+        f"Grad of sublayers of torch: {t_root} and paddle: {p_root} are corresponded, but diff found at their output grad!"
     )
     print_info(paddle_item, torch_item, compare_info, -1, grad=True, t_root=t_root.origin, p_root=p_root.origin)
     return False
