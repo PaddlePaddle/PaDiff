@@ -19,6 +19,7 @@ from .stack_info import *
 from .utils import (
     for_each_grad_tensor,
     map_structure_and_replace_key,
+    clone_structure,
 )
 from .file_loader import global_yaml_loader as yamls
 import paddle
@@ -58,8 +59,10 @@ def torch_api_hook(module, input, output, idx):
         return None
 
     frame_info, frames = extract_frame_summary()
-    fwd_item = t_rep.put_item("forward", input, output, module, idx, frame_info, frames)
-    bwd_item = t_rep.put_item("backward", input, output, module, idx, frame_info, frames)
+    new_in = clone_structure(input)
+    new_out = clone_structure(output)
+    fwd_item = t_rep.put_item("forward", new_in, new_out, module, idx, frame_info, frames)
+    bwd_item = t_rep.put_item("backward", new_in, new_out, module, idx, frame_info, frames)
     bwd_item.set_forward(fwd_item)
 
     t_rep.stack.push_api(module, fwd_item, bwd_item)
@@ -87,8 +90,10 @@ def paddle_api_hook(module, input, output, idx):
 
     options = yamls.options
     frame_info, frames = extract_frame_summary()
-    fwd_item = p_rep.put_item("forward", input, output, module, idx, frame_info, frames)
-    bwd_item = p_rep.put_item("backward", input, output, module, idx, frame_info, frames)
+    new_in = clone_structure(input)
+    new_out = clone_structure(output)
+    fwd_item = p_rep.put_item("forward", new_in, new_out, module, idx, frame_info, frames)
+    bwd_item = p_rep.put_item("backward", new_in, new_out, module, idx, frame_info, frames)
     bwd_item.set_forward(fwd_item)
 
     p_rep.stack.push_api(module, fwd_item, bwd_item)

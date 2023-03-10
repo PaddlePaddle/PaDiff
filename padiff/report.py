@@ -19,7 +19,6 @@ from .stack_info import print_frames
 from .utils import (
     TableView,
     TreeView,
-    clone_structure,
     for_each_grad_tensor,
     for_each_tensor,
     log,
@@ -63,11 +62,8 @@ class ReportItem:
         """
         # self.input = clone_tensors(input)
         self.input = input
-        if self.type == "forward":
-            # we only clone output in forward step.
-            self.output = clone_structure(output)
-        else:
-            self.output = output
+        self.output = output
+
         self.net = net
         self.net_id = net_id
         self.fwd_item = None

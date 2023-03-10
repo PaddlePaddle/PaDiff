@@ -20,12 +20,25 @@ from .utils import (
 )
 from .weights import remove_inplace, assign_weight
 from .hooks import _register_paddle_hooker, _register_torch_hooker
+import paddle
+import torch
 
 
 class Trainer(object):
     def __init__(self, layer, module, loss_fn, opt, layer_map, options):
+        # self.paddle_device = paddle.get_device()
+        # self.torch_device = next(module.parameters()).device
+
         self.layer = layer  # paddle layer
         self.module = module  # torch module
+
+        # only afther running forward, paddle.nn.LSTM can change device (a bug)
+        # this is because paddle can not copy an empty tensor
+        # so skip change device temporarily
+
+        # self.layer.to("cpu")
+        # self.module.to("cpu")
+
         if loss_fn is not None:
             self.paddle_loss = loss_fn[0]
             self.torch_loss = loss_fn[1]
@@ -57,6 +70,7 @@ class Trainer(object):
     def train_step(self, example_inp, options):
         paddle_input, torch_input = example_inp
         with report_guard(self.torch_rep, self.paddle_rep):
+            # self.module.to(self.torch_device)
             with _register_torch_hooker(self.module, self.layer_map):
                 try:
                     torch_output = self.module(**torch_input)
@@ -78,7 +92,10 @@ class Trainer(object):
                             str(e)
                         )
                     )
+            # self.module.to("cpu")
+            torch.cuda.empty_cache()
 
+            # self.layer.to(self.paddle_device)
             with _register_paddle_hooker(self.layer, self.layer_map):
                 try:
                     paddle_output = self.layer(**paddle_input)
@@ -100,6 +117,8 @@ class Trainer(object):
                             str(e)
                         )
                     )
+            # self.layer.to("cpu")
+            paddle.device.cuda.empty_cache()
 
         log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
 
