@@ -26,8 +26,8 @@ import torch
 
 class Trainer(object):
     def __init__(self, layer, module, loss_fn, opt, layer_map, options):
-        self.paddle_device = paddle.get_device()
-        self.torch_device = next(module.parameters()).device
+        # self.paddle_device = paddle.get_device()
+        # self.torch_device = next(module.parameters()).device
 
         self.layer = layer  # paddle layer
         self.module = module  # torch module
