@@ -391,7 +391,7 @@ auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, loss_fn
 
 
 
-## 输出信息示例（TODO：更新！）
+## 输出信息示例
 
 -   正确对齐时的输出信息：
 

@@ -87,13 +87,12 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
                     torch_param,
                 )
             except Exception as e:
-                log(
-                    f"Error occurred while process paddle parameter `{paddle_pname}` and torch parameter `{torch_pname}`!"
-                )
-                log("Error Msg:\n")
-                print(f"{str(e)}")
-                weight_struct_info(layer, module, paddle_sublayer, torch_submodule)
-                raise RuntimeError("Error occured while `process_each_weight`")
+                err_str = f"Error occured between:\n"
+                err_str += f"    paddle: `{model_repr_info(paddle_sublayer)}` parameter `{paddle_pname}`\n"
+                err_str += f"    torch: `{model_repr_info(torch_submodule)}` parameter `{torch_pname}`\n\n"
+                err_str += f"{str(e)}\n"
+                err_str += weight_struct_info(layer, module, paddle_sublayer, torch_submodule)
+                raise RuntimeError(err_str)
 
 
 def _shape_check(
@@ -109,12 +108,9 @@ def _shape_check(
     t_shape = list(torch_param.shape)
     if settings["transpose"]:
         t_shape.reverse()
-    assert p_shape == t_shape, (
-        "Shape of paddle param `{}` and torch param `{}` is not the same. {} vs {}\n"
-        "Hint: \n"
-        "      1. check whether your paddle model definition and torch model definition are corresponding.\n"
-        "      2. check the weight shape of paddle:`{}` and torch:`{}` is the same.\n"
-    ).format(paddle_pname, torch_pname, p_shape, t_shape, paddle_sublayer, torch_submodule)
+    assert p_shape == t_shape, ("Shape of paddle param `{}` and torch param `{}` is not the same. {} vs {}\n").format(
+        paddle_pname, torch_pname, p_shape, t_shape
+    )
 
 
 def _assign_weight(
@@ -178,7 +174,7 @@ def assign_weight(layer, module, layer_map=LayerMap()):
         log("Assign weight success !!!")
         return True
     except Exception as e:
-        log("Assign weight Failed !!!")
+        log("Assign weight Failed !!!\n")
         print(str(e))
         return False
 
@@ -268,7 +264,12 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
             )
             log_file("grad_diff.log", "a", info)
 
-    process_each_weight(_check_weight_grad, layer, module, layer_map)
+    try:
+        process_each_weight(_check_weight_grad, layer, module, layer_map)
+    except Exception as e:
+        log("Err occurs when compare weight and grad!!!\n")
+        print(str(e))
+        return False, False
 
     if _weight_check == False:
         log(f"Diff found in model weights, check report `{diff_log_path + '/weight_diff.log'}`.")
