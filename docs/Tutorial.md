@@ -156,10 +156,10 @@ Hint:
 
 ### 模型前反向对齐失败时的输出信息
 
--   指明diff出现的阶段：`Forward Stage` or `Backward Stage`，该信息出现在日志的开头
--   打印出现精度diff时的比较信息，包括绝对误差和相对误差数值
--   打印模型结构，并用`<---  *** HERE ***`标注出现diff的位置（log过长时将输出到文件中）
--   打印调用栈信息，帮助定位到具体的代码位置
+1.   指明diff出现的阶段：`Forward Stage` or `Backward Stage`，该信息出现在日志的开头
+2.   打印出现精度diff时的比较信息，包括绝对误差和相对误差数值
+3.   打印模型结构，并用`<---  *** HERE ***`标注出现diff的位置（log过长时将输出到文件中）
+4.   打印调用栈信息，帮助定位到具体的代码位置
 
 定位精度误差位置后，可进行验证排查
 
@@ -370,8 +370,8 @@ assign_weight的逻辑以及报错信息与 auto_diff 开启 auto_weight 选项�
 
 须知：
 
--   注意，这个函数不会raise，只会return False并在终端打印信息
--   由于 padiff 的 api 级别对齐机制目前默认开启，若仅仅需要将assign_weight作为一个辅助其他任务的工具使用，请设置环境变量以关闭api级别对齐机制 `export PADIFF_API_CHECK=OFF`
+1.   注意，这个函数不会raise，只会return False并在终端打印信息
+2.   由于 padiff 的 api 级别对齐机制目前默认开启，若仅仅需要将assign_weight作为一个辅助其他任务的工具使用，请设置环境变量以关闭api级别对齐机制 `export PADIFF_API_CHECK=OFF`
 
 ```py
 from padiff import assign_weight, LayerMap
