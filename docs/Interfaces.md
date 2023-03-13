@@ -14,7 +14,7 @@
 
   -   layer_map: 指定paddle与torch的layer映射关系，当模型结构无法完全对齐时需要通过此参数指定layer的映射关系。
 
-      -   layer_map的具体使用方法详见[LayerMap使用说明]()
+      -   layer_map的具体使用方法详见[LayerMap使用说明](LayerMap.md)
   -   options：一个传递参数的字典
 
       -   “atol”: 绝对精度误差上限，默认值为  `0`
@@ -69,7 +69,7 @@ auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0
 
   -   layer_map: 指定paddle与torch的layer映射关系，当模型结构无法完全对齐时需要通过此参数指定layer的映射关系。
 
-      -   layer_map的具体使用方法详见 [LayerMap使用说明](*)
+      -   layer_map的具体使用方法详见 [LayerMap使用说明](LayerMap.md)
 
 ```py
 from padiff import assign_weight, LayerMap

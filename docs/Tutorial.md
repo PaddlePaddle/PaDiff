@@ -4,7 +4,7 @@
 
 ## 使用方法
 
-auto_diff的具体接口参数信息见：[接口信息]()
+auto_diff的具体接口参数信息见：[接口信息](Interfaces.md)
 
 使用padiff进行模型对齐检查有几个基本的步骤
 
@@ -115,7 +115,7 @@ padiff的工作可以分为几个阶段，在发生错误时，需要首先判�
 1.   子模型/权重定义顺序不对齐 => 修改代码对齐，或使用LayerMap指定
 2.   子模型的paddle与torch实现方式不一致（权重等对不齐）=> 使用LayerMap指定
 
-LayerMap的使用方式详见[]()
+LayerMap的使用方式详见[LayerMap使用说明](LayerMap.md)
 
 若不使用padiff的权重初始化功能，可以避免此类错误，但在权重与梯度检查时，会遇见同样的问题
 
@@ -364,7 +364,7 @@ auto_diff(
 
 ## 使用assign_weight
 
-assign_weight 用于复制 torch 模型的权重到 paddle 模型，具体接口参数信息见：[接口信息]()
+assign_weight 用于复制 torch 模型的权重到 paddle 模型，具体接口参数信息见：[接口信息](Interfaces.md)
 
 assign_weight的逻辑以及报错信息与 auto_diff 开启 auto_weight 选项是一致的，因此可以参考上文
 

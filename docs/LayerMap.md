@@ -33,7 +33,7 @@ LayerMap是一个类，构造函数没有参数，使用前需要构造一个ins
 注意：
 
 -   指定对应关系后，<font color="red">将不进行sublayer的比较，仅进行顶层模块的比较</font>
--   指定对应关系后，auto_diff将尝试初始化这些sublayer。<font color="red">若目前auto_diff未支持此类sublayer的初始化，将在输出信息中进行提示，用户必须通过 [special init 机制]() 自行初始化这些sublayer</font>
+-   指定对应关系后，auto_diff将尝试初始化这些sublayer。<font color="red">若目前auto_diff未支持此类sublayer的初始化，将在输出信息中进行提示，用户必须通过 [special init 机制](SpecialInit.md) 自行初始化这些sublayer</font>
 
 ```py
 from padiff import LayerMap
