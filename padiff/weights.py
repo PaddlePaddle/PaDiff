@@ -26,6 +26,7 @@ from .utils import (
     weight_struct_info,
     log_file,
     diff_log_path,
+    model_repr_info,
 )
 from .file_loader import global_yaml_loader as yamls
 
@@ -237,8 +238,8 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
                 "paddle path:\n    {}\n"
                 "torch path:\n    {}\n"
                 "{}\n\n".format(
-                    paddle_sublayer,
-                    torch_submodule,
+                    model_repr_info(paddle_sublayer),
+                    model_repr_info(torch_submodule),
                     paddle_sublayer.padiff_path + "." + paddle_pname,
                     torch_submodule.padiff_path + "." + torch_pname,
                     str(e),
@@ -258,8 +259,8 @@ def check_weight_grad(layer, module, options, layer_map=LayerMap()):
                 "paddle path:\n    {}\n"
                 "torch path:\n    {}\n"
                 "{}\n\n".format(
-                    paddle_sublayer,
-                    torch_submodule,
+                    model_repr_info(paddle_sublayer),
+                    model_repr_info(torch_submodule),
                     paddle_sublayer.padiff_path + "." + paddle_pname,
                     torch_submodule.padiff_path + "." + torch_pname,
                     str(e),

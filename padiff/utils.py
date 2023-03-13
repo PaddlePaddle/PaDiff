@@ -309,6 +309,20 @@ def log(*args):
     print("[AutoDiff]", *args)
 
 
+def model_repr_info(model):
+    extra_lines = []
+    extra_repr = model.extra_repr()
+    if extra_repr:
+        extra_lines = extra_repr.split("\n")
+    if len(extra_lines) == 1:
+        repr_info = extra_lines[0]
+    else:
+        repr_info = ""
+
+    retstr = model.__class__.__name__ + "(" + repr_info + ")"
+    return retstr
+
+
 def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
     t_title = "Torch Model\n" + "=" * 25 + "\n"
     t_retval = print_weight_struct(module, mark=torch_submodule, prefix=[" " * 4])
