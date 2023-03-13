@@ -202,6 +202,7 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False, t_root=None, 
     print("Torch  Stacks:")
     print("=========================")
     torch_item.print_stacks()
+    print("")
 
 
 def _check_forward_and_backward(torch_rep, paddle_rep, cfg):
