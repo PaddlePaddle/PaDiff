@@ -309,6 +309,20 @@ def log(*args):
     print("[AutoDiff]", *args)
 
 
+def model_repr_info(model):
+    extra_lines = []
+    extra_repr = model.extra_repr()
+    if extra_repr:
+        extra_lines = extra_repr.split("\n")
+    if len(extra_lines) == 1:
+        repr_info = extra_lines[0]
+    else:
+        repr_info = ""
+
+    retstr = model.__class__.__name__ + "(" + repr_info + ")"
+    return retstr
+
+
 def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
     t_title = "Torch Model\n" + "=" * 25 + "\n"
     t_retval = print_weight_struct(module, mark=torch_submodule, prefix=[" " * 4])
@@ -318,23 +332,24 @@ def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
     p_retval = print_weight_struct(layer, mark=paddle_sublayer, prefix=[" " * 4])
     p_info = p_title + "\n".join(p_retval)
 
+    retstr = ""
+
     if len(p_retval) + len(t_retval) > 100:
         log_file("paddle_weight_check.log", "w", p_info)
         log_file("torch_weight_check.log", "w", t_info)
-        log(
-            f"Model Struct saved to `{diff_log_path + '/torch_weight_check.log'}` and `{diff_log_path + '/paddle_weight_check.log'}`."
-        )
-        log("Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !")
+        retstr += f"Model Struct saved to `{diff_log_path + '/torch_weight_check.log'}` and `{diff_log_path + '/paddle_weight_check.log'}`.\n"
+        retstr += "Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !\n"
     else:
-        log("Print model Struct while checking model weights:")
-        print(t_info)
-        print(p_info)
+        retstr += t_info
+        retstr += "\n"
+        retstr += p_info
+        retstr += "\n"
 
-    print("\nHint:")
-    print("      1. check the init order of param or layer in definition is the same.")
-    print(
-        "      2. try to use `LayerMap` to skip the diff in models, you can find the instructions at `https://github.com/PaddlePaddle/PaDiff`."
-    )
+    retstr += "\nHint:\n"
+    retstr += "      1. check the init order of param or layer in definition is the same.\n"
+    retstr += "      2. try to use `LayerMap` to skip the diff in models, you can find the instructions at `https://github.com/PaddlePaddle/PaDiff`.\n"
+
+    return retstr
 
 
 def print_weight_struct(net, mark=None, prefix=[]):
