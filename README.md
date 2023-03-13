@@ -77,3 +77,10 @@ inp = ({'x': paddle.to_tensor(inp)},
 
 auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0, 'compare_mode': 'strict', 'single_step':False})
 ```
+
+
+
+## 已支持Special Init的组件
+
+-   MultiHeadAttention
+-   LSTM
