@@ -12,7 +12,7 @@ auto_diff的具体接口参数信息见：[接口信息](Interfaces.md)
 2.   分别构造两个模型的输入数据
 3.   调用auto_diff
 
-以下是一段使用padiff工具进行对齐的完整代码，值得注意的是：<font color="red">在模型定义时，需要将forward中所使用的子模型在  `__init__`  函数中定义，并保证其中的子模型定义顺序一致</font>，具体可见下方示例代码
+以下是一段使用padiff工具进行对齐的完整代码，值得注意的是：**在模型定义时，需要将forward中所使用的子模型在  `__init__`  函数中定义，并保证其中的子模型定义顺序一致**，具体可见下方示例代码
 
 ```py
 from padiff import auto_diff
@@ -276,7 +276,7 @@ Max relative difference: 0.9999987
 须知：
 
 1.   传入的loss_fn是一个可选项，不指定loss_fn时，将使用auto_diff内置的一个fake loss function进行计算
-2.   <font color="red">loss_fn 只接受一个输入（即model的output），并输出一个scale tensor</font>。无法显式传入label，但可以通过lambda或者闭包等方法间接实现。
+2.   **loss_fn 只接受一个输入（即model的output），并输出一个scale tensor**。无法显式传入label，但可以通过lambda或者闭包等方法间接实现。
 3.   loss_fn 也可以是一个model，但是loss_fn内部的逻辑将不会参与对齐检查，padiff只会检查loss_fn的输出是否对齐
 
 注意事项：
@@ -332,7 +332,7 @@ auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, loss_fn
 1.   optimizer是可选的，若不传入，padiff并不提供默认的optimzer，将跳过权重更新的步骤
 2.   若需要进行多step对齐，必须传入optimizer
 3.   padiff不会检查optimizer内部是否对齐，但在多step下会检查模型权重（受optimizer影响）
-4.   optimizer有两种使用方式：传入一个正常的optimizer（支持clear grad以及step），或者传入一个<font color="red">无输入的lambda</font>，并在其中实现自定义操作
+4.   optimizer有两种使用方式：传入一个正常的optimizer（支持clear grad以及step），或者传入一个**无输入的lambda**，并在其中实现自定义操作
 
 ```py
 class SimpleLayer(paddle.nn.Layer):
