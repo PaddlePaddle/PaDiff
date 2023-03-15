@@ -42,6 +42,33 @@ class SimpleModule(torch.nn.Module):
         return x
 
 
+class SimpleLayerDiff(paddle.nn.Layer):
+    def __init__(self):
+        super(SimpleLayerDiff, self).__init__()
+        self.linear1 = paddle.nn.Linear(100, 100)
+        self.linear2 = paddle.nn.Linear(100, 100)
+
+    def forward(self, x):
+        x1 = self.linear1(x)
+        x2 = self.linear1(x)
+        x3 = self.linear2(x)
+        x3.register_hook(lambda g: g + 0.01)
+        return x1 + x2 + x3
+
+
+class SimpleModuleDiff(torch.nn.Module):
+    def __init__(self):
+        super(SimpleModuleDiff, self).__init__()
+        self.linear1 = torch.nn.Linear(100, 100)
+        self.linear2 = torch.nn.Linear(100, 100)
+
+    def forward(self, x):
+        x1 = self.linear1(x)
+        x2 = self.linear1(x)
+        x3 = self.linear2(x)
+        return x2 + x1 + x3
+
+
 class TestSingleStep(unittest.TestCase):
     def test_success(self):
         layer = SimpleLayer()
@@ -55,6 +82,15 @@ class TestSingleStep(unittest.TestCase):
         #     print("err atol too big")
         if want_True is not True:
             print("err atol too small")
+
+    def test_failed(self):
+        layer = SimpleLayerDiff()
+        module = SimpleModuleDiff()
+        inp = paddle.rand((100, 100)).numpy().astype("float32")
+        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
+        assert (
+            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4, "single_step": True}) is False
+        ), "Success. expected failed."
 
 
 if __name__ == "__main__":

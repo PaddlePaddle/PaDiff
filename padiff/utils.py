@@ -15,7 +15,7 @@
 import os
 import sys
 import shutil
-from collections import namedtuple, Iterable
+from collections import Iterable
 from itertools import zip_longest
 
 import numpy as np
@@ -24,7 +24,9 @@ import torch
 from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
 from .file_loader import global_yaml_loader as yamls
 
-# process Tensor
+"""
+    clone tensor
+"""
 
 
 def is_tensor(x):
@@ -90,7 +92,9 @@ def clone_structure(inputs):
     return map_structure(_clone_tensor, inputs)
 
 
-# traversal tools
+"""
+    traversal tools
+"""
 
 
 def for_each_tensor(*structure):
@@ -140,115 +144,9 @@ def map_structure_and_replace_key(func, structure1, structure2):
     return pack_sequence_as(structure2, [func(*x) for x in entries])
 
 
-# Report tools
-
-
-def is_sublayer(father_net, child_net):
-    """
-    return True if child_net is the DIRECTL children of father_net.
-    """
-
-    def _is_sublayer(father_net, child_net, layer_type):
-
-        for child in father_net.children():
-            check_list = child if isinstance(child, layer_type["layer_list"]) else [child]
-            for l in check_list:
-                if isinstance(l, layer_type["sequential"]):
-                    if _is_sublayer(l, child_net, layer_type):
-                        return True
-                else:
-                    if id(l) == id(child_net):
-                        return True
-        return False
-
-    if isinstance(father_net, torch.nn.Module) and isinstance(child_net, torch.nn.Module):
-        layer_type = {
-            "sequential": torch.nn.Sequential,
-            "layer_list": torch.nn.ModuleList,
-        }
-        if _is_sublayer(father_net, child_net, layer_type):
-            return True
-        return False
-    elif isinstance(father_net, paddle.nn.Layer) and isinstance(child_net, paddle.nn.Layer):
-        layer_type = {
-            "sequential": paddle.nn.Sequential,
-            "layer_list": paddle.nn.LayerList,
-        }
-        if _is_sublayer(father_net, child_net, layer_type):
-            return True
-        return False
-    else:
-        raise RuntimeError("father net is not Module / Layer")
-
-
-class TreeView:
-    """
-    This class is used to organize ReportItems in order of backward process
-
-    wrap items as a tree structure:
-    [1, 2, 3, 4, 5, 6]
-    the last item is the root of the layers.
-    if the child is 2 and 5, then we can construct a tree:
-      6
-      |---------|
-      2         5
-      |         |
-    [1,2]    [3,4,5]   <--- recursive construct.
-    """
-
-    def __init__(self, data):
-        """data is the forward items. the last one is the root layer."""
-        Node = namedtuple("Node", ["value", "children"])
-
-        def _construct_tree(begin_idx, end_idx):
-            if end_idx < begin_idx:
-                raise RuntimeError("[{}, {}] is invalid.".format(begin_idx, end_idx))
-            root = Node(value=data[end_idx], children=[])
-            last = begin_idx
-            for i in range(begin_idx, end_idx):
-                if is_sublayer(root.value.net, data[i].net):
-                    root.children.append(_construct_tree(last, i))
-                    last = i + 1
-            return root
-
-        self.root = _construct_tree(0, len(data) - 1)
-        self.data = data
-
-    def __len__(self):
-        return len(self.data)
-
-    def traversal_forward(self):
-        """
-        with the order of:
-        child1, child2, child3 ... childn, root
-        """
-
-        def _traversal_forward(root):
-            for child in root.children:
-                for item in _traversal_forward(child):
-                    yield item
-            yield root.value
-
-        for item in _traversal_forward(self.root):
-            yield item
-
-    def traversal_backward(self):
-        """
-        with the order of:
-        childn, childn-1, child... child1, root
-        """
-
-        def _traversal_backward(root):
-            for child in root.children[::-1]:
-                for item in _traversal_backward(child):
-                    yield item
-            yield root.value
-
-        for item in _traversal_backward(self.root):
-            yield item
-
-
-# logs
+"""
+    log utils
+"""
 
 diff_log_path = os.path.join(sys.path[0], "diff_log")
 __reset_log_dir__ = False
@@ -355,7 +253,14 @@ def print_weight_struct(net, mark=None, prefix=[]):
     return ret_strs
 
 
-# tensor compute
+def debug_print(net, mark=None, prefix=[]):
+    retval = print_weight_struct(net, mark=None, prefix=[])
+    print("\n".join(retval))
+
+
+"""
+    tensor compare or compute
+"""
 
 
 def max_diff(paddle_output, torch_output):
@@ -423,7 +328,9 @@ def tensors_mean(inp, mode):
         raise RuntimeError("unrecognized mode `{}`, expected: `torch` or `paddle`".format(mode))
 
 
-# init tools
+"""
+    init tools
+"""
 
 
 def init_options(options):
@@ -452,14 +359,17 @@ def init_options(options):
         options["diff_phase"] = "both"
         log("  Not in single_step mode, diff_phase `backward` is not supported, set to `both` instead.")
 
-    if options["diff_phase"] == "forward" and options["use_opt"]:
-        options["use_opt"] = False
-        log("  Diff_phase is `forward`, optimizer will not be used.")
-
-    if options["steps"] > 1:
-        if options["diff_phase"] == "forward" or options["use_opt"] == False:
+    if options["diff_phase"] == "forward":
+        if options["use_opt"]:
+            options["use_opt"] = False
+            log("  Diff_phase is `forward`, optimizer will not be used.")
+        if options["steps"] > 1:
             options["steps"] = 1
-            log("  Steps is set to `1`, because diff_phase is `forward` or optimizers are not given.")
+            log("  Diff_phase is `forward`, steps is set to `1`.")
+
+    if options["steps"] > 1 and options["use_opt"] == False:
+        options["steps"] = 1
+        log("  Steps is set to `1`, because optimizers are not given.")
 
     log("Your options:")
     print("{")
@@ -485,6 +395,11 @@ def init_LayerMap(layer, module, layer_map):
     layer_map.ignore_class(module)
 
     return layer_map
+
+
+"""
+    LayerMap
+"""
 
 
 def is_wrap_layer(layer):

@@ -15,15 +15,13 @@
 
 import paddle
 import torch
-from .report import Report
-from .checker import check_forward_and_backward
 from .utils import (
     log,
     init_options,
     init_LayerMap,
 )
-from .weights import check_weight_grad
-from .Trainer import Trainer
+from .weights import assign_weight
+from .runner import Runner
 
 
 paddle.set_printoptions(precision=10)
@@ -76,30 +74,11 @@ def auto_diff(
     options["steps"] = steps
     init_options(options)
     layer_map = init_LayerMap(layer, module, layer_map)
-    trainer = Trainer(layer, module, loss_fn, optimizer, layer_map, options)
-    if auto_weights and not trainer.assign_weight_():
+    runner = Runner(layer, module, loss_fn, optimizer, layer_map, options)
+    if auto_weights and not assign_weight(layer, module, layer_map):
         return False
 
-    # collect reports and analys
-    for step_id in range(options["steps"]):
-        log(f"=================Train Step {step_id}=================")
-        paddle_report = Report("paddle")
-        torch_report = Report("torch")
-        trainer.set_report(paddle_report, torch_report)
-
-        trainer.clear_grad()
-        trainer.train(example_inp)
-
-        ret = check_forward_and_backward(torch_report, paddle_report, options)
-        if ret == False:
-            break
-
-        weight_check, grad_check = check_weight_grad(
-            trainer.layer, trainer.module, options=options, layer_map=layer_map
-        )
-        ret = weight_check and grad_check
-        if ret == False:
-            break
+    ret = runner.Run(example_inp)
 
     if ret:
         log("SUCCESS !!!\n")
