@@ -22,7 +22,6 @@ from .utils import (
     init_LayerMap,
 )
 from .weights import check_weight_grad
-from .cmd import PaDiff_Cmd
 from .Trainer import Trainer
 
 
@@ -105,9 +104,6 @@ def auto_diff(
         log("SUCCESS !!!\n")
     else:
         log("FAILED !!!\n")
-
-    if options["cmd"]:
-        PaDiff_Cmd(paddle_report, torch_report, options).cmdloop()
 
     # TODO(linjieccc): pytest failed if log clean is enabled
     # clean_log_dir()

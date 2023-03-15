@@ -12,7 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .utils import TableView, log, log_file, diff_log_path
+from .utils import log, log_file, diff_log_path
+import warnings
+
+
+class TableView:
+    """
+    A search speedup wrapper class.
+    """
+
+    def __init__(self, data, key=None):
+        self.data = data
+        self.view = {}
+        assert callable(key), "Key must be callable with a paramter: x -> key."
+        for item in self.data:
+            if key(item) not in self.view:
+                self.view[key(item)] = [item]
+            else:
+                warnings.warn("Warning: duplicate key is found, use list + pop strategy.")
+                self.view[key(item)].append(item)
+
+    def __getitem__(self, key):
+        assert key in self.view, "{} is not found in index.".format(key)
+        ret = self.view[key].pop(0)  # pop for sorting.
+        return ret
+
+    def __len__(self):
+        return len(self.data)
+
+    def __contains__(self, key):
+        return key in self.view
+
 
 """
     class definition

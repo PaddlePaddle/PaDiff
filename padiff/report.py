@@ -15,10 +15,7 @@
 import contextlib
 
 from .actions import get_action
-from .stack_info import print_frames
 from .utils import (
-    TableView,
-    TreeView,
     for_each_grad_tensor,
     for_each_tensor,
     log,
@@ -89,6 +86,13 @@ class ReportItem:
         self.input_grads[nth] = value
 
     def print_stacks(self):
+        def print_frames(fs, indent=8):
+            indent = " " * indent
+            for f in fs:
+                print(
+                    "{} File {}: {}    {}\n{}{}{}".format(indent, f.filename, f.lineno, f.name, indent, indent, f.line)
+                )
+
         print_frames(self.frames)
 
     def stacks(self):
@@ -203,86 +207,6 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False, t_root=None, 
     print("=========================")
     torch_item.print_stacks()
     print("")
-
-
-def _check_forward_and_backward(torch_rep, paddle_rep, cfg):
-    """
-    TODO(@xiongkun):
-    More abundant printing methods can be supported later，For example, interactive printing mode，Tree Printing mode，Currently, only list printing is supported.
-    """
-    torch_fwd_items = torch_rep.get_fwd_items()
-    paddle_fwd_items = paddle_rep.get_fwd_items()
-
-    # temp use
-    torch_fwd_items = list(filter(lambda x: x.net_id != -1, torch_fwd_items))
-    paddle_fwd_items = list(filter(lambda x: x.net_id != -1, paddle_fwd_items))
-
-    torch_fwd_items = TableView(torch_fwd_items, lambda x: x.net_id)
-    paddle_tree_view = TreeView(paddle_fwd_items)
-
-    assert len(torch_fwd_items) == len(
-        paddle_fwd_items
-    ), "Difference length of torch_fwd_items and paddle_items, make sure the paddle layer and torch module have the same valid sublayer."
-
-    backward_items = []
-    # forward check
-    for idx, paddle_item in enumerate(paddle_tree_view.traversal_forward()):
-        assert paddle_item.net_id in torch_fwd_items, "Torch has no corresponding module for {}".format(
-            type(paddle_item.net)
-        )
-        torch_item = torch_fwd_items[paddle_item.net_id]
-        assert torch_item.type == paddle_item.type and paddle_item.type == "forward"
-        act = get_action(torch_item.net, paddle_item.net)
-        try:
-            backward_items.append([torch_item.bwd_item, paddle_item.bwd_item])
-            act(torch_item, paddle_item, cfg)
-        except Exception as e:
-            if cfg["single_step"]:
-                log("Under single_step mode:")
-            print_info(paddle_item, torch_item, e, idx, grad=False)
-            return False
-
-    log("forward {} steps compared.".format(len(paddle_fwd_items)))
-
-    # loss check
-    if cfg["loss_fn"]:
-        try:
-            assert_tensor_equal(paddle_rep.loss, torch_rep.loss, cfg)
-            log("loss compared.")
-        except Exception as e:
-            log("*** Diff found in loss, Checkout your loss function! ***")
-            log("loss compare:\n")
-            print("{}".format(str(e)))
-            return False
-
-    if cfg["diff_phase"] == "forward":
-        log("Diff_phase is `forward`. Backward compare skipped.")
-        log("SUCCESS !!!")
-        return True
-
-    # backward check
-    # backward_map map from id(paddle_backward_item) to torch_backward_item
-    backward_map = TableView(backward_items, lambda x: id(x[1]))
-    """
-    TODO(xiongkun): the order is problematic because we consider the tree structure as a chain structure.
-          so, always the root layer is calculated first. but we want the first layer with diff.
-
-    """
-    for idx, paddle_item in enumerate(paddle_tree_view.traversal_backward()):
-        torch_item, paddle_item = backward_map[id(paddle_item.bwd_item)]
-        assert torch_item.type == paddle_item.type and paddle_item.type == "backward"
-        act = get_action(torch_item.net, paddle_item.net)
-        try:
-            act(torch_item, paddle_item, cfg)
-        except Exception as e:
-            print_info(paddle_item, torch_item, e, idx, grad=True)
-            return False
-
-    log("bacward {} steps compared.".format(len(backward_items)))
-
-    # total status
-    log("SUCCESS !!!")
-    return True
 
 
 def check_forward_and_backward(torch_rep, paddle_rep, options):
