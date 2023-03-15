@@ -14,18 +14,12 @@
 
 import contextlib
 
-from .actions import get_action
 from .utils import (
     for_each_grad_tensor,
     for_each_tensor,
-    log,
-    assert_tensor_equal,
 )
 from .module_struct import (
     LayerStack,
-    copy_module_struct,
-    print_struct_info,
-    reorder_and_match_reports,
 )
 
 """
@@ -168,155 +162,6 @@ class Report:
         for item in self.items:
             strings.append("    " + str(item.step) + ": [{}]".format(type(item.net)))
         return "\n".join(strings)
-
-
-"""
-    report analys
-"""
-
-
-def print_info(paddle_item, torch_item, exc, step_idx, grad=False, t_root=None, p_root=None):
-    if step_idx == -1:
-        step_idx = torch_item.step
-    log("FAILED !!!")
-    if grad:
-        log(
-            "    Diff found in `Backward Stage` in step: {}, net_id is {} vs {}".format(
-                step_idx, paddle_item.net_id, torch_item.net_id
-            )
-        )
-    else:
-        log(
-            "    Diff found in `Forward  Stage` in step: {}, net_id is {} vs {}".format(
-                step_idx, paddle_item.net_id, torch_item.net_id
-            )
-        )
-    log("    Type of layer is  : {} vs {}".format(type(torch_item.net), type(paddle_item.net)))
-
-    print(str(exc))
-
-    if t_root is not None and p_root is not None:
-        print("\n")
-        log("Check model struct:")
-        print_struct_info(t_root, p_root)
-
-    print("\n\nPaddle Stacks:")
-    print("=========================")
-    paddle_item.print_stacks()
-    print("Torch  Stacks:")
-    print("=========================")
-    torch_item.print_stacks()
-    print("")
-
-
-def check_forward_and_backward(torch_rep, paddle_rep, options):
-    t_root = copy_module_struct(torch_rep.stack.root)[0]
-    p_root = copy_module_struct(paddle_rep.stack.root)[0]
-
-    # forward check
-    res = check_forward(t_root, p_root, torch_rep, paddle_rep, options)
-    if res == False:
-        return False
-    log("forward stage compared.")
-
-    # loss check
-    if options["use_loss"]:
-        try:
-            assert_tensor_equal(paddle_rep.loss, torch_rep.loss, options)
-            log("loss compared.")
-        except Exception as e:
-            log("*** Diff found in loss, Checkout your loss function! ***")
-            log("loss compare:\n")
-            print("{}".format(str(e)))
-            return False
-
-    if options["diff_phase"] == "forward":
-        log("Diff_phase is `forward`. Backward compare skipped.")
-        return True
-
-    # backward check
-    res = check_backward(t_root, p_root, torch_rep, paddle_rep, options)
-    if res == False:
-        return False
-    log("backward stage compared.")
-
-    return True
-
-
-def check_forward(t_root, p_root, t_rep, p_rep, options):
-    act = get_action(t_root.net, p_root.net)
-    torch_item = t_root.fwd_report
-    paddle_item = p_root.fwd_report
-    assert torch_item.type == paddle_item.type and paddle_item.type == "forward"
-    try:
-        act(torch_item, paddle_item, options)
-        return True
-    except Exception as e:
-        compare_info = e
-        if len(t_root.children) == 0 or len(p_root.children) == 0:
-            print_info(paddle_item, torch_item, e, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
-            return False
-
-    # reorder current level
-    try:
-        if not hasattr(p_root, "reordered"):
-            reorder_and_match_reports(t_root, p_root, t_rep, p_rep)
-    except Exception as e:
-        log(f"While checking forward, diff found at torch: {t_root} vs paddle: {p_root}")
-        log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again:")
-        print(str(e))
-        log("Compare detail:")
-        print_info(paddle_item, torch_item, compare_info, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
-        return False
-
-    for t_child, p_child in zip(t_root.children, p_root.children):
-        res = check_forward(t_child, p_child, t_rep, p_rep, options)
-        if res == False:
-            return False
-
-    # sublayers is compared ok, but diff found at father layer
-    log(f"Sublayers of torch: {t_root} and paddle: {p_root} are corresponded, but diff found at their output!")
-    print_info(paddle_item, torch_item, compare_info, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
-    return False
-
-
-def check_backward(t_root, p_root, t_rep, p_rep, options):
-    act = get_action(t_root.net, p_root.net)
-    torch_item = t_root.bwd_report
-    paddle_item = p_root.bwd_report
-    assert torch_item.type == paddle_item.type and paddle_item.type == "backward"
-    try:
-        act(torch_item, paddle_item, options)
-        return True
-    except Exception as e:
-        compare_info = e
-        if len(t_root.children) == 0 or len(p_root.children) == 0:
-            print_info(paddle_item, torch_item, e, -1, grad=True, t_root=t_root.origin, p_root=p_root.origin)
-            return False
-
-    # reorder current level
-    try:
-        if not hasattr(p_root, "reordered"):
-            reorder_and_match_reports(t_root, p_root, t_rep, p_rep)
-    except Exception as e:
-        log(f"While checking backward, diff found at torch: {t_root} vs paddle: {p_root}")
-        log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again:")
-        print(str(e))
-        log("Compare detail:")
-        print_info(paddle_item, torch_item, compare_info, -1, grad=True, t_root=t_root.origin, p_root=p_root.origin)
-        return False
-
-    for t_child, p_child in zip(reversed(t_root.children), reversed(p_root.children)):
-        res = check_backward(t_child, p_child, t_rep, p_rep, options)
-        if res == False:
-            return False
-
-    # sublayers is compared ok, but diff found at father layer
-    log(
-        f"Grad of sublayers of torch: {t_root} and paddle: {p_root} are corresponded, but diff found at their output grad!"
-    )
-    print_info(paddle_item, torch_item, compare_info, -1, grad=True, t_root=t_root.origin, p_root=p_root.origin)
-    return False
 
 
 """

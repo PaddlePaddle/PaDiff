@@ -15,7 +15,8 @@
 
 import paddle
 import torch
-from .report import Report, check_forward_and_backward
+from .report import Report
+from .checker import check_forward_and_backward
 from .utils import (
     log,
     init_options,
