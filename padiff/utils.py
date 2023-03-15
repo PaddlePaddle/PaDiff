@@ -464,26 +464,36 @@ def init_options(options):
         "single_step": False,
         "debug": False,
         "cmd": False,
-        "loss_fn": False,
-        "opt": False,
-        "multi_steps": False,
+        "use_loss": False,
+        "use_opt": False,
+        "steps": 1,
     }
 
     default_options.update(options)
     options.update(default_options)
 
-    log("Your options:")
-
     if options["single_step"]:
-        options["diff_phase"] = "forward"
-        log("  In single_step mode, diff_phase will be set to `forward`.")
+        options["steps"] = 1
+        log("  In single_step mode, steps will be set to `1`.")
+        options["use_opt"] = False
+        log("  In single_step mode, optimizer will not be used.")
+    elif options["diff_phase"] == "backward":
+        options["diff_phase"] = "both"
+        log("  Not in single_step mode, diff_phase `backward` is not supported, set to `both` instead.")
 
-    if options["diff_phase"] == "forward" and options["opt"]:
+    if options["diff_phase"] == "forward" and options["use_opt"]:
+        options["use_opt"] = False
         log("  Diff_phase is `forward`, optimizer will not be used.")
 
+    if options["steps"] > 1:
+        if options["diff_phase"] == "forward" or options["use_opt"] == False:
+            options["steps"] = 1
+            log("  Steps is set to `1`, because diff_phase is `forward` or optimizers are not given.")
+
+    log("Your options:")
     print("{")
     for key in options.keys():
-        if key not in ["debug", "cmd", "loss_fn", "opt", "multi_steps"]:
+        if key in ["atol", "rtol", "compare_mode", "single_step", "steps", "use_loss", "use_opt"]:
             print("  {}: `{}`".format(key, options[key]))
     print("}")
 

@@ -60,7 +60,7 @@ class TestCaseName(unittest.TestCase):
         trainer.set_report(paddle_report, torch_report)
 
         trainer.clear_grad()
-        trainer.train_step(inp, options=options)
+        trainer.train_step(inp)
 
         # [layer(SimpleLayer, Linear) + api(linear, relu)] * (fwd, bwd) = 8
         assert len(paddle_report.items) == 8

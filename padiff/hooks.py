@@ -30,14 +30,30 @@ import torch
 """
 
 
-def tensor_hook(x_grad, bwd_item, nth_tensor):
+def torch_tensor_hook(x_grad, bwd_item, nth_tensor):
     # print (nth_tensor, bwd_item.input_grads, bwd_item.input)
     bwd_item.set_input_grads(nth_tensor, x_grad)
     return x_grad
 
 
+def paddle_tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
+    # print (nth_tensor, bwd_item.input_grads, bwd_item.input)
+    # record paddle grad
+    bwd_item.set_input_grads(nth_tensor, x_grad)
+
+    options = yamls.options
+    # single_step and not an API
+    if net_id != -1 and options["single_step"] and options["diff_phase"] == "backward":
+        p_rep = current_paddle_report()
+        t_rep = current_torch_report()
+        t_fwd_item = t_rep.find_item(p_rep, net_id, "backward")
+
+        return map_structure_and_replace_key(_torch_tensor_to_paddle_tensor, [t_fwd_item.output], x_grad)
+    return x_grad
+
+
 # torch_api_hook,paddle_api_hook are used to record info to reports
-def torch_api_hook(module, input, output, idx):
+def torch_api_hook(module, input, output, net_id):
     """
     Notice: only wrapped api and mapped one2one layer will trigger this hook. They are leaves.
     """
@@ -61,18 +77,18 @@ def torch_api_hook(module, input, output, idx):
     frame_info, frames = extract_frame_summary()
     new_in = clone_structure(input)
     new_out = clone_structure(output)
-    fwd_item = t_rep.put_item("forward", new_in, new_out, module, idx, frame_info, frames)
-    bwd_item = t_rep.put_item("backward", new_in, new_out, module, idx, frame_info, frames)
+    fwd_item = t_rep.put_item("forward", new_in, new_out, module, net_id, frame_info, frames)
+    bwd_item = t_rep.put_item("backward", new_in, new_out, module, net_id, frame_info, frames)
     bwd_item.set_forward(fwd_item)
 
     t_rep.stack.push_api(module, fwd_item, bwd_item)
 
     for i, (t,) in enumerate(for_each_grad_tensor(input)):
-        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
+        t.register_hook(partial(torch_tensor_hook, bwd_item=bwd_item, nth_tensor=i))
     return None
 
 
-def paddle_api_hook(module, input, output, idx):
+def paddle_api_hook(module, input, output, net_id):
     """
     Notice: only wrapped api and layer in one2one will trigger this hook. They are leaves.
     """
@@ -92,42 +108,21 @@ def paddle_api_hook(module, input, output, idx):
     frame_info, frames = extract_frame_summary()
     new_in = clone_structure(input)
     new_out = clone_structure(output)
-    fwd_item = p_rep.put_item("forward", new_in, new_out, module, idx, frame_info, frames)
-    bwd_item = p_rep.put_item("backward", new_in, new_out, module, idx, frame_info, frames)
+    fwd_item = p_rep.put_item("forward", new_in, new_out, module, net_id, frame_info, frames)
+    bwd_item = p_rep.put_item("backward", new_in, new_out, module, net_id, frame_info, frames)
     bwd_item.set_forward(fwd_item)
 
     p_rep.stack.push_api(module, fwd_item, bwd_item)
 
     for i, (t,) in enumerate(for_each_grad_tensor(input)):
-        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i))
+        t.register_hook(partial(paddle_tensor_hook, bwd_item=bwd_item, nth_tensor=i, net_id=net_id))
 
     # if single_step, need return torch output
-    if options["single_step"] and idx != -1:
+    if net_id != -1 and options["single_step"] and options["diff_phase"] == "forward":
         t_rep = current_torch_report()
-        t_fwd_item = t_rep.find_item(p_rep, idx)
+        t_fwd_item = t_rep.find_item(p_rep, net_id, "forward")
 
-        def torch_tensor_to_paddle_tensor(tt):
-            if isinstance(tt, torch.Tensor):
-                if tt.numel() == 0:
-                    if tt.dtype == torch.float32 or tt.dtype == torch.float:
-                        return paddle.to_tensor([], dtype="float32")
-                    elif tt.dtype == torch.float64:
-                        return paddle.to_tensor([], dtype="float64")
-                    elif tt.dtype == torch.float16:
-                        return paddle.to_tensor([], dtype="float16")
-                    elif tt.dtype == torch.int32 or tt.dtype == torch.int:
-                        return paddle.to_tensor([], dtype="int32")
-                    elif tt.dtype == torch.int16:
-                        return paddle.to_tensor([], dtype="int16")
-                    elif tt.dtype == torch.int64:
-                        return paddle.to_tensor([], dtype="int64")
-                    else:
-                        raise RuntimeError(f"In single step mode, copy torch tensor {tt} with dtype {tt.dtype} Failed")
-                return paddle.to_tensor(tt.detach().cpu().numpy())
-            else:
-                return tt
-
-        return map_structure_and_replace_key(torch_tensor_to_paddle_tensor, [t_fwd_item.output], output)
+        return map_structure_and_replace_key(_torch_tensor_to_paddle_tensor, [t_fwd_item.output], output)
     else:
         return None
 
@@ -178,7 +173,7 @@ def _register_paddle_hooker(layer, layer_map):
         # call api_hook before post_layer_hook => current will be module itself
         # if mod in layer_map._layer_one2one.keys():
         if True:
-            handle = mod.register_forward_post_hook(partial(paddle_api_hook, idx=idx))
+            handle = mod.register_forward_post_hook(partial(paddle_api_hook, net_id=idx))
             remove_handles.append(handle)
         post_handle = mod.register_forward_post_hook(paddle_post_layer_hook)
         remove_handles.extend([pre_handle, post_handle])
@@ -197,7 +192,7 @@ def _register_torch_hooker(module, layer_map):
         pre_handle = mod.register_forward_pre_hook(torch_pre_layer_hook)
         # if mod in layer_map._layer_one2one.values():
         if True:
-            handle = mod.register_forward_hook(partial(torch_api_hook, idx=idx))
+            handle = mod.register_forward_hook(partial(torch_api_hook, net_id=idx))
             remove_handles.append(handle)
         post_handle = mod.register_forward_hook(torch_post_layer_hook)
         remove_handles.extend([pre_handle, post_handle])
@@ -205,3 +200,25 @@ def _register_torch_hooker(module, layer_map):
     yield
     for h in remove_handles:
         h.remove()
+
+
+def _torch_tensor_to_paddle_tensor(tt):
+    if isinstance(tt, torch.Tensor):
+        if tt.numel() == 0:
+            if tt.dtype == torch.float32 or tt.dtype == torch.float:
+                return paddle.to_tensor([], dtype="float32")
+            elif tt.dtype == torch.float64:
+                return paddle.to_tensor([], dtype="float64")
+            elif tt.dtype == torch.float16:
+                return paddle.to_tensor([], dtype="float16")
+            elif tt.dtype == torch.int32 or tt.dtype == torch.int:
+                return paddle.to_tensor([], dtype="int32")
+            elif tt.dtype == torch.int16:
+                return paddle.to_tensor([], dtype="int16")
+            elif tt.dtype == torch.int64:
+                return paddle.to_tensor([], dtype="int64")
+            else:
+                raise RuntimeError(f"In single step mode, copy torch tensor {tt} with dtype {tt.dtype} Failed")
+        return paddle.to_tensor(tt.detach().cpu().numpy())
+    else:
+        return tt

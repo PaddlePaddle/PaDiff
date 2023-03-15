@@ -146,9 +146,9 @@ class Report:
         sorted(self.items, key=lambda x: x.step)
         return list(filter(lambda x: x.type == "forward", self.items))
 
-    def find_item(self, p_report, net_id):
-        tlist = list(filter(lambda x: x.type == "forward" and x.net_id == net_id, self.items))
-        plist = list(filter(lambda x: x.type == "forward" and x.net_id == net_id, p_report.items))
+    def find_item(self, p_report, net_id, type_):
+        tlist = list(filter(lambda x: x.type == type_ and x.net_id == net_id, self.items))
+        plist = list(filter(lambda x: x.type == type_ and x.net_id == net_id, p_report.items))
         return tlist[len(plist) - 1]
 
     def set_loss(self, loss):
@@ -296,7 +296,7 @@ def check_forward_and_backward(torch_rep, paddle_rep, options):
     log("forward stage compared.")
 
     # loss check
-    if options["loss_fn"]:
+    if options["use_loss"]:
         try:
             assert_tensor_equal(paddle_rep.loss, torch_rep.loss, options)
             log("loss compared.")
