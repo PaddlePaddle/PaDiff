@@ -15,7 +15,7 @@
 import unittest
 
 from padiff.report import Report
-from padiff.Trainer import Trainer
+from padiff.trainer import Trainer
 from padiff.utils import init_options, LayerMap
 import paddle
 import torch
@@ -57,10 +57,8 @@ class TestCaseName(unittest.TestCase):
         paddle_report = Report("paddle")
         torch_report = Report("torch")
         trainer = Trainer(layer, module, None, None, LayerMap(), options)
-        trainer.set_report(paddle_report, torch_report)
 
-        trainer.clear_grad()
-        trainer.train_step(inp)
+        trainer.do_run(paddle_report, torch_report, inp)
 
         # [layer(SimpleLayer, Linear) + api(linear, relu)] * (fwd, bwd) = 8
         assert len(paddle_report.items) == 8
