@@ -21,7 +21,7 @@ from .utils import (
     init_LayerMap,
 )
 from .weights import assign_weight
-from .runner import Runner
+from .trainer import Trainer
 
 
 paddle.set_printoptions(precision=10)
@@ -74,11 +74,11 @@ def auto_diff(
     options["steps"] = steps
     init_options(options)
     layer_map = init_LayerMap(layer, module, layer_map)
-    runner = Runner(layer, module, loss_fn, optimizer, layer_map, options)
+    trainer = Trainer(layer, module, loss_fn, optimizer, layer_map, options)
     if auto_weights and not assign_weight(layer, module, layer_map):
         return False
 
-    ret = runner.Run(example_inp)
+    ret = trainer.train(example_inp)
 
     if ret:
         log("SUCCESS !!!\n")
