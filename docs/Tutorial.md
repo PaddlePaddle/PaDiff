@@ -131,8 +131,10 @@ LayerMap的使用方式详见[LayerMap使用说明](LayerMap.md)
 [AutoDiff] Assign weight Failed !!!
 
 Error occured between:
-    paddle: `Linear(in_features=100, out_features=100, dtype=float32)` parameter `weight`
-    torch: `Linear(in_features=100, out_features=10, bias=True)` parameter `weight`
+    paddle: `Linear(in_features=100, out_features=100, dtype=float32)`
+            `SimpleLayerDiff.linear2.weight`
+    torch: `Linear(in_features=100, out_features=10, bias=True)`
+           `SimpleModule.linear2.weight`
 
 Shape of paddle param `weight` and torch param `weight` is not the same. [100, 100] vs [100, 10]
 
@@ -158,7 +160,7 @@ Hint:
 
 1.   指明diff出现的阶段：`Forward Stage` or `Backward Stage`，该信息出现在日志的开头
 2.   打印出现精度diff时的比较信息，包括绝对误差和相对误差数值
-3.   打印模型结构，并用`<---  *** HERE ***`标注出现diff的位置（log过长时将输出到文件中）
+3.   打印模型结构，并用括号标注结点类型，用`<---  *** HERE ***`指示出现diff的位置（log过长时将输出到文件中）
 4.   打印调用栈信息，帮助定位到具体的代码位置
 
 定位精度误差位置后，可进行验证排查
@@ -167,55 +169,64 @@ Hint:
 [AutoDiff] Your options:
 {
   atol: `0.0001`
+  steps: `1`
   rtol: `1e-07`
-  diff_phase: `both`
   compare_mode: `mean`
   single_step: `False`
+  use_loss: `False`
+  use_opt: `False`
 }
 [AutoDiff] =================Train Step 0=================
-[AutoDiff] Max elementwise output diff is 3.9604315757751465
+[AutoDiff] Max elementwise output diff is 4.575464248657227
 [AutoDiff] FAILED !!!
-[AutoDiff]     Diff found in `Forward  Stage` in step: 0, net_id is 1 vs 1
-[AutoDiff]     Type of layer is  : <class 'torch.nn.modules.linear.Linear'> vs <class 'paddle.nn.layer.common.Linear'>
+[AutoDiff]     Diff found in `Forward  Stage` in step: 0, net_id is -1 vs -1
+[AutoDiff]     Type of layer is  : <class 'padiff.wrap_func.<locals>.wrapped.<locals>.TorchApi'> vs <class 'padiff.wrap_func.<locals>.wrapped.<locals>.PaddleApi'>
 
 Not equal to tolerance rtol=1e-07, atol=0.0001
 
 Mismatched elements: 1 / 1 (100%)
-Max absolute difference: 0.04014074
-Max relative difference: 0.69478023
- x: array(0.017634, dtype=float32)
- y: array(0.057775, dtype=float32)
+Max absolute difference: 0.0622915
+Max relative difference: 1.6068412
+ x: array(0.023525, dtype=float32)
+ y: array(-0.038766, dtype=float32)
 
 
 [AutoDiff] Check model struct:
 Paddle Model
 =========================
-    (net) SimpleLayer
-     |--- (net) Linear    <---  *** HERE ***
+    (net) SimpleLayerDiff
+     |--- (net) Linear
+     |     +--- (api) paddle.nn.functional.linear    <---  *** HERE ***
+     |--- (net) Linear
+     |     +--- (api) paddle.nn.functional.linear
      +--- (net) Linear
+           +--- (api) paddle.nn.functional.linear
 Torch Model
 =========================
     (net) SimpleModule
-     |--- (net) Linear    <---  *** HERE ***
+     |--- (net) Linear
+     |     +--- (api) torch.nn.functional.linear    <---  *** HERE ***
+     |--- (net) Linear
+     |     +--- (api) torch.nn.functional.linear
      +--- (net) Linear
+           +--- (api) torch.nn.functional.linear
 
 
 Paddle Stacks:
 =========================
          ...
-         File tests/test_simplenet1.py: 37    forward
-                x = self.linear1(x)
-         File /workspace/env/env3.7/lib/python3.7/site-packages/paddle/fluid/dygraph/layers.py: 993    _dygraph_call_func
+         File /workspace/env/env3.7/lib/python3.7/site-packages/paddle/nn/layer/common.py: 175    forward
+                x=input, weight=self.weight, bias=self.bias, name=self.name
+         File /workspace/env/env3.7/lib/python3.7/site-packages/paddle/fluid/dygraph/layers.py: 997    _dygraph_call_func
                 outputs = self.forward(*inputs, **kwargs)
          ...
-
 Torch  Stacks:
 =========================
          ...
-         File tests/test_simplenet1.py: 58    forward
-                x = self.linear1(x)
-         File /workspace/env/env3.7/lib/python3.7/site-packages/torch/nn/modules/module.py: 1208    _call_impl
-                result = forward_call(*input, **kwargs)
+         File /workspace/env/env3.7/lib/python3.7/site-packages/torch/nn/modules/linear.py: 94    forward
+                return F.linear(input, self.weight, self.bias)
+         File /workspace/env/env3.7/lib/python3.7/site-packages/torch/nn/modules/module.py: 889    _call_impl
+                result = self.forward(*input, **kwargs)
          ...
 
 [AutoDiff] FAILED !!!
@@ -225,7 +236,7 @@ Torch  Stacks:
 
 ### 模型weight/grad对齐失败的报错信息
 
-由于weight/grad对齐信息一般比较多，所以会将信息输入到log文件，并输出log文件路径，请打开打印的文件路径以查看具体信息
+由于weight/grad对齐信息一般比较多，所以会将信息输入到日志文件。日志文件的路径会打印到终端（位于当前目录的 diff_log 文件夹下），如下面的例子所示：
 
 ```
 [AutoDiff] Your options:
@@ -275,7 +286,7 @@ Max relative difference: 0.9999987
 
 须知：
 
-1.   传入的loss_fn是一个可选项，不指定loss_fn时，将使用auto_diff内置的一个fake loss function进行计算
+1.   传入的loss_fn是一个可选项，不指定loss_fn时，将使用auto_diff内置的一个fake loss function进行计算，该函数将output整体求平均值并返回。
 2.   **loss_fn 只接受一个输入（即model的output），并输出一个scale tensor**。无法显式传入label，但可以通过lambda或者闭包等方法间接实现。
 3.   loss_fn 也可以是一个model，但是loss_fn内部的逻辑将不会参与对齐检查，padiff只会检查loss_fn的输出是否对齐
 
@@ -330,9 +341,11 @@ auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, loss_fn
 须知：
 
 1.   optimizer是可选的，若不传入，padiff并不提供默认的optimzer，将跳过权重更新的步骤
-2.   若需要进行多step对齐，必须传入optimizer
+2.   若需要进行多step对齐，必须传入optimizer（若不传入，step会被自动重置为1）
 3.   padiff不会检查optimizer内部是否对齐，但在多step下会检查模型权重（受optimizer影响）
-4.   optimizer有两种使用方式：传入一个正常的optimizer（支持clear grad以及step），或者传入一个**无输入的lambda**，并在其中实现自定义操作
+4.   optimizer有两种使用方式：
+     - 依次传入一组 paddle.optimizer.Optimizer 和 torch.optim.Optimizer
+     - 依次传入两个**无输入的lambda**，分别负责paddle模型与torch模型的权重更新，可在其中实现自定义操作
 
 ```py
 class SimpleLayer(paddle.nn.Layer):
@@ -370,10 +383,13 @@ assign_weight的逻辑以及报错信息与 auto_diff 开启 auto_weight 选项�
 
 须知：
 
-1.   注意，这个函数不会raise，只会return False并在终端打印信息
-2.   由于 padiff 的 api 级别对齐机制目前默认开启，若仅仅需要将assign_weight作为一个辅助其他任务的工具使用，请设置环境变量以关闭api级别对齐机制 `export PADIFF_API_CHECK=OFF`
+1.   如果assign_weight失败，则函数的返回值为False（不会抛出异常）
+2.   如果只使用assign weight 接口，不使用 auto_diff 接口，请设置环境变量 `export PADIFF_API_CHECK=OFF`
 
 ```py
+import os
+os.environ["PADIFF_API_CHECK"] = "OFF"
+
 from padiff import assign_weight, LayerMap
 import torch
 import paddle

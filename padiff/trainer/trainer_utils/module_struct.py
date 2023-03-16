@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from .. import utils
-import warnings
 
 
 class TableView:
@@ -29,7 +28,7 @@ class TableView:
             if key(item) not in self.view:
                 self.view[key(item)] = [item]
             else:
-                warnings.warn("Warning: duplicate key is found, use list + pop strategy.")
+                # warnings.warn("Warning: duplicate key is found, use list + pop strategy.")
                 self.view[key(item)].append(item)
 
     def __getitem__(self, key):
