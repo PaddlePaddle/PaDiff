@@ -60,7 +60,7 @@ def torch_api_hook(module, input, output, net_id):
         return None
 
     # if this api is not processing tensors, do not create report
-    if output is None or all([not isinstance(x, torch.Tensor) for x in paddle.fluid.layers.utils.flatten(output)]):
+    if output is None or all([not isinstance(x, torch.Tensor) for x in utils.flatten(output)]):
         return None
 
     # if an api under _layer_ignore_sublayer, do not create report
@@ -93,7 +93,7 @@ def paddle_api_hook(module, input, output, net_id):
     if p_rep is None or p_rep.stack._top() is None:
         return None
 
-    if output is None or all([not isinstance(x, paddle.Tensor) for x in paddle.fluid.layers.utils.flatten(output)]):
+    if output is None or all([not isinstance(x, paddle.Tensor) for x in utils.flatten(output)]):
         return None
 
     if p_rep.stack._top().net in p_rep.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):

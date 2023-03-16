@@ -69,7 +69,7 @@ def wrap_func(fullname, func):
 
         if fullname.startswith("paddle"):
 
-            from .hooks import paddle_api_hook
+            from .trainer.trainer_utils import paddle_api_hook
 
             class PaddleApi(paddle.nn.Layer):
                 def __init__(self, func):
@@ -90,7 +90,7 @@ def wrap_func(fullname, func):
 
         elif fullname.startswith("torch"):
 
-            from .hooks import torch_api_hook
+            from .trainer.trainer_utils import torch_api_hook
 
             class TorchApi(torch.nn.Module):
                 def __init__(self, func):
