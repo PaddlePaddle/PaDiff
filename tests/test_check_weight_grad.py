@@ -20,7 +20,7 @@ import torch
 
 from padiff import auto_diff
 from padiff.utils import reset_log_dir, init_options
-from padiff.runner.Checker import weight_grad_check
+from padiff.trainer.Checker import weight_grad_check
 
 
 class SimpleLayer(paddle.nn.Layer):

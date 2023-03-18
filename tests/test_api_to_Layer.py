@@ -14,7 +14,7 @@
 
 import unittest
 
-from padiff.report import Report
+from padiff.trainer.trainer_utils import Report
 from padiff.trainer import Trainer
 from padiff.utils import init_options, LayerMap
 import paddle
