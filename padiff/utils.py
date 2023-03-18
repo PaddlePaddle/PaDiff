@@ -21,7 +21,11 @@ from itertools import zip_longest
 import numpy as np
 import paddle
 import torch
-from paddle.utils import flatten, pack_sequence_as, map_structure
+
+try:
+    from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
+except:
+    from paddle.utils import flatten, pack_sequence_as, map_structure
 from .file_loader import global_yaml_loader as yamls
 
 """
