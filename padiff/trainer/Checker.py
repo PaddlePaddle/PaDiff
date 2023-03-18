@@ -280,6 +280,7 @@ def weight_grad_check(layer, module, options, layer_map=LayerMap()):
             )
             log_file("grad_diff.log", "a", info)
             print(info)
+            print(p_grad, t_grad)
 
     try:
         process_each_weight(_check_weight_grad, layer, module, layer_map)
