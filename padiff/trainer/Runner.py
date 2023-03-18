@@ -87,5 +87,5 @@ class Runner(object):
                             str(e)
                         )
                     )
-
-        log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
+        if not self.options["single_step"]:
+            log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
