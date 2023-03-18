@@ -58,8 +58,8 @@ class Trainer:
             paddle_report = Report("paddle")
             torch_report = Report("torch")
             self.do_run(paddle_report, torch_report, example_inp)
-            self.do_optimizer()
             ret = self.do_check(paddle_report, torch_report)
+            self.do_optimizer()
             if ret == False:
                 return False
         return True
@@ -85,8 +85,8 @@ class Trainer:
                 paddle_report = Report("paddle")
                 torch_report = Report("torch")
                 self.do_run(paddle_report, torch_report, example_inp)
-                self.do_optimizer()
                 ret = self.do_check(paddle_report, torch_report)
+                self.do_optimizer()
                 if ret == False:
                     log("Diff found at sinle_step mode `backward` part!")
                     return False
