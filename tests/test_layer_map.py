@@ -125,6 +125,30 @@ class SimpleModule4(torch.nn.Module):
         return x
 
 
+class SimpleLayer5(paddle.nn.Layer):
+    def __init__(self):
+        super(SimpleLayer5, self).__init__()
+        self.conv = paddle.nn.Conv2D(3, 32, 3, padding=1)
+        self.bn = paddle.nn.BatchNorm2D(32)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x
+
+
+class SimpleModule5(torch.nn.Module):
+    def __init__(self):
+        super(SimpleModule5, self).__init__()
+        self.conv = torch.nn.Conv2d(3, 32, 3, padding=1)
+        self.bn = torch.nn.BatchNorm2d(32)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x
+
+
 class TestCaseName(unittest.TestCase):
     def test_layer_map_1(self):
         layer = SimpleLayer1(4, 8, 4)
@@ -183,6 +207,20 @@ class TestCaseName(unittest.TestCase):
 
         # with self.assertRaises(Exception, msg="Sucess, expected exception."):
         # auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
+
+    def test_layer_map_5(self):
+        layer = SimpleLayer5()
+        module = SimpleModule5()
+        layer.eval()
+        module.eval()
+        layer_map = {layer.bn: module.bn}
+
+        inp = paddle.rand((1, 3, 32, 32)).numpy()
+        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
+
+        assert (
+            auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}) is True
+        ), "Failed. expected success."
 
 
 if __name__ == "__main__":
