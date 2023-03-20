@@ -52,6 +52,8 @@ add_special_init(
 
 1.   在PaDiff/padiff/special_init文件夹下新建 init_XXX.py（必须以init_开头）
 2.   在文件中编写你的初始化函数，并用装饰器进行注册，见下方示例代码
+    - 确保不改变parameter的device
+    - 从torch拷贝权重到paddle
 3.   提交后padiff工具就能够支持XXX模型的special init，无需重复编写
 
 ```py
