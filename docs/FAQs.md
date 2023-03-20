@@ -13,20 +13,20 @@
 
 ## 使用包含随机性的op
 
-padiff无法对齐包含随机性op的模型，例如dropout。
+padiff 无法对齐包含随机性 op 的模型，例如 dropout。
 
-测试时需要自行注释相关代码，使用padiff的api级别对齐检查可以帮助定位相关api的位置。
+测试时需要自行注释相关代码，使用 padiff 的 api 级别对齐检查可以帮助定位相关 api 的位置。
 
 
 
 ## 显存溢出
 
-出现显存溢出时，请尝试减小batchsize
+出现显存溢出时，请尝试减小 batchsize
 
 说明：
 
--   目前padiff几乎没有额外的显存开销（除了一个额外的模型）
--   由于torch和paddle都有自己的显存管理机制，因此显存可能无法立即释放，导致显存溢出的问题
+-   目前 padiff 几乎没有额外的显存开销（除了一个额外的模型）
+-   由于 torch 和 paddle 都有自己的显存管理机制，因此显存可能无法立即释放，导致显存溢出的问题
 
 
 
@@ -34,8 +34,8 @@ padiff无法对齐包含随机性op的模型，例如dropout。
 
 auto_diff 工具的工作与 device 无关，如果需要进行 cpu/gpu 的对齐，只需要传入device 为 cpu/gpu 的模型以及输入即可
 
--   在调用paddle模型构造函数以及 input data 初始化前，使用 `paddle.set_device(xxx)`
--   在构造torch模型后，使用 `torch_module = torch_module.to(xxx)`, `torch_input = torch_input.to(xxx)`
+-   在调用 paddle 模型构造函数以及 input data 初始化前，使用 `paddle.set_device(xxx)`
+-   在构造 torch 模型后，使用 `torch_module = torch_module.to(xxx)`, `torch_input = torch_input.to(xxx)`
 
 
 
