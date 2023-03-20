@@ -69,7 +69,7 @@ def check_forward_and_backward(torch_rep, paddle_rep, options):
         except Exception as e:
             log("*** Diff found in loss, Checkout your loss function! ***")
             log("loss compare:\n")
-            print("{}".format(str(e)))
+            print("{}".format(type(e).__name__ + ":  " + str(e)))
             return False
 
     if options["diff_phase"] == "forward":
@@ -106,7 +106,7 @@ def check_forward(t_root, p_root, t_rep, p_rep, options):
     except Exception as e:
         log(f"While checking forward, diff found at torch: {t_root} vs paddle: {p_root}")
         log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again:")
-        print(str(e))
+        print(type(e).__name__ + ":  " + str(e))
         log("Compare detail:")
         print_info(paddle_item, torch_item, compare_info, -1, grad=False, t_root=t_root.origin, p_root=p_root.origin)
         return False
@@ -143,7 +143,7 @@ def check_backward(t_root, p_root, t_rep, p_rep, options):
     except Exception as e:
         log(f"While checking backward, diff found at torch: {t_root} vs paddle: {p_root}")
         log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again:")
-        print(str(e))
+        print(type(e).__name__ + ":  " + str(e))
         log("Compare detail:")
         print_info(paddle_item, torch_item, compare_info, -1, grad=True, t_root=t_root.origin, p_root=p_root.origin)
         return False
@@ -243,7 +243,7 @@ def check_weight(layer, module, options, layer_map=LayerMap()):
                     model_repr_info(torch_submodule),
                     paddle_sublayer.padiff_path + "." + paddle_pname,
                     torch_submodule.padiff_path + "." + torch_pname,
-                    str(e),
+                    type(e).__name__ + ":  " + str(e),
                 )
             )
             log_file("weight_diff.log", "a", info)
@@ -252,7 +252,7 @@ def check_weight(layer, module, options, layer_map=LayerMap()):
         process_each_weight(_check_weight, layer, module, layer_map)
     except Exception as e:
         log("Err occurs when compare weight!!!\n")
-        print(str(e))
+        print(type(e).__name__ + ":  " + str(e))
         return False
 
     if _weight_check == False:
@@ -306,7 +306,7 @@ def check_grad(layer, module, options, layer_map=LayerMap()):
                     model_repr_info(torch_submodule),
                     paddle_sublayer.padiff_path + "." + paddle_pname,
                     torch_submodule.padiff_path + "." + torch_pname,
-                    str(e),
+                    type(e).__name__ + ":  " + str(e),
                 )
             )
             log_file("grad_diff.log", "a", info)
@@ -315,7 +315,7 @@ def check_grad(layer, module, options, layer_map=LayerMap()):
         process_each_weight(_check_grad, layer, module, layer_map)
     except Exception as e:
         log("Err occurs when compare grad!!!\n")
-        print(str(e))
+        print(type(e).__name__ + ":  " + str(e))
         return False
 
     if _grad_check == False:

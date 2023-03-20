@@ -67,7 +67,7 @@ class Runner(object):
                 except Exception as e:
                     raise RuntimeError(
                         "Exception is thrown while running forward of torch_module, please check the legality of module.\n{}".format(
-                            str(e)
+                            type(e).__name__ + ":  " + str(e)
                         )
                     )
 
@@ -84,7 +84,7 @@ class Runner(object):
                 except Exception as e:
                     raise RuntimeError(
                         "Exception is thrown while running forward of paddle_layer, please check the legality of layer.\n{}".format(
-                            str(e)
+                            type(e).__name__ + ":  " + str(e)
                         )
                     )
         if not self.options["single_step"]:
