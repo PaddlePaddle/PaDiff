@@ -2,7 +2,6 @@
   - [一、`auto_diff` 接口参数](#一auto_diff-接口参数)
   - [二、`assign_weight` 接口参数](#二assign_weight-接口参数)
 
-
 # Interfaces
 ## 一、`auto_diff` 接口参数
 
@@ -26,11 +25,15 @@
 
       -   `rtol` ： 相对精度误差上限，默认值为  `1e-7`
 
-      -   `diff_phase` ：  `"both"|"forward"`  默认为  `"both"`。设置为  `"both"`  时，工具将比较前反向的 diff；当设置为  `"forward"`  时，仅比较前向 diff，且会跳过模型的 backward 计算过程。
+      -   `diff_phase` ：  `"both"|"forward"|"backward"`  默认为  `"both"`。设置为  `"both"`  时，工具将比较前反向的 diff；当设置为  `"forward"`  时，仅比较前向 diff，且会跳过模型的 backward 计算过程。"backward" 仅在使用 single_step 时有效。
 
       -   `compare_mode` ：  `"mean"|"strict"`  默认为  `"mean"`。  `"mean"`  表示使用Tensor间误差的均值作为对齐标准；  `"strict"`  表示对Tensor进行逐数据（Elementwise）的对齐检查。
 
-      -   `single_step` ：  `True|False`  默认为  `False`。设置为  `True`  时开启单步对齐模式，forward 过程中每一个 step 都会同步模型的输入，可以避免层间误差累积。注意：开启 `single_step` 后将不会触发 backward 过程，`"diff_phase"` 参数将被强制设置为  `"forward"`。
+      -   `single_step` ：  `True|False`  默认为  `False`。设置为  `True`  时开启单步对齐模式，forward 过程中每一个 step 都会同步模型的输入，可以避免层间误差累积。
+
+      > 注：
+      >
+      > single_step 模式下，对齐检查的逻辑会随着 diff_phase 属性的变化而不同。如果需要同时用 single_step 对齐前反向，则 padiff 将会运行模型两次，并分别进行前向和反向的 single_step 对齐检查 （single step 模式下运行模型的 forward 无法正常训练）。
 
   -   `loss_fn` ：由 paddle 和 torch 使用的损失函数按顺序组成的 list。在使用时，要求传入的 loss function 只接受一个参数。
 

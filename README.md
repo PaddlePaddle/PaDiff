@@ -21,7 +21,7 @@
 
 PaDiff是基于PaddlePaddle与PyTorch的模型精度对齐工具。传入Paddle与Torch模型，对齐训练中间结果以及训练后的模型权重，并提示精度diff第一次出现的位置。
 
--   文档目录 [Guides](docs/Guides.md)
+-   文档目录 [Guides](docs/README.md)
 -   使用教程 [Tutorial](docs/Tutorial.md)
 -   接口参数说明 [Interface](docs/Interface.md)
 -   常见问题解答 [FAQs](docs/FAQs.md)

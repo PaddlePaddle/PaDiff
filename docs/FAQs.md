@@ -1,3 +1,14 @@
+- [FAQs](#faqs)
+  - [使用包含随机性的op](#使用包含随机性的op)
+  - [显存溢出](#显存溢出)
+  - [如何设置模型device](#如何设置模型device)
+  - [如何进行非fp32模型的对齐](#如何进行非fp32模型的对齐)
+  - [由padiff引发的import问题](#由padiff引发的import问题)
+  - [使用torch的checkpoint机制](#使用torch的checkpoint机制)
+  - [使用buffer](#使用buffer)
+  - [调试建议](#调试建议)
+
+
 # FAQs
 
 ## 使用包含随机性的op
@@ -23,40 +34,40 @@ padiff无法对齐包含随机性op的模型，例如dropout。
 
 auto_diff 工具的工作与 device 无关，如果需要进行 cpu/gpu 的对齐，只需要传入device 为 cpu/gpu 的模型以及输入即可
 
--   在调用paddle模型构造函数以及input data初始化前，使用 paddle.set_device(xxx)
--   在构造torch模型后，使用 torch_module = torch_module.to(xxx)， torch_input = torch_input.to(xxx)
+-   在调用paddle模型构造函数以及 input data 初始化前，使用 `paddle.set_device(xxx)`
+-   在构造torch模型后，使用 `torch_module = torch_module.to(xxx)`, `torch_input = torch_input.to(xxx)`
 
 
 
 ## 如何进行非fp32模型的对齐
 
-如果模型的输入以及参数均为非fp32类型，同样可以正常对齐。对于使用amp的模型对齐还需进一步测试。
+如果模型的输入以及参数均为非fp32类型，同样可以正常对齐。对于使用 amp 的模型对齐还需进一步测试。
 
 
 
 ## 由padiff引发的import问题
 
-此类问题可能是padiff开启api级别的对齐检查引起的
+此类问题可能是 padiff 开启 api 级别的对齐检查引起的
 
-1.   尝试将padiff的import后置
+1.   尝试将 padiff 的 import 后置
 2.   若仍不能避免错误，可通过  `export PADIFF_API_CHECK=OFF` 关闭API级别的对齐检查，并向我们反馈
 
 
 
 ## 使用torch的checkpoint机制
 
-目前暂不支持torch的checkpoint机制（在反向时rerun部分前向逻辑）
+目前暂不支持 torch 的 checkpoint 机制（在反向时 rerun 部分前向逻辑）
 
-该机制会导致反向梯度无法捕获，因此padiff现在会报错
+该机制会导致反向梯度无法捕获，因此 padiff 现在会报错
 
 
 
 ## 使用buffer
 
-padiff允许使用buffer：
+padiff 允许使用 buffer：
 
-1.   torch 与 paddle 的模型写法必须对齐（都是buffer或都是param，不能一边buffer一边param）
-2.   padiff不会修改buffer的值
+1.   torch 与 paddle 的模型写法必须对齐（都使用 buffer 或都使用 param ，不能一边 buffer 一边 param ）
+2.   padiff 不会修改 buffer 的值
 
 
 
