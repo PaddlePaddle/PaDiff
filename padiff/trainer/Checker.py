@@ -36,9 +36,14 @@ class Checker:
         return ret
 
     @staticmethod
-    def weight_grad_check(layer, module, options, layer_map=LayerMap()):
-        weight_check, grad_check = weight_grad_check(layer, module, options=options, layer_map=layer_map)
-        return weight_check, grad_check
+    def check_weight(layer, module, options, layer_map=LayerMap()):
+        ret = check_weight(layer, module, options=options, layer_map=layer_map)
+        return ret
+
+    @staticmethod
+    def check_grad(layer, module, options, layer_map=LayerMap()):
+        ret = check_grad(layer, module, options=options, layer_map=layer_map)
+        return ret
 
 
 """
@@ -195,23 +200,10 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False, t_root=None, 
 """
 
 
-def weight_grad_check(layer, module, options, layer_map=LayerMap()):
-    """
-    Compare weights and grads between layer(paddle) and module(torch)
-
-    Args:
-        layer (paddle.nn.Layer): input paddle layer
-        module (torch.nn.Module): input torch module
-        layer_map (dict, optional): manually map paddle layer and torch module.
-    """
-    if options["diff_phase"] == "forward":
-        log("Diff_phase is `forward`. Weight and grad check skipped.")
-        return True, True
-
+def check_weight(layer, module, options, layer_map=LayerMap()):
     _weight_check = True
-    _grad_check = True
 
-    def _check_weight_grad(
+    def _check_weight(
         paddle_sublayer,
         torch_submodule,
         paddle_pname,
@@ -220,7 +212,6 @@ def weight_grad_check(layer, module, options, layer_map=LayerMap()):
         torch_param,
         settings,
     ):
-        nonlocal _weight_check, _grad_check
         shape_check(
             paddle_sublayer,
             torch_submodule,
@@ -232,17 +223,15 @@ def weight_grad_check(layer, module, options, layer_map=LayerMap()):
         )
         p_param = paddle_param.numpy()
         t_param = torch_param.detach().cpu().numpy()
-        p_grad = paddle_param.grad.numpy() if paddle_param.grad is not None else None
-        t_grad = torch_param.grad.detach().cpu().numpy() if torch_param.grad is not None else None
+
         if settings["transpose"]:
             t_param = numpy.transpose(t_param)
-            if t_grad is not None:
-                t_grad = numpy.transpose(t_grad)
 
         # check weight
         try:
             assert_tensor_equal(p_param, t_param, settings)
         except Exception as e:
+            nonlocal _weight_check
             _weight_check = False
             info = (
                 "=" * 25 + "\n" + "After training, weight value is different.\n"
@@ -259,11 +248,53 @@ def weight_grad_check(layer, module, options, layer_map=LayerMap()):
             )
             log_file("weight_diff.log", "a", info)
 
+    try:
+        process_each_weight(_check_weight, layer, module, layer_map)
+    except Exception as e:
+        log("Err occurs when compare weight!!!\n")
+        print(str(e))
+        return False
+
+    if _weight_check == False:
+        log(f"Diff found in model weights after optimizer step, check report `{diff_log_path + '/weight_diff.log'}`.")
+    else:
+        log("weight compared.")
+
+    return _weight_check
+
+
+def check_grad(layer, module, options, layer_map=LayerMap()):
+    _grad_check = True
+
+    def _check_grad(
+        paddle_sublayer,
+        torch_submodule,
+        paddle_pname,
+        torch_pname,
+        paddle_param,
+        torch_param,
+        settings,
+    ):
+        shape_check(
+            paddle_sublayer,
+            torch_submodule,
+            paddle_pname,
+            torch_pname,
+            paddle_param,
+            torch_param,
+            settings,
+        )
+        p_grad = paddle_param.grad.numpy() if paddle_param.grad is not None else None
+        t_grad = torch_param.grad.detach().cpu().numpy() if torch_param.grad is not None else None
+        if settings["transpose"] and t_grad is not None:
+            t_grad = numpy.transpose(t_grad)
+
         # check grad
         try:
             if (p_grad is not None or t_grad is not None) and settings["diff_phase"] == "both":
                 assert_tensor_equal(p_grad, t_grad, settings)
         except Exception as e:
+            nonlocal _grad_check
             _grad_check = False
             info = (
                 "=" * 25 + "\n" + "After training, grad value is different.\n"
@@ -281,18 +312,15 @@ def weight_grad_check(layer, module, options, layer_map=LayerMap()):
             log_file("grad_diff.log", "a", info)
 
     try:
-        process_each_weight(_check_weight_grad, layer, module, layer_map)
+        process_each_weight(_check_grad, layer, module, layer_map)
     except Exception as e:
-        log("Err occurs when compare weight and grad!!!\n")
+        log("Err occurs when compare grad!!!\n")
         print(str(e))
-        return False, False
+        return False
 
-    if _weight_check == False:
-        log(f"Diff found in model weights, check report `{diff_log_path + '/weight_diff.log'}`.")
     if _grad_check == False:
-        log(f"Diff found in model grad, check report `{diff_log_path + '/grad_diff.log'}`.")
+        log(f"Diff found in model grad after backward, check report `{diff_log_path + '/grad_diff.log'}`.")
+    else:
+        log("grad compared.")
 
-    if _weight_check and _grad_check:
-        log("weight and grad compared.")
-
-    return _weight_check, _grad_check
+    return _grad_check
