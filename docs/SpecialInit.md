@@ -38,7 +38,7 @@ def my_init(paddle_layer, torch_module):
     # ...
 
 add_special_init(
-    {"LSTM": my_init}
+    paddle_name="LSTM", torch_name="LSTM", my_init
 )
 ```
 
@@ -60,7 +60,7 @@ add_special_init(
 from .special_init_pool import global_special_init_pool as init_pool
 
 
-@init_pool.register("XXX")  	# 此处填写paddle模型的类名
+@init_pool.register(paddle_name="ClassXXX", torch_name="ClassYYY")  	# 此处填写模型的类名
 def init_XXX(paddle_layer, torch_module):
     # your initialization logic
 ```
