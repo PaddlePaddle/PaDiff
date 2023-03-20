@@ -2,7 +2,7 @@
 
 -   MultiHeadAttention
 -   LSTM
-
+-   BatchNorm2D
 
 
 ## Special Init
