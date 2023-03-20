@@ -32,15 +32,18 @@ class Trainer:
         self.runner.set_report(paddle_report, torch_report)
         self.runner.forward_step(example_inp)
 
-    def do_check(self, paddle_report, torch_report):
+    def do_check_fwd_bwd(self, paddle_report, torch_report):
         ret = Checker.check_forward_and_backward(torch_report, paddle_report, self.options)
-        if ret == False:
-            return ret
+        return ret
 
-        weight_check, grad_check = Checker.weight_grad_check(
+    def do_check_grad(self):
+        ret = Checker.check_grad(self.runner.layer, self.runner.module, options=self.options, layer_map=self.layer_map)
+        return ret
+
+    def do_check_weight(self):
+        ret = Checker.check_weight(
             self.runner.layer, self.runner.module, options=self.options, layer_map=self.layer_map
         )
-        ret = weight_check and grad_check
         return ret
 
     def do_optimizer(self):
@@ -53,18 +56,29 @@ class Trainer:
             return self.run_normal(example_inp)
 
     def run_normal(self, example_inp):
+        ret = True
         for step_id in range(self.options["steps"]):
             log(f"=================Train Step {step_id}=================")
             paddle_report = Report("paddle")
             torch_report = Report("torch")
             self.do_run(paddle_report, torch_report, example_inp)
-            ret = self.do_check(paddle_report, torch_report)
-            self.do_optimizer()
+            ret = self.do_check_fwd_bwd(paddle_report, torch_report) and ret
             if ret == False:
                 return False
+
+            if self.options["diff_phase"] == "forward":
+                log("Diff phase is forward, weight and grad check skipped.")
+            else:
+                ret = self.do_check_grad() and ret
+                self.do_optimizer()
+                ret = self.do_check_weight() and ret
+
+                if ret == False:
+                    return False
         return True
 
     def run_single_step(self, example_inp):
+        ret = True
         diff_phase = self.options["diff_phase"]
         for step_id in range(self.options["steps"]):
             log(f"=================Train Step {step_id}=================")
@@ -74,7 +88,7 @@ class Trainer:
                 paddle_report = Report("paddle")
                 torch_report = Report("torch")
                 self.do_run(paddle_report, torch_report, example_inp)
-                ret = self.do_check(paddle_report, torch_report)
+                ret = self.do_check_fwd_bwd(paddle_report, torch_report) and ret
                 if ret == False:
                     log("Diff found at sinle_step mode `forward` part!")
                     return False
@@ -82,11 +96,20 @@ class Trainer:
             if diff_phase == "backward" or diff_phase == "both":
                 log(f"diff phase is {diff_phase}, run single_step backward part.")
                 self.options["diff_phase"] = "backward"
+
                 paddle_report = Report("paddle")
                 torch_report = Report("torch")
                 self.do_run(paddle_report, torch_report, example_inp)
-                ret = self.do_check(paddle_report, torch_report)
+
+                ret = self.do_check_fwd_bwd(paddle_report, torch_report) and ret
+                if ret == False:
+                    log("Diff found at sinle_step mode `backward` part!")
+                    return False
+
+                ret = self.do_check_grad() and ret
                 self.do_optimizer()
+                ret = self.do_check_weight() and ret
+
                 if ret == False:
                     log("Diff found at sinle_step mode `backward` part!")
                     return False

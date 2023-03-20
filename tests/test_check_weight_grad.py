@@ -20,7 +20,7 @@ import torch
 
 from padiff import auto_diff
 from padiff.utils import reset_log_dir, init_options
-from padiff.trainer.Checker import weight_grad_check
+from padiff.trainer.Checker import check_grad, check_weight
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -78,7 +78,8 @@ class TestCaseName(unittest.TestCase):
 
         module.zero_grad()
         reset_log_dir()
-        weight_check, grad_check = weight_grad_check(layer, module, options=options)
+        weight_check = check_weight(layer, module, options)
+        grad_check = check_grad(layer, module, options)
         assert weight_check is True, "Weight params should be same"
         assert grad_check is False, "Grad should be different"
 
@@ -89,7 +90,8 @@ class TestCaseName(unittest.TestCase):
         for param in module.parameters():
             param.data = param * 2
         reset_log_dir()
-        weight_check, grad_check = weight_grad_check(layer, module, options=options)
+        weight_check = check_weight(layer, module, options)
+        grad_check = check_grad(layer, module, options)
         assert weight_check is False, "Weight params should be different"
         assert grad_check is True, "Grad should be same"
 

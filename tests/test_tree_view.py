@@ -88,7 +88,7 @@
 #                 except Exception as e:
 #                     raise RuntimeError(
 #                         "Exception is thrown while running forward of torch_module, please check the legality of module.\n{}".format(
-#                             str(e)
+#                             type(e).__name__ + ':  ' + str(e)
 #                         )
 #                     )
 #         treeview = TreeView(torch_report.get_fwd_items())

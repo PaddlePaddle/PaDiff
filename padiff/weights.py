@@ -90,7 +90,7 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
                 err_str += f"            `{paddle_sublayer.padiff_path + '.' + paddle_pname}`\n"
                 err_str += f"    torch: `{model_repr_info(torch_submodule)}`\n"
                 err_str += f"           `{torch_submodule.padiff_path + '.' + torch_pname}`\n\n"
-                err_str += f"{str(e)}\n"
+                err_str += f"{type(e).__name__ + ':  ' + str(e)}\n"
                 err_str += weight_struct_info(layer, module, paddle_sublayer, torch_submodule)
                 raise RuntimeError(err_str)
 
@@ -169,7 +169,7 @@ def assign_weight(layer, module, layer_map=LayerMap()):
                 print(
                     f"Special init paddle layer `{paddle_layer_name}` and torch module `{torch_module_name}` failed."
                 )
-                print(str(e))
+                print(type(e).__name__ + ":  " + str(e))
                 log("Assign weight Failed !!!")
                 return False
 
@@ -179,7 +179,7 @@ def assign_weight(layer, module, layer_map=LayerMap()):
         return True
     except Exception as e:
         log("Assign weight Failed !!!\n")
-        print(str(e))
+        print(type(e).__name__ + ":  " + str(e))
         return False
 
 
