@@ -1,18 +1,31 @@
+- [Tutorial](#tutorial)
+  - [一、 使用方法](#一-使用方法)
+  - [二、阅读输出信息](#二阅读输出信息)
+    - [2.1 正确对齐时的输出信息](#21-正确对齐时的输出信息)
+    - [2.2 模型权重拷贝失败时的报错信息](#22-模型权重拷贝失败时的报错信息)
+    - [2.3 模型前反向对齐失败时的输出信息](#23-模型前反向对齐失败时的输出信息)
+    - [2.4 模型weight/grad对齐失败的报错信息](#24-模型weightgrad对齐失败的报错信息)
+  - [三、使用loss \& optimizer](#三使用loss--optimizer)
+    - [3.1 使用loss](#31-使用loss)
+    - [3.2 使用optimizer](#32-使用optimizer)
+  - [四、使用assign\_weight](#四使用assign_weight)
+  - [五、 使用API级别的对齐检查](#五-使用api级别的对齐检查)
+
 # Tutorial
 
+## 一、 使用方法
 
+> `auto_diff` 详细参数解释详见：[接口信息](Interfaces.md)
 
-## 使用方法
-
-auto_diff的具体接口参数信息见：[接口信息](Interfaces.md)
-
-使用padiff进行模型对齐检查有几个基本的步骤
+使用 `padiff` 进行模型对齐检查有几个基本的步骤：- [Tutorial](#tutorial)
 
 1.   分别构造 paddle 和 torch 模型
 2.   分别构造两个模型的输入数据
-3.   调用auto_diff
+3.   调用 `auto_diff` API 接口
 
-以下是一段使用padiff工具进行对齐的完整代码，值得注意的是：**在模型定义时，需要将forward中所使用的子模型在  `__init__`  函数中定义，并保证其中的子模型定义顺序一致**，具体可见下方示例代码
+以下是一段使用 padiff 工具进行对齐的完整代码，
+
+> **注意：**在模型定义时，需要将forward中所使用的子模型在  `__init__`  函数中定义，并保证其中的子模型定义顺序一致**，具体可见下方示例代码
 
 ```py
 from padiff import auto_diff
@@ -70,23 +83,23 @@ auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0
 
 
 
-## 阅读输出信息
+## 二、阅读输出信息
 
-padiff的工作可以分为几个阶段，在发生错误时，需要首先判断在哪个阶段发生了错误
+padiff 的工作可以分为几个阶段，在发生错误时，需要首先判断在哪个阶段发生了错误
 
-1.   权重拷贝阶段（当设置参数 auto_weights 为 True时）
+1.   权重拷贝阶段（当设置参数 `auto_weights` 为 `True` 时）
 2.   模型前反向对齐阶段
 3.   模型权重&梯度对齐阶段
 
-当padiff进行多个step的对齐检查时，以上2、3阶段循环执行
+当 padiff 进行多个 step 的对齐检查时，以上2、3阶段循环执行
 
-下面介绍正确对齐，以及在不同阶段产生错误时的输出信息
+下面介绍正确对齐，以及在不同阶段产生错误时的输出信息。
 
 
 
-### 正确对齐时的输出信息
+### 2.1 正确对齐时的输出信息
 
-```
+```bash
 [AutoDiff] Your options:
 {
   atol: `0.0001`
@@ -106,20 +119,20 @@ padiff的工作可以分为几个阶段，在发生错误时，需要首先判�
 
 
 
-### 模型权重拷贝失败时的报错信息
+### 2.2 模型权重拷贝失败时的报错信息
 
 当看到`Assign weight Failed`，说明权重拷贝出现了问题，并在下文中附上具体的错误信息
 
 可能的问题有：
 
-1.   子模型/权重定义顺序不对齐 => 修改代码对齐，或使用LayerMap指定
-2.   子模型的paddle与torch实现方式不一致（权重等对不齐）=> 使用LayerMap指定
+1.   子模型/权重定义顺序不对齐 => 修改代码对齐，或使用 `LayerMap` 指定
+2.   子模型的 paddle 与 torch 实现方式不一致（权重等对不齐）=> 使用 `LayerMap` 指定
 
-LayerMap的使用方式详见[LayerMap使用说明](LayerMap.md)
+> **注：**LayerMap 的使用方式详见：[LayerMap使用说明](LayerMap.md)
 
-若不使用padiff的权重初始化功能，可以避免此类错误，但在权重与梯度检查时，会遇见同样的问题
+若不使用 padiff 的权重初始化功能，可以避免此类错误，但在权重与梯度检查时，会遇见同样的问题
 
-```
+```bash
 [AutoDiff] Your options:
 {
   atol: `0.0001`
@@ -156,16 +169,16 @@ Hint:
 
 
 
-### 模型前反向对齐失败时的输出信息
+### 2.3 模型前反向对齐失败时的输出信息
 
-1.   指明diff出现的阶段：`Forward Stage` or `Backward Stage`，该信息出现在日志的开头
-2.   打印出现精度diff时的比较信息，包括绝对误差和相对误差数值
+1.   指明 diff 出现的阶段：`Forward Stage` or `Backward Stage`，该信息出现在日志的开头
+2.   打印出现精度 diff 时的比较信息，包括绝对误差和相对误差数值
 3.   打印模型结构，并用括号标注结点类型，用`<---  *** HERE ***`指示出现diff的位置（log过长时将输出到文件中）
 4.   打印调用栈信息，帮助定位到具体的代码位置
 
-定位精度误差位置后，可进行验证排查
+定位精度误差位置后，可进行验证排查：
 
-```
+```bash
 [AutoDiff] Your options:
 {
   atol: `0.0001`
@@ -234,9 +247,9 @@ Torch  Stacks:
 
 
 
-### 模型weight/grad对齐失败的报错信息
+### 2.4 模型weight/grad对齐失败的报错信息
 
-由于weight/grad对齐信息一般比较多，所以会将信息输入到日志文件。日志文件的路径会打印到终端（位于当前目录的 diff_log 文件夹下），如下面的例子所示：
+由于 `weight/grad` 对齐信息一般比较多，所以会将信息输入到日志文件。日志文件的路径会打印到终端（位于当前目录的 `diff_log` 文件夹下），如下面的例子所示：
 
 ```
 [AutoDiff] Your options:
@@ -278,21 +291,19 @@ Max relative difference: 0.9999987
 
 
 
-## 使用loss & optimizer
+## 三、使用loss & optimizer
 
-### 使用loss
+### 3.1 使用loss
 
-能够向padiff工具传入自定义的loss_fn，并参与对齐。但传入的loss函数有一定限制
+能够向 padiff 工具传入自定义的 `loss_fn`，并参与对齐。但传入的 loss 函数有一定限制
 
 须知：
 
-1.   传入的loss_fn是一个可选项，不指定loss_fn时，将使用auto_diff内置的一个fake loss function进行计算，该函数将output整体求平均值并返回。
-2.   **loss_fn 只接受一个输入（即model的output），并输出一个scale tensor**。无法显式传入label，但可以通过lambda或者闭包等方法间接实现。
-3.   loss_fn 也可以是一个model，但是loss_fn内部的逻辑将不会参与对齐检查，padiff只会检查loss_fn的输出是否对齐
+1.   传入的 `loss_fn` 是一个可选项，不指定 `loss_fn` 时，将使用 `auto_diff` 内置的一个 `fake loss function` 进行计算，该函数将 output 整体求平均值并返回。
+2.   **`loss_fn` 只接受一个输入（即model的output），并输出一个scale tensor**。无法显式传入label，但可以通过 lambda 或者闭包等方法间接实现。
+3.   `loss_fn` 也可以是一个 model ，但是 `loss_fn` 内部的逻辑将不会参与对齐检查， padiff 只会检查 `loss_fn` 的输出是否对齐
 
-注意事项：
-
-1.   利用partial绑定label是一种简单的构造loss_fn的方法，使用时需注意，必须将参数名与参数值进行绑定，否则可能在传参时错位
+> **注：** 利用 `partial` 绑定 label 是一种简单的构造 `loss_fn` 的方法，使用时需注意，必须将参数名与参数值进行绑定，否则可能在传参时错位
 
 ```py
 class SimpleLayer(paddle.nn.Layer):
@@ -334,18 +345,18 @@ auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, loss_fn
 
 
 
-### 使用optimizer
+### 3.2 使用optimizer
 
-能够向padiff工具传入optimizer，在多step对齐下，将使用optimizer更新模型
+能够向 padiff 工具传入 `optimizer`，在多 step 对齐下，将使用 `optimizer` 更新模型
 
 须知：
 
-1.   optimizer是可选的，若不传入，padiff并不提供默认的optimzer，将跳过权重更新的步骤
-2.   若需要进行多step对齐，必须传入optimizer（若不传入，step会被自动重置为1）
-3.   padiff不会检查optimizer内部是否对齐，但在多step下会检查模型权重（受optimizer影响）
-4.   optimizer有两种使用方式：
-     - 依次传入一组 paddle.optimizer.Optimizer 和 torch.optim.Optimizer
-     - 依次传入两个**无输入的lambda**，分别负责paddle模型与torch模型的权重更新，可在其中实现自定义操作
+1.   `optimizer` 是可选的，若不传入，padiff 并不提供默认的 `optimzer` ，将跳过权重更新的步骤
+2.   若需要进行多 step 对齐，必须传入 `optimizer`（若不传入，step 会被自动重置为1）
+3.   padiff 不会检查 `optimizer` 内部是否对齐，但在多 step 下会检查模型权重（受 `optimizer` 影响）
+4.   `optimizer` 有两种使用方式：
+     - 依次传入一组 `paddle.optimizer.Optimizer` 和 `torch.optim.Optimizer`
+     - 依次传入两个**无输入的 lambda**，分别负责 paddle 模型与 torch 模型的权重更新，可在其中实现自定义操作
 
 ```py
 class SimpleLayer(paddle.nn.Layer):
@@ -375,16 +386,16 @@ auto_diff(
 
 
 
-## 使用assign_weight
+## 四、使用assign_weight
 
-assign_weight 用于复制 torch 模型的权重到 paddle 模型，具体接口参数信息见：[接口信息](Interfaces.md)
+`assign_weight` 用于复制 torch 模型的权重到 paddle 模型，具体接口参数信息见：[接口信息](Interfaces.md)
 
-assign_weight的逻辑以及报错信息与 auto_diff 开启 auto_weight 选项是一致的，因此可以参考上文
+`assign_weight` 的逻辑以及报错信息与 `auto_diff` 开启 `auto_weight` 选项是一致的，因此可以参考上文
 
 须知：
 
-1.   如果assign_weight失败，则函数的返回值为False（不会抛出异常）
-2.   如果只使用assign weight 接口，不使用 auto_diff 接口，请设置环境变量 `export PADIFF_API_CHECK=OFF`
+1.   如果 `assign_weight` 失败，则函数的返回值为 `False`（不会抛出异常）
+2.   如果只使用 `assign weight` 接口，不使用 `auto_diff` 接口，请设置环境变量 `export PADIFF_API_CHECK=OFF`
 
 ```py
 import os
@@ -404,8 +415,8 @@ assign_weight(layer, module, layer_map)
 
 
 
-## 使用API级别的对齐检查
+## 五、 使用API级别的对齐检查
 
-目前PaDiff工具已默认开启API级别的对齐检查
+目前 PaDiff 工具已默认开启 API 级别的对齐检查
 
 设置环境变量可以关闭该功能： `export PADIFF_API_CHECK=OFF`
