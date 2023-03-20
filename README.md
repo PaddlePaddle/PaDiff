@@ -1,4 +1,5 @@
-# PaDiff
+# PaDiff ![](https://img.shields.io/badge/version-v0.1-brightgreen) ![](https://img.shields.io/badge/docs-latest-brightgreen) ![](https://img.shields.io/badge/PRs-welcome-orange) ![](https://img.shields.io/badge/pre--commit-Yes-brightgreen)
+
 
 **P**addle  **A**utomatically  **Diff**  precision toolkits.
 
@@ -21,7 +22,7 @@
 
 PaDiff是基于PaddlePaddle与PyTorch的模型精度对齐工具。传入Paddle与Torch模型，对齐训练中间结果以及训练后的模型权重，并提示精度diff第一次出现的位置。
 
--   文档目录 [Guides](docs/Guides.md)
+-   文档目录 [Guides](docs/README.md)
 -   使用教程 [Tutorial](docs/Tutorial.md)
 -   接口参数说明 [Interface](docs/Interface.md)
 -   常见问题解答 [FAQs](docs/FAQs.md)
@@ -80,7 +81,7 @@ auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0
 
 
 
-## 已支持Special Init的组件
+## 已支持 `Special Init` 的组件
 
 -   MultiHeadAttention
 -   LSTM
