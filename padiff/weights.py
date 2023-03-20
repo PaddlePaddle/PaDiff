@@ -28,6 +28,7 @@ from .utils import (
 from .file_loader import global_yaml_loader as yamls
 
 from .special_init import global_special_init_pool as init_pool
+from .special_init import build_name
 
 
 def process_each_weight(process, layer, module, layer_map=LayerMap()):
@@ -150,20 +151,24 @@ def assign_weight(layer, module, layer_map=LayerMap()):
     assert isinstance(module, torch.nn.Module), "The second param of assign_weight should be a torch.nn.Module"
 
     for torch_submodule, paddle_sublayer in layer_map.special_init_layers():
-        layer_name = paddle_sublayer.__class__.__name__
-        if layer_name not in init_pool.funcs.keys():
+        paddle_layer_name = paddle_sublayer.__class__.__name__
+        torch_module_name = torch_submodule.__class__.__name__
+        key_name = build_name(paddle_layer_name, torch_module_name)
+        if key_name not in init_pool.funcs.keys():
             log(
                 "*** Special init paddle layer `{}` and torch module `{}` is not supported ***".format(
-                    paddle_sublayer.__class__.__name__, torch_submodule.__class__.__name__
+                    paddle_layer_name, torch_module_name
                 )
             )
             log("    Checkout the parameters are inited by yourself")
             log("    ,or you can register your init method!")
         else:
             try:
-                init_pool.funcs[layer_name](paddle_sublayer, torch_submodule)
+                init_pool.funcs[key_name](paddle_sublayer, torch_submodule)
             except Exception as e:
-                print(f"Special init Layer`{layer_name}` failed.")
+                print(
+                    f"Special init paddle layer `{paddle_layer_name}` and torch module `{torch_module_name}` failed."
+                )
                 print(str(e))
                 log("Assign weight Failed !!!")
                 return False

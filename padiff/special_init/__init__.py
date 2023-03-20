@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .special_init_pool import global_special_init_pool, add_special_init
+from .special_init_pool import global_special_init_pool, add_special_init, build_name
 
 import os
 import importlib
@@ -26,4 +26,5 @@ for filename in os.listdir(cur_dir):
 __all__ = [
     "global_special_init_pool",
     "add_special_init",
+    "build_name",
 ]

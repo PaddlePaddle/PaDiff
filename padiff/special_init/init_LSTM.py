@@ -17,7 +17,7 @@ from .special_init_pool import global_special_init_pool as init_pool
 import paddle
 
 
-@init_pool.register("LSTM")
+@init_pool.register(paddle_name="LSTM", torch_name="LSTM")
 def init_LSTM(layer, module):
     for (name, paddle_param), torch_param in zip(
         layer.named_parameters(prefix="", include_sublayers=False),
