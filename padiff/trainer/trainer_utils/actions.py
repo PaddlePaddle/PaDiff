@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .utils import assert_tensor_equal
+from .. import utils
 import torch
 import paddle
 
@@ -81,7 +81,7 @@ class EqualAction(Action):
                 warnings.warn("Found Tensor shape is [0], compare skipped!")
                 continue
             try:
-                assert_tensor_equal(tt.detach().cpu().numpy(), pt.numpy(), cfg)
+                utils.assert_tensor_equal(tt.detach().cpu().numpy(), pt.numpy(), cfg)
             except Exception as e:
                 if is_debug:
                     print("Mean of inputs:")

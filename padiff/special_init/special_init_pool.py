@@ -16,11 +16,18 @@
 # NOTICE: make sure torch params is in the same device after init
 
 
+def build_name(paddle_name, torch_name):
+    name = paddle_name + "###" + torch_name
+    return name
+
+
 class SpecialInitPool(object):
     def __init__(self):
         self.funcs = {}
 
-    def register(self, name):
+    def register(self, paddle_name, torch_name):
+        name = build_name(paddle_name, torch_name)
+
         def do_reg(func):
             self.funcs[name] = func
             return func
@@ -31,5 +38,6 @@ class SpecialInitPool(object):
 global_special_init_pool = SpecialInitPool()
 
 
-def add_special_init(inp_dict):
-    global_special_init_pool.funcs.update(inp_dict)
+def add_special_init(paddle_name, torch_name, func):
+    name = build_name(paddle_name, torch_name)
+    global_special_init_pool.funcs[name] = func

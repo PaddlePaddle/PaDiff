@@ -1,4 +1,4 @@
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .special_init_pool import global_special_init_pool, add_special_init, build_name
-
-import os
-import importlib
-
-cur_dir = os.path.split(os.path.realpath(__file__))[0]
-for filename in os.listdir(cur_dir):
-    if filename.startswith("init_") and filename.endswith(".py"):
-        module_name = filename.rpartition(".")[0]
-        importlib.import_module(__name__ + "." + module_name)
+from .. import utils
+from .Trainer import Trainer
 
 __all__ = [
-    "global_special_init_pool",
-    "add_special_init",
-    "build_name",
+    "Trainer",
 ]

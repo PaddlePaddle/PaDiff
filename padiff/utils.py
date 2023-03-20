@@ -15,17 +15,22 @@
 import os
 import sys
 import shutil
-import warnings
-from collections import namedtuple, Iterable
+from collections import Iterable
 from itertools import zip_longest
 
 import numpy as np
 import paddle
 import torch
-from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
+
+try:
+    from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
+except:
+    from paddle.utils import flatten, pack_sequence_as, map_structure
 from .file_loader import global_yaml_loader as yamls
 
-# process Tensor
+"""
+    clone tensor
+"""
 
 
 def is_tensor(x):
@@ -91,7 +96,9 @@ def clone_structure(inputs):
     return map_structure(_clone_tensor, inputs)
 
 
-# traversal tools
+"""
+    traversal tools
+"""
 
 
 def for_each_tensor(*structure):
@@ -141,143 +148,9 @@ def map_structure_and_replace_key(func, structure1, structure2):
     return pack_sequence_as(structure2, [func(*x) for x in entries])
 
 
-# Report tools
-
-
-def is_sublayer(father_net, child_net):
-    """
-    return True if child_net is the DIRECTL children of father_net.
-    """
-
-    def _is_sublayer(father_net, child_net, layer_type):
-
-        for child in father_net.children():
-            check_list = child if isinstance(child, layer_type["layer_list"]) else [child]
-            for l in check_list:
-                if isinstance(l, layer_type["sequential"]):
-                    if _is_sublayer(l, child_net, layer_type):
-                        return True
-                else:
-                    if id(l) == id(child_net):
-                        return True
-        return False
-
-    if isinstance(father_net, torch.nn.Module) and isinstance(child_net, torch.nn.Module):
-        layer_type = {
-            "sequential": torch.nn.Sequential,
-            "layer_list": torch.nn.ModuleList,
-        }
-        if _is_sublayer(father_net, child_net, layer_type):
-            return True
-        return False
-    elif isinstance(father_net, paddle.nn.Layer) and isinstance(child_net, paddle.nn.Layer):
-        layer_type = {
-            "sequential": paddle.nn.Sequential,
-            "layer_list": paddle.nn.LayerList,
-        }
-        if _is_sublayer(father_net, child_net, layer_type):
-            return True
-        return False
-    else:
-        raise RuntimeError("father net is not Module / Layer")
-
-
-class TableView:
-    """
-    A search speedup wrapper class.
-    """
-
-    def __init__(self, data, key=None):
-        self.data = data
-        self.view = {}
-        assert callable(key), "Key must be callable with a paramter: x -> key."
-        for item in self.data:
-            if key(item) not in self.view:
-                self.view[key(item)] = [item]
-            else:
-                warnings.warn("Warning: duplicate key is found, use list + pop strategy.")
-                self.view[key(item)].append(item)
-
-    def __getitem__(self, key):
-        assert key in self.view, "{} is not found in index.".format(key)
-        ret = self.view[key].pop(0)  # pop for sorting.
-        return ret
-
-    def __len__(self):
-        return len(self.data)
-
-    def __contains__(self, key):
-        return key in self.view
-
-
-class TreeView:
-    """
-    This class is used to organize ReportItems in order of backward process
-
-    wrap items as a tree structure:
-    [1, 2, 3, 4, 5, 6]
-    the last item is the root of the layers.
-    if the child is 2 and 5, then we can construct a tree:
-      6
-      |---------|
-      2         5
-      |         |
-    [1,2]    [3,4,5]   <--- recursive construct.
-    """
-
-    def __init__(self, data):
-        """data is the forward items. the last one is the root layer."""
-        Node = namedtuple("Node", ["value", "children"])
-
-        def _construct_tree(begin_idx, end_idx):
-            if end_idx < begin_idx:
-                raise RuntimeError("[{}, {}] is invalid.".format(begin_idx, end_idx))
-            root = Node(value=data[end_idx], children=[])
-            last = begin_idx
-            for i in range(begin_idx, end_idx):
-                if is_sublayer(root.value.net, data[i].net):
-                    root.children.append(_construct_tree(last, i))
-                    last = i + 1
-            return root
-
-        self.root = _construct_tree(0, len(data) - 1)
-        self.data = data
-
-    def __len__(self):
-        return len(self.data)
-
-    def traversal_forward(self):
-        """
-        with the order of:
-        child1, child2, child3 ... childn, root
-        """
-
-        def _traversal_forward(root):
-            for child in root.children:
-                for item in _traversal_forward(child):
-                    yield item
-            yield root.value
-
-        for item in _traversal_forward(self.root):
-            yield item
-
-    def traversal_backward(self):
-        """
-        with the order of:
-        childn, childn-1, child... child1, root
-        """
-
-        def _traversal_backward(root):
-            for child in root.children[::-1]:
-                for item in _traversal_backward(child):
-                    yield item
-            yield root.value
-
-        for item in _traversal_backward(self.root):
-            yield item
-
-
-# logs
+"""
+    log utils
+"""
 
 diff_log_path = os.path.join(sys.path[0], "diff_log")
 __reset_log_dir__ = False
@@ -309,6 +182,20 @@ def log(*args):
     print("[AutoDiff]", *args)
 
 
+def model_repr_info(model):
+    extra_lines = []
+    extra_repr = model.extra_repr()
+    if extra_repr:
+        extra_lines = extra_repr.split("\n")
+    if len(extra_lines) == 1:
+        repr_info = extra_lines[0]
+    else:
+        repr_info = ""
+
+    retstr = model.__class__.__name__ + "(" + repr_info + ")"
+    return retstr
+
+
 def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
     t_title = "Torch Model\n" + "=" * 25 + "\n"
     t_retval = print_weight_struct(module, mark=torch_submodule, prefix=[" " * 4])
@@ -318,23 +205,24 @@ def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
     p_retval = print_weight_struct(layer, mark=paddle_sublayer, prefix=[" " * 4])
     p_info = p_title + "\n".join(p_retval)
 
+    retstr = ""
+
     if len(p_retval) + len(t_retval) > 100:
         log_file("paddle_weight_check.log", "w", p_info)
         log_file("torch_weight_check.log", "w", t_info)
-        log(
-            f"Model Struct saved to `{diff_log_path + '/torch_weight_check.log'}` and `{diff_log_path + '/paddle_weight_check.log'}`."
-        )
-        log("Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !")
+        retstr += f"Model Struct saved to `{diff_log_path + '/torch_weight_check.log'}` and `{diff_log_path + '/paddle_weight_check.log'}`.\n"
+        retstr += "Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !\n"
     else:
-        log("Print model Struct while checking model weights:")
-        print(t_info)
-        print(p_info)
+        retstr += t_info
+        retstr += "\n"
+        retstr += p_info
+        retstr += "\n"
 
-    print("\nHint:")
-    print("      1. check the init order of param or layer in definition is the same.")
-    print(
-        "      2. try to use `LayerMap` to skip the diff in models, you can find the instructions at `https://github.com/PaddlePaddle/PaDiff`."
-    )
+    retstr += "\nHint:\n"
+    retstr += "      1. check the init order of param or layer in definition is the same.\n"
+    retstr += "      2. try to use `LayerMap` to skip the diff in models, you can find the instructions at `https://github.com/PaddlePaddle/PaDiff`.\n"
+
+    return retstr
 
 
 def print_weight_struct(net, mark=None, prefix=[]):
@@ -369,7 +257,14 @@ def print_weight_struct(net, mark=None, prefix=[]):
     return ret_strs
 
 
-# tensor compute
+def debug_print(net, mark=None, prefix=[]):
+    retval = print_weight_struct(net, mark=None, prefix=[])
+    print("\n".join(retval))
+
+
+"""
+    tensor compare or compute
+"""
 
 
 def max_diff(paddle_output, torch_output):
@@ -437,7 +332,9 @@ def tensors_mean(inp, mode):
         raise RuntimeError("unrecognized mode `{}`, expected: `torch` or `paddle`".format(mode))
 
 
-# init tools
+"""
+    init tools
+"""
 
 
 def init_options(options):
@@ -449,26 +346,39 @@ def init_options(options):
         "single_step": False,
         "debug": False,
         "cmd": False,
-        "loss_fn": False,
-        "opt": False,
-        "multi_steps": False,
+        "use_loss": False,
+        "use_opt": False,
+        "steps": 1,
     }
 
     default_options.update(options)
     options.update(default_options)
 
-    log("Your options:")
-
     if options["single_step"]:
-        options["diff_phase"] = "forward"
-        log("  In single_step mode, diff_phase will be set to `forward`.")
+        options["steps"] = 1
+        log("  In single_step mode, steps will be set to `1`.")
+        options["use_opt"] = False
+        log("  In single_step mode, optimizer will not be used.")
+    elif options["diff_phase"] == "backward":
+        options["diff_phase"] = "both"
+        log("  Not in single_step mode, diff_phase `backward` is not supported, set to `both` instead.")
 
-    if options["diff_phase"] == "forward" and options["opt"]:
-        log("  Diff_phase is `forward`, optimizer will not be used.")
+    if options["diff_phase"] == "forward":
+        if options["use_opt"]:
+            options["use_opt"] = False
+            log("  Diff_phase is `forward`, optimizer will not be used.")
+        if options["steps"] > 1:
+            options["steps"] = 1
+            log("  Diff_phase is `forward`, steps is set to `1`.")
 
+    if options["steps"] > 1 and options["use_opt"] == False:
+        options["steps"] = 1
+        log("  Steps is set to `1`, because optimizers are not given.")
+
+    log("Your options:")
     print("{")
     for key in options.keys():
-        if key not in ["debug", "cmd", "loss_fn", "opt", "multi_steps"]:
+        if key in ["atol", "rtol", "compare_mode", "single_step", "steps", "use_loss", "use_opt"]:
             print("  {}: `{}`".format(key, options[key]))
     print("}")
 
@@ -489,6 +399,11 @@ def init_LayerMap(layer, module, layer_map):
     layer_map.ignore_class(module)
 
     return layer_map
+
+
+"""
+    LayerMap
+"""
 
 
 def is_wrap_layer(layer):
