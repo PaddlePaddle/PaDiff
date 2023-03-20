@@ -84,3 +84,4 @@ auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0
 
 -   MultiHeadAttention
 -   LSTM
+-   BatchNorm2D
