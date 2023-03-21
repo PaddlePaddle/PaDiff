@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import unittest
-from padiff import auto_diff, auto_layer_map
+from padiff import auto_diff, LayerMap
 import paddle
 import torch
 
@@ -60,7 +60,7 @@ class TestCaseName(unittest.TestCase):
         module = SimpleModule2()
 
         # layer_map = {layer.lstm1: module.lstm1, layer.lstm2: module.lstm2}
-        layer_map = auto_layer_map(layer, module)
+        layer_map = LayerMap.auto(layer, module)
 
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})

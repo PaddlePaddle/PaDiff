@@ -1,6 +1,6 @@
 - [概述](#概述)
-- [快速使用 LayerMap](#快速使用-layermap)
-- [LayerMap的可用接口](#layermap的可用接口)
+- [快速使用 LayerMap：LayerMap.auto 接口](#快速使用-layermaplayermapauto-接口)
+- [通过 `LayerMap` 实例的成员方法自定义 `LayerMap`](#通过-layermap-实例的成员方法自定义-layermap)
   - [指定对应关系](#指定对应关系)
     - [LayerMap.map](#layermapmap)
   - [指定忽略子模型](#指定忽略子模型)
@@ -22,17 +22,58 @@
     -   适用情况：通过忽略某些子模型后能够达成对齐
 
 
-## 快速使用 LayerMap
-可以使用接口 `auto_layer_map` 自动构造 LayerMap，具体的使用方法和详见：[auto_layer_map接口参数](Interfaces.md#三auto_layermap-接口参数)中的接口说明
-`auto_layer_map` 接口适用于以下情况：
-1. 模型中部分组件需要顶层对齐，并略过内部的对齐。同时这些组件是 LSTM 或 MultiHeadAttention 等已支持 SepcialInit 的组件，需要编写 LayerMap
-2. 模型中部分组件需要顶层对齐，并略过内部的对齐。同时这些组件暂时不支持 SpecialInit 但已经准备了自定义 SpecialInit 函数，后续需要编写 LayerMap
+## 快速使用 LayerMap：LayerMap.auto 接口
+**功能介绍**
 
-关于 SepcialInit 请查看文档：[SepcialInit机制](SpecialInit.md)
+`LayerMap.auto` 是 `class LayerMap` 的静态方法。依次传入 paddle 和 torch 模型后，该方法根据当前支持 Special Init 的组件信息生成并返回一个 LayerMap 实例。
+
+**适用情况**
+
+`LayerMap.auto` 接口适用于以下情况：
+1. 模型中部分组件需要顶层对齐，并略过内部的对齐。同时这些组件是 LSTM 或 MultiHeadAttention 等已支持 SepcialInit 的组件，需要编写 LayerMap。此时可以直接使用 `LayerMap.auto` 接口。
+2. 模型中部分组件需要顶层对齐，并略过内部的对齐。同时这些组件暂时不支持 SpecialInit 但已经准备了自定义 SpecialInit 函数，后续需要编写 LayerMap。此时可以先通过 `add_special_init` 注册 SpecialInit 初始化函数，然后再使用 `LayerMap.auto` 接口。
 
 
+> 注：
+>
+> 1.  auto_layer_map 只会搜索当前已支持 Special Init 的 sublayer/submodule 用来构造 LayerMap ，关于 SepcialInit 的使用详见 [SepcialInit的使用方法](SpecialInit.md)
+>
+> 2.  auto_layer_map 要求模型中需要一一对应的 sublayer/submodule 各自的定义顺序完全一致，否则可能生成的 LayerMap 有误，具体可见下方展示的 log 信息
+>
+> 3.  当 auto_layer_map 生成 LayerMap 失败，或由于模型定义顺序不一致导致生成的 LayerMap 无法正确支持 auto_diff 以及 assign_weight，需要用户自行手动编写 LayerMap，方法详见[下文](#通过-layermap-实例的成员方法自定义-layermap)
 
-## LayerMap的可用接口
+**log 信息示例**
+
+```
+[AutoDiff] auto_layer_map start searching...
+
+++++    paddle `LSTM` at `SimpleLayer2.lstm1` <==> torch `LSTM` at `SimpleModule2.lstm1`.
+++++    paddle `LSTM` at `SimpleLayer2.lstm2` <==> torch `LSTM` at `SimpleModule2.lstm2`.
+
+[AutoDiff] auto_layer_map SUCCESS!!!
+```
+
+**代码使用示例**
+
+```py
+from padiff import auto_diff, LayerMap
+import torch
+import paddle
+
+paddle_layer = SimpleLayer()
+torch_module = SimpleModule()
+
+layer_map = LayerMap.auto(paddle_layer, torch_module)
+
+inp = paddle.rand((100, 100)).numpy().astype("float32")
+inp = ({'x': paddle.to_tensor(inp)},
+     {'y': torch.as_tensor(inp) })
+
+auto_diff(paddle_layer, torch_module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0, 'compare_mode': 'strict', 'single_step':False}, layer_map=layer_map)
+```
+
+
+## 通过 `LayerMap` 实例的成员方法自定义 `LayerMap`
 
 `LayerMap`是一个类，构造函数没有参数，使用前需要构造一个 instance
 
