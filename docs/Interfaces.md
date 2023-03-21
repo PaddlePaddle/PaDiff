@@ -122,7 +122,7 @@ auto_LayerMap 的 log 信息示例：
 
 使用代码示例：
 ```py
-from padiff import assign_weight, auto_LayerMap
+from padiff import auto_diff, auto_LayerMap
 import torch
 import paddle
 
