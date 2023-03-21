@@ -545,10 +545,11 @@ def auto_LayerMap(layer, module):
 
     layer_map = LayerMap()
 
-    print()
-    log("auto_LayerMap start searching...")
+    log("auto_LayerMap start searching...\n")
+
     for paddle_info, torch_info in zip_longest(paddle_layers, torch_modules, fillvalue=None):
         if paddle_info is None or torch_info is None:
+            print()
             log(
                 "The number of registered paddle sublayer and torch submodule is not the same! Check your model struct first !!!"
             )
@@ -563,10 +564,12 @@ def auto_LayerMap(layer, module):
             layer_map.map = {torch_module: paddle_layer}
             print(f"++++    paddle `{paddle_name}` at `{paddle_path}` <==> torch `{torch_name}` at `{torch_path}`.")
         else:
+            print()
             log("When generating LayerMap in order, find that paddle sublayer can not matchs torch submodule.")
             log(f"    paddle: `{paddle_name}` at `{paddle_path}`")
             log(f"    torch:  `{torch_name}` at `{torch_path}`")
             log("auto_LayerMap FAILED!!!\n")
             return None
+    print()
     log("auto_LayerMap SUCCESS!!!\n")
     return layer_map
