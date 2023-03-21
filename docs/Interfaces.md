@@ -42,6 +42,7 @@
 
   -   `steps` ： 支持多 step 的对齐检查，默认值为 `1`。当输入steps >1 时要求  `option["diff_phase"]`  为  `"both"`，且传入了optimizer
 
+使用代码示例：
 ```py
 from padiff import auto_diff
 import torch
@@ -78,6 +79,7 @@ auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0
 
   -   `layer_map` ： 指定 paddle 与 torch 的 layer 映射关系，当模型结构无法完全对齐时需要通过此参数指定 layer的 映射关系；详见 [LayerMap使用说明](LayerMap.md)
 
+使用代码示例：
 ```py
 from padiff import assign_weight, LayerMap
 import torch
@@ -108,7 +110,7 @@ assign_weight(layer, module, layer_map)
 >
 > 3.  当 auto_LayerMap 生成 LayerMap 失败，或由于模型定义顺序不一致导致生成的 LayerMap 无法正确支持 auto_diff 以及 assign_weight，请自行手动编写
 
-auto_LayerMap 的 log 信息示例
+auto_LayerMap 的 log 信息示例：
 ```
 [AutoDiff] auto_LayerMap start searching...
 
@@ -118,7 +120,7 @@ auto_LayerMap 的 log 信息示例
 [AutoDiff] auto_LayerMap SUCCESS!!!
 ```
 
-
+使用代码示例：
 ```py
 from padiff import assign_weight, auto_LayerMap
 import torch
