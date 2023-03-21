@@ -1,4 +1,5 @@
 - [概述](#概述)
+- [快速使用 LayerMap](#快速使用-layermap)
 - [LayerMap的可用接口](#layermap的可用接口)
   - [指定对应关系](#指定对应关系)
     - [LayerMap.map](#layermapmap)
@@ -19,6 +20,15 @@
 2. `LayerMap` 可以指定 igoner layers ，被指定的 layer 的所有相关数据将跳过对齐检查
 
     -   适用情况：通过忽略某些子模型后能够达成对齐
+
+
+## 快速使用 LayerMap
+可以使用接口 `auto_LayerMap` 自动构造 LayerMap，具体的使用方法和详见：[auto_LayerMap接口参数](Interfaces.md#三auto_layermap-接口参数)中的接口说明
+`auto_LayerMap` 接口适用于以下情况：
+1. 模型中部分组件需要顶层对齐，并略过内部的对齐。同时这些组件是 LSTM 或 MultiHeadAttention 等已支持 SepcialInit 的组件，需要编写 LayerMap
+2. 模型中部分组件需要顶层对齐，并略过内部的对齐。同时这些组件暂时不支持 SpecialInit 但已经准备了自定义 SpecialInit 函数，后续需要编写 LayerMap
+
+关于 SepcialInit 请查看文档：[SepcialInit机制](SpecialInit.md)
 
 
 
