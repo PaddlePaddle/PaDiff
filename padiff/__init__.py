@@ -168,7 +168,7 @@ __version__ = "0.1.0"
 import paddle
 import torch
 
-from .utils import LayerMap
+from .utils import LayerMap, auto_LayerMap
 from .weights import assign_weight
 from .auto_diff import auto_diff
 from .special_init import add_special_init
@@ -176,6 +176,7 @@ from .special_init import add_special_init
 __all__ = [
     "auto_diff",
     "LayerMap",
+    "auto_LayerMap",
     "assign_weight",
     "add_special_init",
 ]

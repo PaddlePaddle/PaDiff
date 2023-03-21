@@ -518,3 +518,55 @@ class LayerMap(object):
         layers = [layer]
         layers.extend(self._traversal_layers_with_ignore(layer))
         return layers
+
+
+def auto_LayerMap(layer, module):
+    """
+    This function will try to find components which support special init, and add them to layer_map automatically.
+
+    NOTICE: auto_LayerMap suppose that all sublayers/submodules are defined in same order, if not, auto_LayerMap may not work correctly.
+    """
+
+    from .special_init import global_special_init_pool as init_pool
+    from .special_init import build_name
+    from itertools import zip_longest
+
+    def _traversal_layers(net, path, registered):
+        for name, child in net.named_children():
+            path.append(name)
+            if child.__class__.__name__ in registered:
+                yield (child, ".".join(path))
+            if child.__class__.__name__ not in registered:
+                for sublayer, ret_path in _traversal_layers(child, path, registered):
+                    yield (sublayer, ret_path)
+            path.pop()
+
+    paddle_layers = list(_traversal_layers(layer, [layer.__class__.__name__], init_pool.registered_paddle_layers))
+    torch_modules = list(_traversal_layers(module, [module.__class__.__name__], init_pool.registered_torch_modules))
+
+    layer_map = LayerMap()
+
+    log("Start search LayerMap...")
+    for paddle_info, torch_info in zip_longest(paddle_layers, torch_modules, fillvalue=None):
+        if paddle_info is None or torch_info is None:
+            log(
+                "The number of registered paddle sublayer and torch submodule is not the same! Check your model struct first !!!"
+            )
+            log("auto_LayerMap FAILED!!!")
+            return None
+        paddle_layer, paddle_path = paddle_info
+        torch_module, torch_path = torch_info
+        paddle_name = paddle_layer.__class__.__name__
+        torch_name = torch_module.__class__.__name__
+        name = build_name(paddle_name, torch_name)
+        if name in init_pool.funcs.keys():
+            layer_map.map = {torch_module: paddle_layer}
+            print(f"  Add:  paddle `{paddle_name}` at `{paddle_path}` <==> torch `{torch_name}` at `{torch_path}`.")
+        else:
+            log("When generating LayerMap in order, find that paddle sublayer can not matchs torch submodule.")
+            log(f"    paddle: `{paddle_name}` at `{paddle_path}`")
+            log(f"    torch:  `{torch_name}` at `{torch_path}`")
+            log("auto_LayerMap FAILED!!!")
+            return None
+    log("auto_LayerMap SUCCESS!!!")
+    return layer_map
