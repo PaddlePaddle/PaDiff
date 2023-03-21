@@ -546,7 +546,7 @@ def auto_LayerMap(layer, module):
 
     layer_map = LayerMap()
 
-    log("Start search LayerMap...")
+    log("auto_LayerMap Start searching...")
     for paddle_info, torch_info in zip_longest(paddle_layers, torch_modules, fillvalue=None):
         if paddle_info is None or torch_info is None:
             log(
@@ -561,7 +561,7 @@ def auto_LayerMap(layer, module):
         name = build_name(paddle_name, torch_name)
         if name in init_pool.funcs.keys():
             layer_map.map = {torch_module: paddle_layer}
-            print(f"  Add:  paddle `{paddle_name}` at `{paddle_path}` <==> torch `{torch_name}` at `{torch_path}`.")
+            print(f"Add:    paddle `{paddle_name}` at `{paddle_path}` <==> torch `{torch_name}` at `{torch_path}`.")
         else:
             log("When generating LayerMap in order, find that paddle sublayer can not matchs torch submodule.")
             log(f"    paddle: `{paddle_name}` at `{paddle_path}`")
