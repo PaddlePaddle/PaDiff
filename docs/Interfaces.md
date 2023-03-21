@@ -1,7 +1,7 @@
 - [Interfaces](#interfaces)
   - [一、`auto_diff` 接口参数](#一auto_diff-接口参数)
   - [二、`assign_weight` 接口参数](#二assign_weight-接口参数)
-  - [三、`auto_LayerMap` 接口参数](#三auto_layermap-接口参数)
+  - [三、`auto_layer_map` 接口参数](#三auto_layermap-接口参数)
 
 # Interfaces
 ## 一、`auto_diff` 接口参数
@@ -92,11 +92,11 @@ layer_map = LayerMap()
 assign_weight(layer, module, layer_map)
 ```
 
-## 三、`auto_LayerMap` 接口参数
+## 三、`auto_layer_map` 接口参数
 
 **接口功能**：根据当前已支持 Special Init 的组件信息，自动生成 LayerMap，返回的 LayerMap 可用于 auto_diff 和 assign_weight
 
-**函数接口签名**：`auto_LayerMap(layer, module)`
+**函数接口签名**：`auto_layer_map(layer, module)`
 
   -   `layer` ：传入待对齐的 paddle 模型
 
@@ -104,32 +104,32 @@ assign_weight(layer, module, layer_map)
 
 > 注：
 >
-> 1.  auto_LayerMap 只会搜索当前已支持 Special Init 的 sublayer/submodule 用来构造 LayerMap ，关于 SepcialInit 的使用详见 [SepcialInit的使用方法](SpecialInit.md)
+> 1.  auto_layer_map 只会搜索当前已支持 Special Init 的 sublayer/submodule 用来构造 LayerMap ，关于 SepcialInit 的使用详见 [SepcialInit的使用方法](SpecialInit.md)
 >
-> 2.  auto_LayerMap 要求模型中需要一一对应的 sublayer/submodule 各自的定义顺序完全一致，否则可能生成的 LayerMap 有误，具体可见 auto_LayerMap 生成的 log 信息
+> 2.  auto_layer_map 要求模型中需要一一对应的 sublayer/submodule 各自的定义顺序完全一致，否则可能生成的 LayerMap 有误，具体可见 auto_layer_map 生成的 log 信息
 >
-> 3.  当 auto_LayerMap 生成 LayerMap 失败，或由于模型定义顺序不一致导致生成的 LayerMap 无法正确支持 auto_diff 以及 assign_weight，请自行手动编写
+> 3.  当 auto_layer_map 生成 LayerMap 失败，或由于模型定义顺序不一致导致生成的 LayerMap 无法正确支持 auto_diff 以及 assign_weight，请自行手动编写
 
-auto_LayerMap 的 log 信息示例：
+auto_layer_map 的 log 信息示例：
 ```
-[AutoDiff] auto_LayerMap start searching...
+[AutoDiff] auto_layer_map start searching...
 
 ++++    paddle `LSTM` at `SimpleLayer2.lstm1` <==> torch `LSTM` at `SimpleModule2.lstm1`.
 ++++    paddle `LSTM` at `SimpleLayer2.lstm2` <==> torch `LSTM` at `SimpleModule2.lstm2`.
 
-[AutoDiff] auto_LayerMap SUCCESS!!!
+[AutoDiff] auto_layer_map SUCCESS!!!
 ```
 
 使用代码示例：
 ```py
-from padiff import auto_diff, auto_LayerMap
+from padiff import auto_diff, auto_layer_map
 import torch
 import paddle
 
 layer = SimpleLayer()
 module = SimpleModule()
 
-layer_map = auto_LayerMap(layer, module)
+layer_map = auto_layer_map(layer, module)
 
 inp = paddle.rand((100, 100)).numpy().astype("float32")
 inp = ({'x': paddle.to_tensor(inp)},

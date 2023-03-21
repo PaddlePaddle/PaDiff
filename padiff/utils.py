@@ -27,6 +27,11 @@ except:
     from paddle.utils import flatten, pack_sequence_as, map_structure
 from .file_loader import global_yaml_loader as yamls
 
+from .special_init import global_special_init_pool as init_pool
+from .special_init import build_name
+from itertools import zip_longest
+
+
 """
     clone tensor
 """
@@ -519,16 +524,12 @@ class LayerMap(object):
         return layers
 
 
-def auto_LayerMap(layer, module):
+def auto_layer_map(layer, module):
     """
     This function will try to find components which support special init, and add them to layer_map automatically.
 
-    NOTICE: auto_LayerMap suppose that all sublayers/submodules are defined in same order, if not, auto_LayerMap may not work correctly.
+    NOTICE: auto_layer_map suppose that all sublayers/submodules are defined in same order, if not, auto_layer_map may not work correctly.
     """
-
-    from .special_init import global_special_init_pool as init_pool
-    from .special_init import build_name
-    from itertools import zip_longest
 
     def _traversal_layers(net, path, registered):
         for name, child in net.named_children():
@@ -545,14 +546,14 @@ def auto_LayerMap(layer, module):
 
     layer_map = LayerMap()
 
-    log("auto_LayerMap start searching...\n")
+    log("auto_layer_map start searching...\n")
 
     for paddle_info, torch_info in zip_longest(paddle_layers, torch_modules, fillvalue=None):
         if paddle_info is None or torch_info is None:
             print(
                 "\nError: The number of registered paddle sublayer and torch submodule is not the same! Check your model struct first !!!"
             )
-            log("auto_LayerMap FAILED!!!\n")
+            log("auto_layer_map FAILED!!!\n")
             return None
         paddle_layer, paddle_path = paddle_info
         torch_module, torch_path = torch_info
@@ -568,8 +569,8 @@ def auto_LayerMap(layer, module):
             )
             print(f"    paddle: `{paddle_name}` at `{paddle_path}`")
             print(f"    torch:  `{torch_name}` at `{torch_path}`")
-            log("auto_LayerMap FAILED!!!\n")
+            log("auto_layer_map FAILED!!!\n")
             return None
     print()
-    log("auto_LayerMap SUCCESS!!!\n")
+    log("auto_layer_map SUCCESS!!!\n")
     return layer_map
