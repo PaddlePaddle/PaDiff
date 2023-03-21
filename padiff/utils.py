@@ -15,7 +15,6 @@
 import os
 import sys
 import shutil
-from collections import Iterable
 from itertools import zip_longest
 
 import numpy as np
@@ -450,7 +449,7 @@ class LayerMap(object):
         self._layer_ignore_sublayer.update(set(inp.values()))
 
     def ignore(self, inp):
-        if isinstance(inp, Iterable):
+        if isinstance(inp, (list, tuple)):
             self._layer_ignore.update(set(inp))
         elif isinstance(inp, (paddle.nn.Layer, torch.nn.Module)):
             self._layer_ignore.add(inp)
@@ -546,13 +545,14 @@ def auto_LayerMap(layer, module):
 
     layer_map = LayerMap()
 
-    log("auto_LayerMap Start searching...")
+    print()
+    log("auto_LayerMap start searching...")
     for paddle_info, torch_info in zip_longest(paddle_layers, torch_modules, fillvalue=None):
         if paddle_info is None or torch_info is None:
             log(
                 "The number of registered paddle sublayer and torch submodule is not the same! Check your model struct first !!!"
             )
-            log("auto_LayerMap FAILED!!!")
+            log("auto_LayerMap FAILED!!!\n")
             return None
         paddle_layer, paddle_path = paddle_info
         torch_module, torch_path = torch_info
@@ -561,12 +561,12 @@ def auto_LayerMap(layer, module):
         name = build_name(paddle_name, torch_name)
         if name in init_pool.funcs.keys():
             layer_map.map = {torch_module: paddle_layer}
-            print(f"Add:    paddle `{paddle_name}` at `{paddle_path}` <==> torch `{torch_name}` at `{torch_path}`.")
+            print(f"++++    paddle `{paddle_name}` at `{paddle_path}` <==> torch `{torch_name}` at `{torch_path}`.")
         else:
             log("When generating LayerMap in order, find that paddle sublayer can not matchs torch submodule.")
             log(f"    paddle: `{paddle_name}` at `{paddle_path}`")
             log(f"    torch:  `{torch_name}` at `{torch_path}`")
-            log("auto_LayerMap FAILED!!!")
+            log("auto_LayerMap FAILED!!!\n")
             return None
-    log("auto_LayerMap SUCCESS!!!")
+    log("auto_LayerMap SUCCESS!!!\n")
     return layer_map
