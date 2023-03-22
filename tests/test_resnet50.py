@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
-os.environ["PADIFF_API_CHECK"] = "OFF"
 
 from padiff import auto_diff
 import unittest
