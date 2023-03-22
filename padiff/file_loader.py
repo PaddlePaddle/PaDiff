@@ -95,6 +95,9 @@ class json_loader:
             "paddle.signal",
         ]
 
+        # paddle.nn.Conv2D called _conv_nd, this layer is used frequently, so add it to ADDITIONAL_PATH
+        self.ADDITIONAL_PATH = {"paddle.nn.functional.conv": ["_conv_nd"]}
+
         json_path = os.path.join(os.path.dirname(__file__), "configs", "api_mapping.json")
         with open(json_path, "r") as file:
             self.api_mapping = json.load(file)
@@ -127,6 +130,8 @@ class json_loader:
             else:
                 self.paddle_apis[paddle_module].append(paddle_api)
 
+        self.paddle_apis.update(self.ADDITIONAL_PATH)
+
         # Deprecated
         self.TORCH_IGNORE = {"torch.nn.functional": ["sigmoid"], "torch": ["as_tensor"]}
         self.PADDLE_IGNORE = {"paddle": ["to_tensor"]}
@@ -151,19 +156,28 @@ class json_loader:
             torch_fullname = k
             paddle_fullname = v["paddle_api"]
 
-            # skip inplace method
-            if torch_fullname.endswith("_") or paddle_fullname.endswith("_"):
-                continue
+            # skip inplace method?
+            # if torch_fullname.endswith("_") or paddle_fullname.endswith("_"):
+            #     continue
 
             self.paddle_tensor_methods.add(paddle_fullname)
             self.torch_tensor_methods.add(torch_fullname)
 
         self.MAGIC_METHOD = [
             "__add__",
+            "__radd__",
+            "__iadd__",
             "__sub__",
+            "__rsub__",
+            "__isub__",
             "__mul__",
+            "__rmul__",
             "__div__",
+            "__rdiv__",
+            "__truediv__",
+            "__rtruediv__",
             "__pow__",
+            "__rpow__",
             "__floordiv__",
             "__mod__",
             "__matmul__",
@@ -174,6 +188,7 @@ class json_loader:
             "__lt__",
             "__gt__",
             "__ge__",
+            "",
         ]
 
         for magic_method in self.MAGIC_METHOD:
