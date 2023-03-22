@@ -14,7 +14,7 @@
 
 import os
 
-os.environ["PADIFF_TENSOR_METHOD"] = "OFF"
+os.environ["PADIFF_API_CHECK"] = "OFF"
 
 from padiff import auto_diff
 import unittest
