@@ -151,32 +151,32 @@ class json_loader:
             for item in v:
                 self.paddle_apis[k].remove(item)
 
-        # self.MAGIC_METHOD = [
-        #     "__add__",
-        #     "__radd__",
-        #     "__iadd__",
-        #     "__sub__",
-        #     "__rsub__",
-        #     "__isub__",
-        #     "__mul__",
-        #     "__rmul__",
-        #     "__div__",
-        #     "__rdiv__",
-        #     "__truediv__",
-        #     "__rtruediv__",
-        #     "__pow__",
-        #     "__rpow__",
-        #     "__floordiv__",
-        #     "__mod__",
-        #     "__matmul__",
-        #     "__eq__",
-        #     "__ne__",
-        #     "__lt__",
-        #     "__le__",
-        #     "__lt__",
-        #     "__gt__",
-        #     "__ge__",
-        # ]
+        self.MAGIC_METHOD = [
+            # "__add__",
+            # "__radd__",
+            # "__iadd__",
+            # "__sub__",
+            # "__rsub__",
+            # "__isub__",
+            # "__mul__",
+            # "__rmul__",
+            # "__div__",
+            # "__rdiv__",
+            # "__truediv__",
+            # "__rtruediv__",
+            # "__pow__",
+            # "__rpow__",
+            # "__floordiv__",
+            # "__mod__",
+            # "__matmul__",
+            # "__eq__",
+            # "__ne__",
+            # "__lt__",
+            # "__le__",
+            # "__lt__",
+            # "__gt__",
+            # "__ge__",
+        ]
 
         for magic_method in self.MAGIC_METHOD:
             self.paddle_tensor_methods.add("paddle.Tensor." + magic_method)
