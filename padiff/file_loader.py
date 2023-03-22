@@ -176,7 +176,6 @@ class json_loader:
             "__lt__",
             "__gt__",
             "__ge__",
-            "",
         ]
 
         for magic_method in self.MAGIC_METHOD:
