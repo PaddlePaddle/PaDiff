@@ -193,4 +193,7 @@ class json_loader:
                 self.torch_tensor_methods.remove(torch_method)
 
 
-global_json_loader = json_loader()
+if os.getenv("PADIFF_API_CHECK") != "OFF":
+    global_json_loader = json_loader()
+else:
+    global_json_loader = None
