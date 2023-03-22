@@ -68,7 +68,6 @@ def wrap_func(fullname, func):
     def wrapped(*args, **kwargs):
 
         if fullname.startswith("paddle"):
-
             from .trainer.trainer_utils import paddle_api_hook
 
             class PaddleApi(paddle.nn.Layer):
@@ -89,7 +88,6 @@ def wrap_func(fullname, func):
             handle = layer.register_forward_post_hook(partial(paddle_api_hook, net_id=-1))
 
         elif fullname.startswith("torch"):
-
             from .trainer.trainer_utils import torch_api_hook
 
             class TorchApi(torch.nn.Module):
@@ -120,6 +118,58 @@ def wrap_func(fullname, func):
     return wrapped
 
 
+def wrap_method(method_fullname, method):
+    def wrapped(tensor_obj, *args, **kwargs):
+        if method_fullname.startswith("paddle"):
+            from .trainer.trainer_utils import paddle_api_hook
+
+            class PaddleMethod(paddle.nn.Layer):
+                def __init__(self, method):
+                    super(PaddleMethod, self).__init__()
+                    self._method = method
+                    self.__name__ = method_fullname
+                    self.__api__ = True
+
+                def forward(self, *args, **kwargs):
+                    return self._method(tensor_obj, *args, **kwargs)
+
+                def __str__(self):
+                    return self.__name__
+
+            layer = PaddleMethod(method)
+            handle = layer.register_forward_post_hook(partial(paddle_api_hook, net_id=-1))
+
+        elif method_fullname.startswith("torch"):
+            from .trainer.trainer_utils import torch_api_hook
+
+            class TorchMethod(torch.nn.Module):
+                def __init__(self, method):
+                    super(TorchMethod, self).__init__()
+                    self._method = method
+                    self.__name__ = method_fullname
+                    self.__api__ = True
+
+                def forward(self, *args, **kwargs):
+                    return self._method(tensor_obj, *args, **kwargs)
+
+                def __str__(self):
+                    return self.__name__
+
+            layer = TorchMethod(method)
+            handle = layer.register_forward_hook(partial(torch_api_hook, net_id=-1))
+
+        else:
+            raise RuntimeError("Import Err: module_type not in (paddle, torch)")
+
+        out = layer(*args, **kwargs)
+
+        handle.remove()
+
+        return out
+
+    return wrapped
+
+
 def wrap_api_method(module):
     if module.__name__.startswith("paddle"):
         apis = jsons.paddle_apis[module.__name__]
@@ -135,7 +185,29 @@ def wrap_api_method(module):
                 module.__dict__[api] = wrap_func(module.__name__ + "." + api, obj)
                 setattr(module.__dict__[api], "padiff_wrapped", True)
 
-    # add wrap method?
+    def replace_method(local_tensor, method_fullname):
+        method_name = method_fullname.rpartition(".")[2]
+        if hasattr(local_tensor, method_name):
+            origin_method = getattr(local_tensor, method_name)
+            # callable member of torch.Tensor is methoddescriptor
+            # but callable member of paddle.Tensor is function
+            if not hasattr(origin_method, "padiff_wrapped") and (
+                inspect.ismethoddescriptor(origin_method) or inspect.isfunction(origin_method)
+            ):
+                method_impl = wrap_method(method_fullname, origin_method)
+                setattr(method_impl, "padiff_wrapped", True)
+                setattr(local_tensor, method_name, method_impl)
+
+    if os.getenv("PADIFF_TENSOR_METHOD") != "OFF":
+        if module.__name__ == "paddle":
+            local_tensor = module.Tensor
+            for method_fullname in jsons.paddle_tensor_methods:
+                replace_method(local_tensor, method_fullname)
+
+        if module.__name__ == "torch":
+            local_tensor = module.Tensor
+            for method_fullname in jsons.torch_tensor_methods:
+                replace_method(local_tensor, method_fullname)
 
 
 class PaDiffLoader(Loader):

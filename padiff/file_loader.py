@@ -137,5 +137,57 @@ class json_loader:
             for item in v:
                 self.paddle_apis[k].remove(item)
 
+        # find Tensor Method
+        self.paddle_tensor_methods = set()
+        self.torch_tensor_methods = set()
+        for k, v in self.api_mapping.items():
+            if (
+                "paddle_api" not in v.keys()
+                or not k.startswith("torch.Tensor.")
+                or not v["paddle_api"].startswith("paddle.Tensor.")
+            ):
+                continue
+
+            torch_fullname = k
+            paddle_fullname = v["paddle_api"]
+
+            # skip inplace method
+            if torch_fullname.endswith("_") or paddle_fullname.endswith("_"):
+                continue
+
+            self.paddle_tensor_methods.add(paddle_fullname)
+            self.torch_tensor_methods.add(torch_fullname)
+
+        self.MAGIC_METHOD = [
+            "__add__",
+            "__sub__",
+            "__mul__",
+            "__div__",
+            "__pow__",
+            "__floordiv__",
+            "__mod__",
+            "__matmul__",
+            "__eq__",
+            "__ne__",
+            "__lt__",
+            "__le__",
+            "__lt__",
+            "__gt__",
+            "__ge__",
+        ]
+
+        for magic_method in self.MAGIC_METHOD:
+            self.paddle_tensor_methods.add("paddle.Tensor." + magic_method)
+            self.torch_tensor_methods.add("torch.Tensor." + magic_method)
+
+        self.IGNORE_METHOD = ["clone", "detach", "cpu", "gpu"]
+        for ignore_method in self.IGNORE_METHOD:
+            paddle_method = "paddle.Tensor." + ignore_method
+            torch_method = "torch.Tensor." + ignore_method
+            if paddle_method in self.paddle_tensor_methods:
+                self.paddle_tensor_methods.remove(paddle_method)
+            if torch_method in self.torch_tensor_methods:
+                self.torch_tensor_methods.remove(torch_method)
+
 
 global_json_loader = json_loader()
