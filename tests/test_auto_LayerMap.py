@@ -59,7 +59,6 @@ class TestCaseName(unittest.TestCase):
         layer = SimpleLayer2()
         module = SimpleModule2()
 
-        # layer_map = {layer.lstm1: module.lstm1, layer.lstm2: module.lstm2}
         layer_map = LayerMap.auto(layer, module)
 
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
