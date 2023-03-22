@@ -105,15 +105,24 @@ class json_loader:
         self.torch_apis = {}
         self.paddle_apis = {}
 
+        self.paddle_tensor_methods = set()
+        self.torch_tensor_methods = set()
+
         for k, v in self.api_mapping.items():
             if "paddle_api" not in v.keys():
                 continue
 
             torch_fullname = k
+            paddle_fullname = v["paddle_api"]
+
+            if torch_fullname.startswith("torch.Tensor.") and paddle_fullname.startswith("paddle.Tensor."):
+                self.paddle_tensor_methods.add(paddle_fullname)
+                self.torch_tensor_methods.add(torch_fullname)
+                continue
+
             torch_module = torch_fullname.rpartition(".")[0]
             torch_api = torch_fullname.rpartition(".")[2]
 
-            paddle_fullname = v["paddle_api"]
             paddle_module = paddle_fullname.rpartition(".")[0]
             paddle_api = paddle_fullname.rpartition(".")[2]
 
@@ -141,27 +150,6 @@ class json_loader:
         for k, v in self.PADDLE_IGNORE.items():
             for item in v:
                 self.paddle_apis[k].remove(item)
-
-        # find Tensor Method
-        self.paddle_tensor_methods = set()
-        self.torch_tensor_methods = set()
-        for k, v in self.api_mapping.items():
-            if (
-                "paddle_api" not in v.keys()
-                or not k.startswith("torch.Tensor.")
-                or not v["paddle_api"].startswith("paddle.Tensor.")
-            ):
-                continue
-
-            torch_fullname = k
-            paddle_fullname = v["paddle_api"]
-
-            # skip inplace method?
-            # if torch_fullname.endswith("_") or paddle_fullname.endswith("_"):
-            #     continue
-
-            self.paddle_tensor_methods.add(paddle_fullname)
-            self.torch_tensor_methods.add(torch_fullname)
 
         self.MAGIC_METHOD = [
             "__add__",
