@@ -19,6 +19,8 @@ import paddle
 import torch
 import torchvision
 
+import os
+
 
 class TestCaseName(unittest.TestCase):
     def setUp(self):
@@ -39,4 +41,5 @@ class TestCaseName(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    os.environ["PADIFF_TENSOR_METHOD"] = "OFF"
     unittest.main()
