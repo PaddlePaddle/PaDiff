@@ -75,3 +75,4 @@ class TestCaseName(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+    os.environ["PADIFF_API_CHECK"] = "OFF"
