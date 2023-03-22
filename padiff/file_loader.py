@@ -100,7 +100,7 @@ class json_loader:
 
         json_path = os.path.join(os.path.dirname(__file__), "configs", "api_mapping.json")
         with open(json_path, "r") as file:
-            self.api_mapping = json.load(file)
+            api_mapping = json.load(file)
 
         self.torch_apis = {}
         self.paddle_apis = {}
@@ -108,7 +108,7 @@ class json_loader:
         self.paddle_tensor_methods = set()
         self.torch_tensor_methods = set()
 
-        for k, v in self.api_mapping.items():
+        for k, v in api_mapping.items():
             if "paddle_api" not in v.keys():
                 continue
 
