@@ -218,9 +218,14 @@ def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
         retstr += p_info
         retstr += "\n"
 
-    retstr += "\nHint:\n"
-    retstr += "      1. check the init order of param or layer in definition is the same.\n"
-    retstr += "      2. try to use `LayerMap` to skip the diff in models, you can find the instructions at `https://github.com/PaddlePaddle/PaDiff`.\n"
+    retstr += "\nNOTICE: layer/module will be marked with `(skip)` for: \n"
+    retstr += "    1. this layer/module is contained by layer_map.\n"
+    retstr += "    2. this layer/module has no parameter or buffer, so padiff think it is a wrap layer.\n"
+    retstr += "    3. if a layer/module should not be skipped, but it is marked with `(skip)`, try to add it into layer_map.\n"
+    retstr += "Hint:\n"
+    retstr += "    1. check the init order of param or layer in definition is the same.\n"
+    retstr += "    2. try to use `LayerMap` to skip the diff in models.\n"
+    retstr += "    3. browse `https://github.com/PaddlePaddle/PaDiff` to find a tutorial.\n"
 
     return retstr
 
@@ -239,6 +244,9 @@ def print_weight_struct(net, mark=None, prefix=[]):
                 cur_str += s
 
     cur_str += str(net.__class__.__name__)
+    if not hasattr(net, "padiff_path"):
+        cur_str += "  (skip)"
+
     if mark is net:
         cur_str += "    <---  *** HERE ***"
 
@@ -458,6 +466,8 @@ class LayerMap(object):
             raise RuntimeError("Unexpect input type for LayerMap.ignore: {}".format(type(inp)))
 
     def ignore_recursively(self, layers):
+        if isinstance(layers, (paddle.nn.Layer, torch.nn.Module)):
+            layers = [layers]
         self._layer_ignore_sublayer.update(set(layers))
         self._layer_ignore.update(set(layers))
 
