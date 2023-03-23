@@ -24,6 +24,9 @@ import torch
     torch_api_hook, paddle_api_hook are used to create report items
 """
 
+__in_torch_api_hook__ = False
+__in_paddle_api_hook__ = False
+
 
 def torch_tensor_hook(x_grad, bwd_item, nth_tensor):
     # print (nth_tensor, bwd_item.input_grads, bwd_item.input)
@@ -52,6 +55,10 @@ def torch_api_hook(module, input, output, net_id):
     """
     Notice: only wrapped api and mapped one2one layer will trigger this hook. They are leaves.
     """
+    global __in_torch_api_hook__
+    if __in_torch_api_hook__:
+        return None
+
     t_rep = current_torch_report()
 
     # not in report_guard
@@ -69,6 +76,8 @@ def torch_api_hook(module, input, output, net_id):
     if t_rep.stack._top().net in t_rep.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):
         return None
 
+    __in_torch_api_hook__ = True
+
     frame_info, frames = extract_frame_summary()
     new_in = utils.clone_structure(input)
     new_out = utils.clone_structure(output)
@@ -80,6 +89,9 @@ def torch_api_hook(module, input, output, net_id):
 
     for i, (t,) in enumerate(utils.for_each_grad_tensor(input)):
         t.register_hook(partial(torch_tensor_hook, bwd_item=bwd_item, nth_tensor=i))
+
+    __in_torch_api_hook__ = False
+
     return None
 
 
@@ -87,6 +99,9 @@ def paddle_api_hook(module, input, output, net_id):
     """
     Notice: only wrapped api and layer in one2one will trigger this hook. They are leaves.
     """
+    global __in_paddle_api_hook__
+    if __in_paddle_api_hook__:
+        return None
 
     p_rep = current_paddle_report()
 
@@ -98,6 +113,8 @@ def paddle_api_hook(module, input, output, net_id):
 
     if p_rep.stack._top().net in p_rep.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):
         return None
+
+    __in_paddle_api_hook__ = True
 
     options = utils.yamls.options
     frame_info, frames = extract_frame_summary()
@@ -117,8 +134,11 @@ def paddle_api_hook(module, input, output, net_id):
         t_rep = current_torch_report()
         t_fwd_item = t_rep.find_item(p_rep, net_id, "forward")
 
-        return utils.map_structure_and_replace_key(_torch_tensor_to_paddle_tensor, [t_fwd_item.output], output)
+        retval = utils.map_structure_and_replace_key(_torch_tensor_to_paddle_tensor, [t_fwd_item.output], output)
+        __in_paddle_api_hook__ = False
+        return retval
     else:
+        __in_paddle_api_hook__ = False
         return None
 
 

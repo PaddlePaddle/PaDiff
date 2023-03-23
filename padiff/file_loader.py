@@ -97,20 +97,29 @@ class json_loader:
 
         json_path = os.path.join(os.path.dirname(__file__), "configs", "api_mapping.json")
         with open(json_path, "r") as file:
-            self.api_mapping = json.load(file)
+            api_mapping = json.load(file)
 
         self.torch_apis = {}
         self.paddle_apis = {}
 
-        for k, v in self.api_mapping.items():
+        self.paddle_tensor_methods = set()
+        self.torch_tensor_methods = set()
+
+        for k, v in api_mapping.items():
             if "paddle_api" not in v.keys():
                 continue
 
             torch_fullname = k
+            paddle_fullname = v["paddle_api"]
+
+            if torch_fullname.startswith("torch.Tensor.") and paddle_fullname.startswith("paddle.Tensor."):
+                self.paddle_tensor_methods.add(paddle_fullname)
+                self.torch_tensor_methods.add(torch_fullname)
+                continue
+
             torch_module = torch_fullname.rpartition(".")[0]
             torch_api = torch_fullname.rpartition(".")[2]
 
-            paddle_fullname = v["paddle_api"]
             paddle_module = paddle_fullname.rpartition(".")[0]
             paddle_api = paddle_fullname.rpartition(".")[2]
 
@@ -127,6 +136,10 @@ class json_loader:
             else:
                 self.paddle_apis[paddle_module].append(paddle_api)
 
+        # paddle.nn.Conv2D called _conv_nd, this layer is used frequently, so add it to ADDITIONAL_PATH
+        self.ADDITIONAL_PATH = {"paddle.nn.functional.conv": ["_conv_nd"]}
+        self.paddle_apis.update(self.ADDITIONAL_PATH)
+
         # Deprecated
         self.TORCH_IGNORE = {"torch.nn.functional": ["sigmoid"], "torch": ["as_tensor"]}
         self.PADDLE_IGNORE = {"paddle": ["to_tensor"]}
@@ -137,5 +150,48 @@ class json_loader:
             for item in v:
                 self.paddle_apis[k].remove(item)
 
+        self.MAGIC_METHOD = [
+            "__add__",
+            "__radd__",
+            "__iadd__",
+            "__sub__",
+            "__rsub__",
+            "__isub__",
+            "__mul__",
+            "__rmul__",
+            "__div__",
+            "__rdiv__",
+            "__truediv__",
+            "__rtruediv__",
+            "__pow__",
+            "__rpow__",
+            "__floordiv__",
+            "__mod__",
+            "__matmul__",
+            "__eq__",
+            "__ne__",
+            "__lt__",
+            "__le__",
+            "__lt__",
+            "__gt__",
+            "__ge__",
+        ]
 
-global_json_loader = json_loader()
+        for magic_method in self.MAGIC_METHOD:
+            self.paddle_tensor_methods.add("paddle.Tensor." + magic_method)
+            self.torch_tensor_methods.add("torch.Tensor." + magic_method)
+
+        self.IGNORE_METHOD = ["clone", "detach", "cpu", "gpu"]
+        for ignore_method in self.IGNORE_METHOD:
+            paddle_method = "paddle.Tensor." + ignore_method
+            torch_method = "torch.Tensor." + ignore_method
+            if paddle_method in self.paddle_tensor_methods:
+                self.paddle_tensor_methods.remove(paddle_method)
+            if torch_method in self.torch_tensor_methods:
+                self.torch_tensor_methods.remove(torch_method)
+
+
+if os.getenv("PADIFF_API_CHECK") != "OFF":
+    global_json_loader = json_loader()
+else:
+    global_json_loader = None
