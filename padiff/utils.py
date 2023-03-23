@@ -536,7 +536,7 @@ class LayerMap(object):
         """
         This function will try to find components which support special init, and add them to layer_map automatically.
 
-        NOTICE: auto_layer_map suppose that all sublayers/submodules are defined in same order, if not, auto_layer_map may not work correctly.
+        NOTICE: LayerMap.auto suppose that all sublayers/submodules are defined in same order, if not, this method may not work correctly.
         """
 
         def _traversal_layers(net, path, registered):
@@ -556,14 +556,14 @@ class LayerMap(object):
 
         layer_map = LayerMap()
 
-        log("auto_layer_map start searching...\n")
+        log("auto generate LayerMap start searching...\n")
 
         for paddle_info, torch_info in zip_longest(paddle_layers, torch_modules, fillvalue=None):
             if paddle_info is None or torch_info is None:
                 print(
                     "\nError: The number of registered paddle sublayer and torch submodule is not the same! Check your model struct first!"
                 )
-                log("auto_layer_map FAILED!!!\n")
+                log("auto generate LayerMap FAILED!!!\n")
                 return None
             paddle_layer, paddle_path = paddle_info
             torch_module, torch_path = torch_info
@@ -581,8 +581,8 @@ class LayerMap(object):
                 )
                 print(f"    paddle: `{paddle_name}` at `{paddle_path}`")
                 print(f"    torch:  `{torch_name}` at `{torch_path}`")
-                log("auto_layer_map FAILED!!!\n")
+                log("auto generate LayerMap FAILED!!!\n")
                 return None
         print()
-        log("auto_layer_map SUCCESS!!!\n")
+        log("auto generate LayerMap SUCCESS!!!\n")
         return layer_map
