@@ -25,7 +25,7 @@
 ## 快速使用 LayerMap：LayerMap.auto 接口
 **功能介绍**
 
-`LayerMap.auto` 是 `class LayerMap` 的静态方法。依次传入 paddle 和 torch 模型后，该方法根据当前支持 Special Init 的组件信息生成并返回一个 LayerMap 实例。
+`auto` 是 `class LayerMap` 实例的成员方法。依次传入 paddle 和 torch 模型后，该方法根据当前支持 Special Init 的组件信息自动更新自身记录的信息。
 
 **适用情况**
 
@@ -40,7 +40,7 @@
 >
 > 2.  LayerMap.auto 要求模型中需要一一对应的 sublayer/submodule 各自的定义顺序完全一致，否则可能生成的 LayerMap 有误，具体可见下方展示的 log 信息
 >
-> 3.  当 LayerMap.auto 生成 LayerMap 失败，或由于模型定义顺序不一致导致生成的 LayerMap 无法正确支持 auto_diff 以及 assign_weight，需要用户自行手动编写 LayerMap，方法详见[下文](#通过-layermap-实例的成员方法自定义-layermap)
+> 3.  当 LayerMap.auto 更新失败，或由于模型定义顺序不一致导致生成的 LayerMap 无法正确支持 auto_diff 以及 assign_weight，需要用户自行手动编写 LayerMap，方法详见[下文](#通过-layermap-实例的成员方法自定义-layermap)
 
 **log 信息示例**
 
