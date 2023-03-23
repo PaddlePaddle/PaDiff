@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
+os.environ["PADIFF_API_CHECK"] = "ON"
+
 import unittest
 
 from padiff.trainer.trainer_utils import Report
@@ -30,6 +34,8 @@ class SimpleLayer(paddle.nn.Layer):
     def forward(self, x):
         x = self.linear1(x)
         x = self.relu(x)
+        x = x * 2
+        x = x + 1
         return x
 
 
@@ -42,6 +48,8 @@ class SimpleModule(torch.nn.Module):
     def forward(self, x):
         x = self.linear1(x)
         x = self.relu(x)
+        x = x * 2
+        x = x + 1
         return x
 
 
@@ -60,10 +68,11 @@ class TestCaseName(unittest.TestCase):
 
         trainer.do_run(paddle_report, torch_report, inp)
 
-        # [layer(SimpleLayer, Linear) + api(linear, relu)] * (fwd, bwd) = 8
-        assert len(paddle_report.items) == 8
-        assert len(torch_report.items) == 8
+        # [layer(SimpleLayer, Linear) + api(linear, relu) + method(mul, add)] * (fwd, bwd) = 12
+        assert len(paddle_report.items) == 12
+        assert len(torch_report.items) == 12
 
 
 if __name__ == "__main__":
     unittest.main()
+    os.environ["PADIFF_API_CHECK"] = "OFF"

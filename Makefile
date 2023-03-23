@@ -34,9 +34,7 @@ lint:
 test: unit-test
 
 unit-test:
-	PYTHONPATH=. pytest \
-		--cov padiff \
-		--cov-report xml:coverage.xml
+	PYTHONPATH=. PADIFF_API_CHECK=OFF python tests/padiff_unittests.py
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 

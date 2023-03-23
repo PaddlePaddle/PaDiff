@@ -569,6 +569,7 @@ class LayerMap(object):
                 )
                 log("auto update LayerMap FAILED!!!\n")
                 return
+
             paddle_layer, paddle_path = paddle_info
             torch_module, torch_path = torch_info
             paddle_name = paddle_layer.__class__.__name__
