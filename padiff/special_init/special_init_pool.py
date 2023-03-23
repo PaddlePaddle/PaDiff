@@ -24,9 +24,13 @@ def build_name(paddle_name, torch_name):
 class SpecialInitPool(object):
     def __init__(self):
         self.funcs = {}
+        self.registered_paddle_layers = set()
+        self.registered_torch_modules = set()
 
     def register(self, paddle_name, torch_name):
         name = build_name(paddle_name, torch_name)
+        self.registered_paddle_layers.add(paddle_name)
+        self.registered_torch_modules.add(torch_name)
 
         def do_reg(func):
             self.funcs[name] = func
@@ -40,4 +44,6 @@ global_special_init_pool = SpecialInitPool()
 
 def add_special_init(paddle_name, torch_name, func):
     name = build_name(paddle_name, torch_name)
+    global_special_init_pool.registered_paddle_layers.add(paddle_name)
+    global_special_init_pool.registered_torch_modules.add(torch_name)
     global_special_init_pool.funcs[name] = func
