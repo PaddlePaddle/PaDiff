@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .. import utils
+import os
 
 
 class TableView:
@@ -303,6 +304,10 @@ def tree_print(root, mark=None, prefix=[]):
                 cur_str += s
 
     cur_str += str(root)
+
+    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(root.net, "padiff_path"):
+        cur_str += "  (" + root.net.padiff_path + ")"
+
     if mark is root:
         cur_str += "    <---  *** HERE ***"
 
