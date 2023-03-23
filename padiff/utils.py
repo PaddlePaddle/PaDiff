@@ -233,7 +233,7 @@ def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
     retstr += "       param <=> param, buffer <=> buffer, embedding <=> embedding ...\n"
     retstr += "       cases like param <=> buffer, param <=> embedding are not allowed,\n"
     retstr += "       because padiff can not know how to init the parameters.\n"
-    retstr += "    4. If you can not change model codes, try to use a `LayerMap`"
+    retstr += "    4. If you can not change model codes, try to use a `LayerMap`\n"
     retstr += "       which can solve almost any problem.\n"
 
     return retstr
