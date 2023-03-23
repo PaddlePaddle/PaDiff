@@ -36,21 +36,21 @@
 
 > 注：
 >
-> 1.  auto_layer_map 只会搜索当前已支持 Special Init 的 sublayer/submodule 用来构造 LayerMap ，关于 SepcialInit 的使用详见 [SepcialInit的使用方法](SpecialInit.md)
+> 1.  LayerMap.auto 只会搜索当前已支持 Special Init 的 sublayer/submodule 用来构造 LayerMap ，关于 SepcialInit 的使用详见 [SepcialInit的使用方法](SpecialInit.md)
 >
-> 2.  auto_layer_map 要求模型中需要一一对应的 sublayer/submodule 各自的定义顺序完全一致，否则可能生成的 LayerMap 有误，具体可见下方展示的 log 信息
+> 2.  LayerMap.auto 要求模型中需要一一对应的 sublayer/submodule 各自的定义顺序完全一致，否则可能生成的 LayerMap 有误，具体可见下方展示的 log 信息
 >
-> 3.  当 auto_layer_map 生成 LayerMap 失败，或由于模型定义顺序不一致导致生成的 LayerMap 无法正确支持 auto_diff 以及 assign_weight，需要用户自行手动编写 LayerMap，方法详见[下文](#通过-layermap-实例的成员方法自定义-layermap)
+> 3.  当 LayerMap.auto 生成 LayerMap 失败，或由于模型定义顺序不一致导致生成的 LayerMap 无法正确支持 auto_diff 以及 assign_weight，需要用户自行手动编写 LayerMap，方法详见[下文](#通过-layermap-实例的成员方法自定义-layermap)
 
 **log 信息示例**
 
 ```
-[AutoDiff] auto_layer_map start searching...
+[AutoDiff] auto generate LayerMap start searching...
 
 ++++    paddle `LSTM` at `SimpleLayer2.lstm1` <==> torch `LSTM` at `SimpleModule2.lstm1`.
 ++++    paddle `LSTM` at `SimpleLayer2.lstm2` <==> torch `LSTM` at `SimpleModule2.lstm2`.
 
-[AutoDiff] auto_layer_map SUCCESS!!!
+[AutoDiff] auto generate LayerMap SUCCESS!!!
 ```
 
 **代码使用示例**

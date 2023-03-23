@@ -86,10 +86,10 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
                 )
             except Exception as e:
                 err_str = f"Error occured between:\n"
-                err_str += f"    paddle: `{model_repr_info(paddle_sublayer)}`\n"
-                err_str += f"            `{paddle_sublayer.padiff_path + '.' + paddle_pname}`\n"
-                err_str += f"    torch: `{model_repr_info(torch_submodule)}`\n"
-                err_str += f"           `{torch_submodule.padiff_path + '.' + torch_pname}`\n\n"
+                err_str += f"    paddle: {model_repr_info(paddle_sublayer)}\n"
+                err_str += f"            {paddle_sublayer.padiff_path + '.' + paddle_pname}\n"
+                err_str += f"    torch: {model_repr_info(torch_submodule)}\n"
+                err_str += f"           {torch_submodule.padiff_path + '.' + torch_pname}\n\n"
                 err_str += f"{type(e).__name__ + ':  ' + str(e)}\n"
                 err_str += weight_struct_info(layer, module, paddle_sublayer, torch_submodule)
                 raise RuntimeError(err_str)

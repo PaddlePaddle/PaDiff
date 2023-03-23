@@ -5,7 +5,7 @@
   - [如何进行非fp32模型的对齐](#如何进行非fp32模型的对齐)
   - [由padiff引发的import问题](#由padiff引发的import问题)
   - [使用torch的checkpoint机制](#使用torch的checkpoint机制)
-  - [使用buffer](#使用buffer)
+  - [assign weight 的错误](#assign-weight-的错误)
   - [调试建议](#调试建议)
 
 
@@ -62,14 +62,43 @@ auto_diff 工具的工作与 device 无关，如果需要进行 cpu/gpu 的对�
 
 
 
-## 使用buffer
+## assign weight 的错误
 
-padiff 允许使用 buffer：
+**assign weight 做了什么**
+1. assign weight 首先尝试寻找对应的 layer/module
+2. assign weight 尝试在对应的 layer/module 中，同步遍历它们的 parameters
+3. assign weight 会略过不包含 parameter 的 layer/module (也会略过 LayerMap 指定的部分)
 
-1.   torch 与 paddle 的模型写法必须对齐（都使用 buffer 或都使用 param ，不能一边 buffer 一边 param ）
-2.   padiff 不会修改 buffer 的值
+**因模型权重实现方案不同导致的错误**
 
+padiff允许模型使用 buffer，embedding，但 paddle 和 torch 的使用必须对应。即一方使用了 parameter/buffer/embedding 另一方也应该使用 parameter/buffer/embedding，否则 padiff 无法判断模型应如何初始化。
 
+例子：
+下图中 paddle 和 torch 的 OVDeformableTransformer 是对应的，但由于 torch 模型的 OVDeformableTransformer 使用 parameter，而 paddle 模型的OVDeformableTransformer 使用 Embedding，导致 paddle 模型没有 parameter，被 padiff 略过，因此报错信息指向了 paddle 模型中下方的 Linear
+
+（在当前版本下，被略过的 layer 会被标注 skip）
+
+> 解决方案：
+>
+> 1. 修改模型代码，使用对应的权重实现方案
+>
+> 2. 使用 LayerMap 指定顶层模型的一一对应关系，并自定义初始化函数
+
+**因模型权重定义顺序导致的错误**
+
+在寻找到对应 layer/module 后，其中的 parameter 定义顺序不一致，导致拷贝权重出错。该问题发生时，一般表现为 parameter shape 不一致。
+
+> 解决方案：
+>
+> 使用 LayerMap 指定顶层模型的一一对应关系，并自定义初始化函数
+
+**因模型结构不对应导致的错误**
+
+模型结构本就不对应，在这种情况下，也需要使用 LayerMap
+
+> 解决方案：
+>
+> 使用 LayerMap 的 ignore 功能忽略部分模型，并在必要时添加一一对应关系
 
 ## 调试建议
 

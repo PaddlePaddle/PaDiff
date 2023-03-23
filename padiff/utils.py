@@ -222,9 +222,19 @@ def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
         retstr += p_info
         retstr += "\n"
 
+    retstr += "\nNOTICE: layer/module will be marked with `(skip)` for: \n"
+    retstr += "    1. This layer/module is contained by layer_map.\n"
+    retstr += "    2. This layer/module has no parameter, so padiff think it is a wrap layer.\n"
+
     retstr += "\nHint:\n"
-    retstr += "      1. check the init order of param or layer in definition is the same.\n"
-    retstr += "      2. try to use `LayerMap` to skip the diff in models, you can find the instructions at `https://github.com/PaddlePaddle/PaDiff`.\n"
+    retstr += "    0. Visit `https://github.com/PaddlePaddle/PaDiff` to find a tutorial !!!\n"
+    retstr += "    1. Check the definition order of params in layer/module is the same.\n"
+    retstr += "    2. Check the corresponding layer/module have the same style:\n"
+    retstr += "       param <=> param, buffer <=> buffer, embedding <=> embedding ...\n"
+    retstr += "       cases like param <=> buffer, param <=> embedding are not allowed,\n"
+    retstr += "       because padiff can not know how to init the parameters.\n"
+    retstr += "    4. If you can not change model codes, try to use a `LayerMap`\n"
+    retstr += "       which can solve almost any problem.\n"
 
     return retstr
 
@@ -243,6 +253,9 @@ def print_weight_struct(net, mark=None, prefix=[]):
                 cur_str += s
 
     cur_str += str(net.__class__.__name__)
+    if not hasattr(net, "padiff_path"):
+        cur_str += "  (skip)"
+
     if mark is net:
         cur_str += "    <---  *** HERE ***"
 
@@ -413,11 +426,9 @@ def init_LayerMap(layer, module, layer_map):
 def is_wrap_layer(layer):
     if isinstance(layer, paddle.nn.Layer):
         no_param = len(list(layer.parameters(include_sublayers=False))) == 0
-        no_buffer = len(list(layer.buffers(include_sublayers=False))) == 0
     elif isinstance(layer, torch.nn.Module):
         no_param = len(list(layer.parameters(recurse=False))) == 0
-        no_buffer = len(list(layer.buffers(recurse=False))) == 0
-    return no_param and no_buffer
+    return no_param
 
 
 class LayerMap(object):
@@ -462,6 +473,8 @@ class LayerMap(object):
             raise RuntimeError("Unexpect input type for LayerMap.ignore: {}".format(type(inp)))
 
     def ignore_recursively(self, layers):
+        if isinstance(layers, (paddle.nn.Layer, torch.nn.Module)):
+            layers = [layers]
         self._layer_ignore_sublayer.update(set(layers))
         self._layer_ignore.update(set(layers))
 
@@ -528,7 +541,7 @@ class LayerMap(object):
         """
         This function will try to find components which support special init, and add them to layer_map automatically.
 
-        NOTICE: auto_layer_map suppose that all sublayers/submodules are defined in same order, if not, auto_layer_map may not work correctly.
+        NOTICE: LayerMap.auto suppose that all sublayers/submodules are defined in same order, if not, this method may not work correctly.
         """
 
         def _traversal_layers(net, path, registered):
@@ -548,14 +561,14 @@ class LayerMap(object):
 
         layer_map = LayerMap()
 
-        log("auto_layer_map start searching...\n")
+        log("auto generate LayerMap start searching...\n")
 
         for paddle_info, torch_info in zip_longest(paddle_layers, torch_modules, fillvalue=None):
             if paddle_info is None or torch_info is None:
                 print(
                     "\nError: The number of registered paddle sublayer and torch submodule is not the same! Check your model struct first!"
                 )
-                log("auto_layer_map FAILED!!!\n")
+                log("auto generate LayerMap FAILED!!!\n")
                 return None
             paddle_layer, paddle_path = paddle_info
             torch_module, torch_path = torch_info
@@ -573,8 +586,8 @@ class LayerMap(object):
                 )
                 print(f"    paddle: `{paddle_name}` at `{paddle_path}`")
                 print(f"    torch:  `{torch_name}` at `{torch_path}`")
-                log("auto_layer_map FAILED!!!\n")
+                log("auto generate LayerMap FAILED!!!\n")
                 return None
         print()
-        log("auto_layer_map SUCCESS!!!\n")
+        log("auto generate LayerMap SUCCESS!!!\n")
         return layer_map
