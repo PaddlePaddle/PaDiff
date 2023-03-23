@@ -229,8 +229,12 @@ def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
     retstr += "\nHint:\n"
     retstr += "    0. Visit `https://github.com/PaddlePaddle/PaDiff` to find a tutorial !!!\n"
     retstr += "    1. Check the definition order of params in layer/module is the same.\n"
-    retstr += "    2. Check the corresponding layer/module have the same style: param <=> param, buffer <=> buffer, embedding <=> embedding. Different style is not allowed."
-    retstr += "    4. If you can not change model codes, try to use a `LayerMap` which can solve almost any problem.\n"
+    retstr += "    2. Check the corresponding layer/module have the same style:\n"
+    retstr += "       param <=> param, buffer <=> buffer, embedding <=> embedding ...\n"
+    retstr += "       cases like param <=> buffer, param <=> embedding are not allowed,\n"
+    retstr += "       because padiff can not know how to init the parameters.\n"
+    retstr += "    4. If you can not change model codes, try to use a `LayerMap`"
+    retstr += "       which can solve almost any problem.\n"
 
     return retstr
 
