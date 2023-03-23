@@ -223,13 +223,14 @@ def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
         retstr += "\n"
 
     retstr += "\nNOTICE: layer/module will be marked with `(skip)` for: \n"
-    retstr += "    1. this layer/module is contained by layer_map.\n"
-    retstr += "    2. this layer/module has no parameter or buffer, so padiff think it is a wrap layer.\n"
-    retstr += "    3. if a layer/module should not be skipped, but it is marked with `(skip)`, try to add it into layer_map.\n"
-    retstr += "Hint:\n"
-    retstr += "    1. check the init order of param or layer in definition is the same.\n"
-    retstr += "    2. try to use `LayerMap` to skip the diff in models.\n"
-    retstr += "    3. browse `https://github.com/PaddlePaddle/PaDiff` to find a tutorial.\n"
+    retstr += "    1. This layer/module is contained by layer_map.\n"
+    retstr += "    2. This layer/module has no parameter, so padiff think it is a wrap layer.\n"
+
+    retstr += "\nHint:\n"
+    retstr += "    0. Visit `https://github.com/PaddlePaddle/PaDiff` to find a tutorial !!!\n"
+    retstr += "    1. Check the definition order of params in layer/module is the same.\n"
+    retstr += "    2. Check the corresponding layer/module have the same style: param <=> param, buffer <=> buffer, embedding <=> embedding. Different style is not allowed."
+    retstr += "    4. If you can not change model codes, try to use a `LayerMap` which can solve almost any problem.\n"
 
     return retstr
 
