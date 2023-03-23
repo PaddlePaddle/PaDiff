@@ -417,11 +417,9 @@ def init_LayerMap(layer, module, layer_map):
 def is_wrap_layer(layer):
     if isinstance(layer, paddle.nn.Layer):
         no_param = len(list(layer.parameters(include_sublayers=False))) == 0
-        no_buffer = len(list(layer.buffers(include_sublayers=False))) == 0
     elif isinstance(layer, torch.nn.Module):
         no_param = len(list(layer.parameters(recurse=False))) == 0
-        no_buffer = len(list(layer.buffers(recurse=False))) == 0
-    return no_param and no_buffer
+    return no_param
 
 
 class LayerMap(object):
