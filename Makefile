@@ -34,7 +34,7 @@ lint:
 test: unit-test
 
 unit-test:
-	python tests/padiff_unittests.py
+	PYTHONPATH=. python tests/padiff_unittests.py
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 

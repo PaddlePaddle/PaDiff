@@ -21,7 +21,7 @@ for root, dirs, files in os.walk("./"):
     for fname in files:
         if fname.endswith(".py") and fname.startswith("test_"):
             fpath = root + "/" + fname
-            (status, output) = subprocess.getstatusoutput("PYTHONPATH=.. python " + fpath)
+            (status, output) = subprocess.getstatusoutput("python " + fpath)
             if status != 0:
                 failed_tests.append((fpath, output))
                 print("F", end="", flush=True)
