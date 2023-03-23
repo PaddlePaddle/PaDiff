@@ -63,7 +63,8 @@ import paddle
 paddle_layer = SimpleLayer()
 torch_module = SimpleModule()
 
-layer_map = LayerMap.auto(paddle_layer, torch_module)
+layer_map = LayerMap()
+layer_map.auto(paddle_layer, torch_module)
 
 inp = paddle.rand((100, 100)).numpy().astype("float32")
 inp = ({'x': paddle.to_tensor(inp)},
