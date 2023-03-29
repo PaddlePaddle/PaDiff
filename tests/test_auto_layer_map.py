@@ -14,7 +14,7 @@
 
 import os
 
-os.environ["PADIFF_API_CHECK"] = "ON"
+os.environ["PADIFF_CUDA_MEMO"] = "OFF"
 
 import unittest
 from padiff import auto_diff, LayerMap
