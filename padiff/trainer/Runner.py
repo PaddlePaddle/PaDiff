@@ -51,10 +51,10 @@ class Runner(object):
             self.torch_device = next(module.parameters()).device
 
             self.layer.to("cpu")
-            self.module.to("cpu")
-
-            torch.cuda.empty_cache()
             paddle.device.cuda.empty_cache()
+
+            self.module.to("cpu")
+            torch.cuda.empty_cache()
 
     def assign_weight_(self):
         return assign_weight(self.layer, self.module, self.layer_map)
