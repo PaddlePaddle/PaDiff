@@ -20,6 +20,10 @@ from ..utils import (
 )
 from ..weights import remove_inplace, assign_weight
 
+import os
+import paddle
+import torch
+
 
 class Runner(object):
     def __init__(self, layer, module, loss_fn, layer_map, options):
@@ -42,6 +46,16 @@ class Runner(object):
         self.paddle_rep = None
         self.torch_rep = None
 
+        if os.getenv("PADIFF_CUDA_MEMO") != "OFF":
+            self.paddle_device = paddle.get_device()
+            self.torch_device = next(module.parameters()).device
+
+            self.layer.to("cpu")
+            self.module.to("cpu")
+
+            torch.cuda.empty_cache()
+            paddle.device.cuda.empty_cache()
+
     def assign_weight_(self):
         return assign_weight(self.layer, self.module, self.layer_map)
 
@@ -54,6 +68,8 @@ class Runner(object):
     def forward_step(self, example_inp):
         paddle_input, torch_input = example_inp
         with report_guard(self.torch_rep, self.paddle_rep):
+            if os.getenv("PADIFF_CUDA_MEMO") != "OFF":
+                self.module.to(self.torch_device)
             with register_torch_hooker(self.module, self.layer_map):
                 try:
                     torch_output = self.module(**torch_input)
@@ -71,6 +87,11 @@ class Runner(object):
                         )
                     )
 
+            if os.getenv("PADIFF_CUDA_MEMO") != "OFF":
+                self.module.to("cpu")
+                torch.cuda.empty_cache()
+                self.layer.to(self.paddle_device)
+
             with register_paddle_hooker(self.layer, self.layer_map):
                 try:
                     paddle_output = self.layer(**paddle_input)
@@ -87,5 +108,10 @@ class Runner(object):
                             type(e).__name__ + ":  " + str(e)
                         )
                     )
+
+            if os.getenv("PADIFF_CUDA_MEMO") != "OFF":
+                self.layer.to("cpu")
+                paddle.device.cuda.empty_cache()
+
         if not self.options["single_step"]:
             log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
