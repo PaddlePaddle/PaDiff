@@ -227,14 +227,14 @@ def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
     retstr += "    2. This layer/module has no parameter, so padiff think it is a wrap layer.\n"
 
     retstr += "\nHint:\n"
-    retstr += "    0. Visit `https://github.com/PaddlePaddle/PaDiff` to find a tutorial !!!\n"
     retstr += "    1. Check the definition order of params in layer/module is the same.\n"
     retstr += "    2. Check the corresponding layer/module have the same style:\n"
     retstr += "       param <=> param, buffer <=> buffer, embedding <=> embedding ...\n"
     retstr += "       cases like param <=> buffer, param <=> embedding are not allowed,\n"
     retstr += "       because padiff can not know how to init the parameters.\n"
-    retstr += "    4. If you can not change model codes, try to use a `LayerMap`\n"
+    retstr += "    3. If you can not change model codes, try to use a `LayerMap`\n"
     retstr += "       which can solve almost any problem.\n"
+    retstr += "    0. Visit `https://github.com/PaddlePaddle/PaDiff` to find more infomation !!!\n"
 
     return retstr
 
@@ -253,8 +253,12 @@ def print_weight_struct(net, mark=None, prefix=[]):
                 cur_str += s
 
     cur_str += str(net.__class__.__name__)
-    if not hasattr(net, "padiff_path"):
+
+    if not hasattr(net, "no_skip"):
         cur_str += "  (skip)"
+
+    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(net, "padiff_path"):
+        cur_str += "  (" + net.padiff_path + ")"
 
     if mark is net:
         cur_str += "    <---  *** HERE ***"
@@ -418,6 +422,22 @@ def init_LayerMap(layer, module, layer_map):
     return layer_map
 
 
+def init_padiff_path(layer, module):
+    def _set_padiff_path(net, path):
+        for name, child in net.named_children():
+            path.append(name)
+            if not hasattr(child, "padiff_path"):
+                setattr(child, "padiff_path", ".".join(path))
+            _set_padiff_path(child, path)
+            path.pop()
+
+    setattr(layer, "padiff_path", layer.__class__.__name__)
+    setattr(module, "padiff_path", module.__class__.__name__)
+
+    _set_padiff_path(layer, [layer.__class__.__name__])
+    _set_padiff_path(module, [module.__class__.__name__])
+
+
 """
     LayerMap
 """
@@ -487,25 +507,13 @@ class LayerMap(object):
                 ignored.add(sublayer)
         self._layer_ignore.update(ignored)
 
-    def _traversal_layers_with_ignore_add_path(self, net, path):
-        for name, child in net.named_children():
-            path.append(name)
-            if (child not in self._layer_ignore and not is_wrap_layer(child)) or (
-                child in self.map.keys() or child in self.map.values()
-            ):
-                if not hasattr(child, "padiff_path"):
-                    setattr(child, "padiff_path", ".".join(path))
-                yield child
-            if child not in self._layer_ignore_sublayer:
-                for sublayer in self._traversal_layers_with_ignore_add_path(child, path):
-                    yield sublayer
-            path.pop()
-
     def _traversal_layers_with_ignore(self, net):
         for child in net.children():
             if (child not in self._layer_ignore and not is_wrap_layer(child)) or (
                 child in self.map.keys() or child in self.map.values()
             ):
+                if not hasattr(child, "no_skip"):
+                    setattr(child, "no_skip", True)
                 yield child
             if child not in self._layer_ignore_sublayer:
                 for sublayer in self._traversal_layers_with_ignore(child):
@@ -517,15 +525,10 @@ class LayerMap(object):
     def weight_init_layers(self, layer):
         # layers in layer_map should be inited in `special_init`, so they will be skipped here
         layers = [layer]
-        path = [layer.__class__.__name__]
         if isinstance(layer, paddle.nn.Layer):
-            layers.extend(
-                filter(lambda x: x not in self.map.values(), self._traversal_layers_with_ignore_add_path(layer, path))
-            )
+            layers.extend(filter(lambda x: x not in self.map.values(), self._traversal_layers_with_ignore(layer)))
         elif isinstance(layer, torch.nn.Module):
-            layers.extend(
-                filter(lambda x: x not in self.map.keys(), self._traversal_layers_with_ignore_add_path(layer, path))
-            )
+            layers.extend(filter(lambda x: x not in self.map.keys(), self._traversal_layers_with_ignore(layer)))
         else:
             raise RuntimeError("Invalid model type: {}".format(type(layer)))
         return layers
@@ -536,8 +539,7 @@ class LayerMap(object):
         layers.extend(self._traversal_layers_with_ignore(layer))
         return layers
 
-    @staticmethod
-    def auto(layer, module):
+    def auto(self, layer, module):
         """
         This function will try to find components which support special init, and add them to layer_map automatically.
 
@@ -547,9 +549,9 @@ class LayerMap(object):
         def _traversal_layers(net, path, registered):
             for name, child in net.named_children():
                 path.append(name)
-                if child.__class__.__name__ in registered:
+                if child.__class__.__name__ in registered and child not in self._layer_ignore:
                     yield (child, ".".join(path))
-                if child.__class__.__name__ not in registered:
+                if child.__class__.__name__ not in registered and child not in self._layer_ignore_sublayer:
                     for sublayer, ret_path in _traversal_layers(child, path, registered):
                         yield (sublayer, ret_path)
                 path.pop()
@@ -559,24 +561,25 @@ class LayerMap(object):
             _traversal_layers(module, [module.__class__.__name__], init_pool.registered_torch_modules)
         )
 
-        layer_map = LayerMap()
+        _map = {}
 
-        log("auto generate LayerMap start searching...\n")
+        log("auto update LayerMap start searching...\n")
 
         for paddle_info, torch_info in zip_longest(paddle_layers, torch_modules, fillvalue=None):
             if paddle_info is None or torch_info is None:
                 print(
                     "\nError: The number of registered paddle sublayer and torch submodule is not the same! Check your model struct first!"
                 )
-                log("auto generate LayerMap FAILED!!!\n")
-                return None
+                log("auto update LayerMap FAILED!!!\n")
+                return
+
             paddle_layer, paddle_path = paddle_info
             torch_module, torch_path = torch_info
             paddle_name = paddle_layer.__class__.__name__
             torch_name = torch_module.__class__.__name__
             name = build_name(paddle_name, torch_name)
             if name in init_pool.funcs.keys():
-                layer_map.map = {torch_module: paddle_layer}
+                _map.update({torch_module: paddle_layer})
                 print(
                     f"++++    paddle `{paddle_name}` at `{paddle_path}` <==> torch `{torch_name}` at `{torch_path}`."
                 )
@@ -586,8 +589,9 @@ class LayerMap(object):
                 )
                 print(f"    paddle: `{paddle_name}` at `{paddle_path}`")
                 print(f"    torch:  `{torch_name}` at `{torch_path}`")
-                log("auto generate LayerMap FAILED!!!\n")
-                return None
+                log("auto update LayerMap FAILED!!!\n")
+                return
         print()
-        log("auto generate LayerMap SUCCESS!!!\n")
-        return layer_map
+        log("auto update LayerMap SUCCESS!!!\n")
+
+        self.map = _map

@@ -78,6 +78,9 @@ padiff允许模型使用 buffer，embedding，但 paddle 和 torch 的使用必�
 
 （在当前版本下，被略过的 layer 会被标注 skip）
 
+![Pasted Graphic 5](https://user-images.githubusercontent.com/79986504/227197672-1ecc6b74-d796-447f-8508-2bcf6cbb6bc6.png)
+
+
 > 解决方案：
 >
 > 1. 修改模型代码，使用对应的权重实现方案

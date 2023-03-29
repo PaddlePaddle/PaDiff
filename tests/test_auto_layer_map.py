@@ -59,7 +59,8 @@ class TestCaseName(unittest.TestCase):
         layer = SimpleLayer2()
         module = SimpleModule2()
 
-        layer_map = LayerMap.auto(layer, module)
+        layer_map = LayerMap()
+        layer_map.auto(layer, module)
 
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})

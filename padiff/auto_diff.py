@@ -19,6 +19,7 @@ from .utils import (
     log,
     init_options,
     init_LayerMap,
+    init_padiff_path,
 )
 from .weights import assign_weight
 from .trainer import Trainer
@@ -74,6 +75,7 @@ def auto_diff(
     options["steps"] = steps
     init_options(options)
     layer_map = init_LayerMap(layer, module, layer_map)
+    init_padiff_path(layer, module)
     trainer = Trainer(layer, module, loss_fn, optimizer, layer_map, options)
     if auto_weights and not assign_weight(layer, module, layer_map):
         return False

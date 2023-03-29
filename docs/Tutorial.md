@@ -122,15 +122,8 @@ padiff 的工作可以分为几个阶段，在发生错误时，需要首先判�
 ### 2.2 模型权重拷贝失败时的报错信息
 
 当看到 `Assign weight Failed` ，说明权重拷贝出现了问题，并在下文中附上具体的错误信息
-
-可能的问题有：
-
-1.   子模型/权重定义顺序不对齐 => 修改代码对齐，或使用 `LayerMap` 指定
-2.   子模型的 paddle 与 torch 实现方式不一致（权重等对不齐）=> 使用 `LayerMap` 指定
-
-> 注：LayerMap 的使用方式详见：[LayerMap使用说明](LayerMap.md)
-
-若不使用 padiff 的权重初始化功能，可以避免此类错误，但在权重与梯度检查时，会遇见同样的问题
+-  在拷贝权重过程中，没有 parameter，或被 LayerMap 指定的 layer/module， 会被标注上 (skip)
+-  可以通过设置环境变量 `export PADIFF_PATH_LOG=ON` 在 log 信息中添加 layer/module 的具体路径
 
 ```bash
 [AutoDiff] Your options:
@@ -153,20 +146,38 @@ Shape of paddle param `weight` and torch param `weight` is not the same. [100, 1
 
 Torch Model
 =========================
-    SimpleModule
+    SimpleModule  (skip)
      |--- Linear
      +--- Linear    <---  *** HERE ***
 Paddle Model
 =========================
-    SimpleLayer
+    SimpleLayer  (skip)
      |--- Linear
      +--- Linear    <---  *** HERE ***
 
+NOTICE: layer/module will be marked with `(skip)` for:
+    1. This layer/module is contained by layer_map.
+    2. This layer/module has no parameter, so padiff think it is a wrap layer.
+
 Hint:
-      1. check the init order of param or layer in definition is the same.
-      2. try to use `LayerMap` to skip the diff in models, you can find the instructions at `https://github.com/PaddlePaddle/PaDiff`.
+    1. Check the definition order of params in layer/module is the same.
+    2. Check the corresponding layer/module have the same style:
+       param <=> param, buffer <=> buffer, embedding <=> embedding ...
+       cases like param <=> buffer, param <=> embedding are not allowed,
+       because padiff can not know how to init the parameters.
+    3. If you can not change model codes, try to use a `LayerMap`
+       which can solve almost any problem.
+    0. Visit `https://github.com/PaddlePaddle/PaDiff` to find more infomation !!!
 ```
 
+可能的问题有：
+
+1.   子模型/权重定义顺序不对齐 => 修改代码对齐，或使用 `LayerMap` 指定
+2.   子模型的 paddle 与 torch 实现方式不一致（权重等对不齐）=> 使用 `LayerMap` 指定
+
+> 注：LayerMap 的使用方式详见：[LayerMap使用说明](LayerMap.md)
+
+若不使用 padiff 的权重初始化功能，可以避免此类错误，但在权重与梯度检查时，会遇见同样的问题
 
 
 ### 2.3 模型前反向对齐失败时的输出信息
