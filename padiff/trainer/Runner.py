@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .trainer_utils import report_guard, register_paddle_hooker, register_torch_hooker
+from .trainer_utils import report_guard, register_paddle_hooker, register_torch_hooker, debug_print_struct
 from ..utils import (
     log,
     max_diff,
     tensors_mean,
+    log_file,
 )
 from ..weights import remove_inplace, assign_weight
 
@@ -104,3 +105,19 @@ class Runner(object):
 
         if not self.options["single_step"]:
             log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
+
+    def pp_torch(self, mode=0):
+        strs = debug_print_struct(self.torch_rep.stack.root)
+        if mode == 0:
+            print(strs)
+        else:
+            path = log_file("debug_torch_report", "w", strs)
+            print(f"debug log path: {path}")
+
+    def pp_paddle(self, mode=None):
+        strs = debug_print_struct(self.paddle_rep.stack.root)
+        if mode == 0:
+            print(strs)
+        else:
+            path = log_file("debug_torch_report", "w", strs)
+            print(f"debug log path: {path}")

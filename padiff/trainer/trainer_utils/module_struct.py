@@ -371,4 +371,4 @@ def print_struct_info(t_node, p_node):
 
 def debug_print_struct(root):
     ret = tree_print(root)
-    print("\n".join(ret))
+    return "\n".join(ret)

@@ -181,6 +181,8 @@ def log_file(filename, mode, info):
     with open(filepath, mode) as f:
         f.write(info)
 
+    return filepath
+
 
 def log(*args):
     print("[AutoDiff]", *args)
