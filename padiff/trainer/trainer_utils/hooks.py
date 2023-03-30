@@ -16,6 +16,7 @@ import contextlib
 from functools import partial
 from .report import current_torch_report, current_paddle_report
 from .. import utils
+import os
 import paddle
 import torch
 
@@ -178,7 +179,14 @@ def torch_post_layer_hook(module, input, output):
 
 
 @contextlib.contextmanager
-def register_paddle_hooker(layer, layer_map):
+def register_paddle_hooker(runner):
+    layer = runner.layer
+    layer_map = runner.layer_map
+
+    if os.getenv("PADIFF_CUDA_MEMORY") != "OFF":
+        device = runner.paddle_device
+        layer.to(device)
+
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
@@ -197,9 +205,20 @@ def register_paddle_hooker(layer, layer_map):
     for h in remove_handles:
         h.remove()
 
+    if os.getenv("PADIFF_CUDA_MEMORY") != "OFF":
+        layer.to("cpu")
+        paddle.device.cuda.empty_cache()
+
 
 @contextlib.contextmanager
-def register_torch_hooker(module, layer_map):
+def register_torch_hooker(runner):
+    module = runner.module
+    layer_map = runner.layer_map
+
+    if os.getenv("PADIFF_CUDA_MEMORY") != "OFF":
+        device = runner.torch_device
+        module.to(device)
+
     remove_handles = []
     idx = 0
     modules = layer_map.layers_skip_ignore(module)
@@ -215,6 +234,10 @@ def register_torch_hooker(module, layer_map):
     yield
     for h in remove_handles:
         h.remove()
+
+    if os.getenv("PADIFF_CUDA_MEMORY") != "OFF":
+        module.to("cpu")
+        torch.cuda.empty_cache()
 
 
 def _torch_tensor_to_paddle_tensor(tt):
