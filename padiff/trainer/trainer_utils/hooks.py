@@ -22,11 +22,8 @@ import torch
 
 
 """
-    torch_api_hook, paddle_api_hook are used to create report items
+    torch_tensor_hook, paddle_tensor_hook are used to create backward report items
 """
-
-__in_torch_api_hook__ = False
-__in_paddle_api_hook__ = False
 
 
 def torch_tensor_hook(x_grad, bwd_item, nth_tensor):
@@ -51,11 +48,15 @@ def paddle_tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
     return x_grad
 
 
-# torch_api_hook,paddle_api_hook are used to record info to reports
+"""
+    torch_api_hook,paddle_api_hook are used to record info to reports
+"""
+
+__in_torch_api_hook__ = False
+__in_paddle_api_hook__ = False
+
+
 def torch_api_hook(module, input, output, net_id):
-    """
-    Notice: only wrapped api and mapped one2one layer will trigger this hook. They are leaves.
-    """
     global __in_torch_api_hook__
     if __in_torch_api_hook__:
         return None
@@ -72,21 +73,27 @@ def torch_api_hook(module, input, output, net_id):
         return None
 
     # if an api under _layer_ignore_sublayer, do not create report
-    # a layer under _layer_ignore_sublayer will not register this hook
-    # except a mapped one2one layer
+    # a layer under _layer_ignore_sublayer will not register this hook except it is a mapped one2one layer
+    # t_rep.stack._top().net can not be an api layer !!!
     if t_rep.stack._top().net in t_rep.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):
         return None
 
     __in_torch_api_hook__ = True
 
+    # if current module is an api layer, we do not want to hold it, only save its name
+    if hasattr(module, "__api__"):
+        _module = module.__name__
+    else:
+        _module = module
+
     frame_info, frames = extract_frame_summary()
     new_in = utils.clone_structure(input)
     new_out = utils.clone_structure(output)
-    fwd_item = t_rep.put_item("forward", new_in, new_out, module, net_id, frame_info, frames)
-    bwd_item = t_rep.put_item("backward", new_in, new_out, module, net_id, frame_info, frames)
+    fwd_item = t_rep.put_item("forward", new_in, new_out, _module, net_id, frame_info, frames)
+    bwd_item = t_rep.put_item("backward", new_in, new_out, _module, net_id, frame_info, frames)
     bwd_item.set_forward(fwd_item)
 
-    t_rep.stack.push_api(module, fwd_item, bwd_item)
+    t_rep.stack.push_api(_module, fwd_item, bwd_item)
 
     for i, (t,) in enumerate(utils.for_each_grad_tensor(input)):
         t.register_hook(partial(torch_tensor_hook, bwd_item=bwd_item, nth_tensor=i))
@@ -117,15 +124,20 @@ def paddle_api_hook(module, input, output, net_id):
 
     __in_paddle_api_hook__ = True
 
+    if hasattr(module, "__api__"):
+        _module = module.__name__
+    else:
+        _module = module
+
     options = utils.yamls.options
     frame_info, frames = extract_frame_summary()
     new_in = utils.clone_structure(input)
     new_out = utils.clone_structure(output)
-    fwd_item = p_rep.put_item("forward", new_in, new_out, module, net_id, frame_info, frames)
-    bwd_item = p_rep.put_item("backward", new_in, new_out, module, net_id, frame_info, frames)
+    fwd_item = p_rep.put_item("forward", new_in, new_out, _module, net_id, frame_info, frames)
+    bwd_item = p_rep.put_item("backward", new_in, new_out, _module, net_id, frame_info, frames)
     bwd_item.set_forward(fwd_item)
 
-    p_rep.stack.push_api(module, fwd_item, bwd_item)
+    p_rep.stack.push_api(_module, fwd_item, bwd_item)
 
     for i, (t,) in enumerate(utils.for_each_grad_tensor(input)):
         t.register_hook(partial(paddle_tensor_hook, bwd_item=bwd_item, nth_tensor=i, net_id=net_id))

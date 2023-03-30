@@ -53,6 +53,7 @@ class ReportItem:
         self.output = output
 
         self.net = net
+        self.net_str = net if isinstance(net, str) else net.__class__.__name__
         self.net_id = net_id
         self.fwd_item = None
         self.bwd_item = None
@@ -103,9 +104,7 @@ class ReportItem:
         strings = []
         strings.append("ReportItem: \n    type={}".format(self.type))
         strings.append("    step_idx: {}".format(self.step))
-        strings.append(
-            "    net: {}\n".format(self.__name__ if hasattr(self, "__api__") else self.net.__class__.__name__)
-        )
+        strings.append("    net: {}\n".format(self.net_str))
         return "\n".join(strings)
 
 
@@ -158,7 +157,7 @@ class Report:
         strings = []
         strings.append("Report name is: " + self.name)
         for item in self.items:
-            strings.append("    " + str(item.step) + ": [{}]".format(type(item.net)))
+            strings.append("    " + str(item.step) + ": [{}]".format(item.net_str))
         return "\n".join(strings)
 
 
