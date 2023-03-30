@@ -27,7 +27,7 @@ padiff 无法对齐包含随机性 op 的模型，例如 dropout。
 
 -   目前 padiff 几乎没有额外的显存开销（除了一个额外的模型）
 -   目前 padiff 会进行自动的 device 切换（如果原本模型不在 cpu 上）
-    -   device 切换以及显存清理默认打开，可以通过 `export PADIFF_CUDA_MEMO=OFF` 关闭
+    -   device 切换以及显存清理默认打开，可以通过 `export PADIFF_CUDA_MEMORY=OFF` 关闭
 
 
 
