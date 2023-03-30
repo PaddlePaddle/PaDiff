@@ -52,6 +52,21 @@ def paddle_tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
     torch_api_hook,paddle_api_hook are used to record info to reports
 """
 
+
+class PaddleLayerStr(paddle.nn.Layer):
+    def __init__(self, net):
+        super(PaddleLayerStr, self).__init__()
+        self.__name__ = net.__name__
+        self.__api__ = net.__api__
+
+
+class TorchModuleStr(torch.nn.Module):
+    def __init__(self, net):
+        super(TorchModuleStr, self).__init__()
+        self.__name__ = net.__name__
+        self.__api__ = net.__api__
+
+
 __in_torch_api_hook__ = False
 __in_paddle_api_hook__ = False
 
@@ -80,9 +95,9 @@ def torch_api_hook(module, input, output, net_id):
 
     __in_torch_api_hook__ = True
 
-    # if current module is an api layer, we do not want to hold it, only save its name
+    # if current module is an api layer, we do not want to hold it
     if hasattr(module, "__api__"):
-        _module = module.__name__
+        _module = TorchModuleStr(module)
     else:
         _module = module
 
@@ -125,7 +140,7 @@ def paddle_api_hook(module, input, output, net_id):
     __in_paddle_api_hook__ = True
 
     if hasattr(module, "__api__"):
-        _module = module.__name__
+        _module = PaddleLayerStr(module)
     else:
         _module = module
 

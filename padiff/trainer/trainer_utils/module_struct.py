@@ -93,7 +93,7 @@ class LayerStack(object):
 
     def push_api(self, api, fwd, bwd):
         # an api
-        if isinstance(api, str):
+        if hasattr(api, "__api__"):
             net = NetWrap(api, self.type)
             net.is_api = True
             net.is_leaf = True
@@ -101,15 +101,11 @@ class LayerStack(object):
                 self._top().children.append(net)
                 net.father = self._top()
             net.set_report(fwd, bwd)
-            # for N in self.stack:
-            #     N.leafs.append(net)
+
+        # a layer_map marked layer
         else:
-            # a layer_map marked layer
             net = self._top()
             net.set_report(fwd, bwd)
-            # if net.is_one2one_layer:
-            #     for N in self.stack[:-1]:
-            #         N.leafs.append(net)
 
 
 class NetWrap(object):
@@ -117,17 +113,13 @@ class NetWrap(object):
         self.type = type_
 
         self.net = net
-        self.net_str = net if isinstance(net, str) else net.__class__.__name__
+        self.net_str = net.__name__ if hasattr(net, "__api__") else net.__class__.__name__
         self.children = []
         self.father = None
-
-        # leafs under this net
-        # self.leafs = []
 
         self.is_api = False
         self.is_one2one_layer = False
 
-        # if is_leaf, report should exist
         self.is_leaf = False
         self.fwd_report = None
         self.bwd_report = None
@@ -186,7 +178,6 @@ def copy_module_struct(root):
     for n in retval:
         n.father = new_node
         new_node.children.append(n)
-        # new_node.leafs.extend(n.leafs)
 
     return [new_node]
 
@@ -198,7 +189,7 @@ def reorder_and_match_reports(t_root, p_root, t_rep, p_rep):
     layer_map = p_rep.layer_map
 
     # skip api layers
-    p_fwd = list(filter(lambda x: not isinstance(x.net, str), p_rep.get_fwd_items()))
+    p_fwd = list(filter(lambda x: not hasattr(x.net, "__api__"), p_rep.get_fwd_items()))
     p_table_view = TableView(p_fwd, lambda x: x.net_id)
 
     t_apis = list(filter(lambda x: x.is_api, t_root.children))

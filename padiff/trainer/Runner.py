@@ -106,7 +106,7 @@ class Runner(object):
         if not self.options["single_step"]:
             log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
 
-    def pp_torch(self, mode=None):
+    def property_print_torch(self, mode=None):
         strs = debug_print_struct(self.torch_rep.stack.root)
         if mode is None:
             print(strs)
@@ -114,7 +114,7 @@ class Runner(object):
             path = log_file("debug_torch_report", "w", strs)
             print(f"debug log path: {path}")
 
-    def pp_paddle(self, mode=None):
+    def property_print_paddle(self, mode=None):
         strs = debug_print_struct(self.paddle_rep.stack.root)
         if mode is None:
             print(strs)

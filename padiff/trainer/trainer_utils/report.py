@@ -53,7 +53,7 @@ class ReportItem:
         self.output = output
 
         self.net = net
-        self.net_str = net if isinstance(net, str) else net.__class__.__name__
+        self.net_str = net.__name__ if hasattr(net, "__api__") else net.__class__.__name__
         self.net_id = net_id
         self.fwd_item = None
         self.bwd_item = None

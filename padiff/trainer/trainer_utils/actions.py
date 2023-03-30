@@ -58,13 +58,12 @@ class Action:
 @global_actions.register
 class EqualAction(Action):
     def match(self, torch_net, paddle_net):
-        two_net = isinstance(torch_net, torch.nn.Module) and isinstance(paddle_net, paddle.nn.Layer)
-        # if two_str, it should be two api layer
-        two_str = isinstance(torch_net, str) and isinstance(paddle_net, str)
-        if two_net or two_str:
-            return True
-        else:
+        try:
+            assert isinstance(torch_net, torch.nn.Module)
+            assert isinstance(paddle_net, paddle.nn.Layer)
+        except:
             return False
+        return True
 
     @property
     def priority(self):
