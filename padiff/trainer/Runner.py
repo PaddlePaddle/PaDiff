@@ -119,5 +119,5 @@ class Runner(object):
         if mode is None:
             print(strs)
         else:
-            path = log_file("debug_torch_report", "w", strs)
+            path = log_file("debug_paddle_report", "w", strs)
             print(f"debug log path: {path}")
