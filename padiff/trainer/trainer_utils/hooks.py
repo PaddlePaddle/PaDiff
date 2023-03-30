@@ -180,11 +180,11 @@ def torch_post_layer_hook(module, input, output):
 
 @contextlib.contextmanager
 def register_paddle_hooker(runner):
-    layer = runner.module
+    layer = runner.layer
     layer_map = runner.layer_map
-    device = runner.paddle_device
 
     if os.getenv("PADIFF_CUDA_MEMORY") != "OFF":
+        device = runner.paddle_device
         layer.to(device)
 
     remove_handles = []
@@ -214,9 +214,9 @@ def register_paddle_hooker(runner):
 def register_torch_hooker(runner):
     module = runner.module
     layer_map = runner.layer_map
-    device = runner.torch_device
 
     if os.getenv("PADIFF_CUDA_MEMORY") != "OFF":
+        device = runner.torch_device
         module.to(device)
 
     remove_handles = []
