@@ -93,7 +93,7 @@ class LayerStack(object):
 
     def push_api(self, api, fwd, bwd):
         # an api
-        if hasattr(api, "__api__"):
+        if isinstance(api, str):
             net = NetWrap(api, self.type)
             net.is_api = True
             net.is_leaf = True
@@ -103,14 +103,13 @@ class LayerStack(object):
             net.set_report(fwd, bwd)
             # for N in self.stack:
             #     N.leafs.append(net)
-            return
-
-        # a layer
-        net = self._top()
-        net.set_report(fwd, bwd)
-        # if net.is_one2one_layer:
-        #     for N in self.stack[:-1]:
-        #         N.leafs.append(net)
+        else:
+            # a layer_map marked layer
+            net = self._top()
+            net.set_report(fwd, bwd)
+            # if net.is_one2one_layer:
+            #     for N in self.stack[:-1]:
+            #         N.leafs.append(net)
 
 
 class NetWrap(object):
