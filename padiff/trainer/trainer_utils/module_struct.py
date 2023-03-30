@@ -101,15 +101,11 @@ class LayerStack(object):
                 self._top().children.append(net)
                 net.father = self._top()
             net.set_report(fwd, bwd)
-            for N in self.stack:
-                N.leafs.append(net)
 
-        # a layer
-        net = self._top()
-        net.set_report(fwd, bwd)
-        if net.is_one2one_layer:
-            for N in self.stack[:-1]:
-                N.leafs.append(net)
+        # a layer_map marked layer
+        else:
+            net = self._top()
+            net.set_report(fwd, bwd)
 
 
 class NetWrap(object):
@@ -117,16 +113,13 @@ class NetWrap(object):
         self.type = type_
 
         self.net = net
+        self.net_str = net.__name__ if hasattr(net, "__api__") else net.__class__.__name__
         self.children = []
         self.father = None
-
-        # leafs under this net
-        self.leafs = []
 
         self.is_api = False
         self.is_one2one_layer = False
 
-        # if is_leaf, report should exist
         self.is_leaf = False
         self.fwd_report = None
         self.bwd_report = None
@@ -137,11 +130,11 @@ class NetWrap(object):
 
     def __str__(self):
         if self.is_api:
-            return "(api) " + self.net.__name__
+            return "(api) " + self.net_str
         elif self.is_one2one_layer:
-            return "(net in map) " + self.net.__class__.__name__
+            return "(net in map) " + self.net_str
         else:
-            return "(net) " + self.net.__class__.__name__
+            return "(net) " + self.net_str
 
     def __repr__(self):
         return self.__str__()
@@ -185,7 +178,6 @@ def copy_module_struct(root):
     for n in retval:
         n.father = new_node
         new_node.children.append(n)
-        new_node.leafs.extend(n.leafs)
 
     return [new_node]
 
@@ -196,6 +188,7 @@ def reorder_and_match_reports(t_root, p_root, t_rep, p_rep):
 
     layer_map = p_rep.layer_map
 
+    # skip api layers
     p_fwd = list(filter(lambda x: not hasattr(x.net, "__api__"), p_rep.get_fwd_items()))
     p_table_view = TableView(p_fwd, lambda x: x.net_id)
 
@@ -255,6 +248,7 @@ def reorder_one2one(t_oos, p_oos, layer_map):
         return
 
     for idx, t_node in enumerate(t_oos):
+        # an api layer can not have one2one mark, so node.net is save
         p_net = layer_map.map[t_node.net]
         p_node = next(node for node in p_oos if node.net is p_net)
         p_idx = p_oos.index(p_node)
@@ -370,4 +364,4 @@ def print_struct_info(t_node, p_node):
 
 def debug_print_struct(root):
     ret = tree_print(root)
-    print("\n".join(ret))
+    return "\n".join(ret)

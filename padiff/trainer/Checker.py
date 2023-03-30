@@ -177,7 +177,7 @@ def print_info(paddle_item, torch_item, exc, step_idx, grad=False, t_root=None, 
                 step_idx, paddle_item.net_id, torch_item.net_id
             )
         )
-    log("    Type of layer is  : {} vs {}".format(type(torch_item.net), type(paddle_item.net)))
+    log("    Type of layer is  : {} vs {}".format(torch_item.net_str, paddle_item.net_str))
 
     print(str(exc))
 

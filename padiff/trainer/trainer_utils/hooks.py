@@ -22,11 +22,8 @@ import torch
 
 
 """
-    torch_api_hook, paddle_api_hook are used to create report items
+    torch_tensor_hook, paddle_tensor_hook are used to create backward report items
 """
-
-__in_torch_api_hook__ = False
-__in_paddle_api_hook__ = False
 
 
 def torch_tensor_hook(x_grad, bwd_item, nth_tensor):
@@ -43,28 +40,47 @@ def paddle_tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
     options = utils.yamls.options
     # single_step and not an API
     if net_id != -1 and options["single_step"] and options["diff_phase"] == "backward":
-        p_rep = current_paddle_report()
-        t_rep = current_torch_report()
-        t_fwd_item = t_rep.find_item(p_rep, net_id, "backward")
+        paddle_report = current_paddle_report()
+        torch_report = current_torch_report()
+        t_fwd_item = torch_report.find_item(paddle_report, net_id, "backward")
 
         return utils.map_structure_and_replace_key(_torch_tensor_to_paddle_tensor, [t_fwd_item.output], x_grad)
     return x_grad
 
 
-# torch_api_hook,paddle_api_hook are used to record info to reports
+"""
+    torch_api_hook,paddle_api_hook are used to record info to reports
+"""
+
+
+class PaddleLayerStr(paddle.nn.Layer):
+    def __init__(self, net):
+        super(PaddleLayerStr, self).__init__()
+        self.__name__ = net.__name__
+        self.__api__ = net.__api__
+
+
+class TorchModuleStr(torch.nn.Module):
+    def __init__(self, net):
+        super(TorchModuleStr, self).__init__()
+        self.__name__ = net.__name__
+        self.__api__ = net.__api__
+
+
+__in_torch_api_hook__ = False
+__in_paddle_api_hook__ = False
+
+
 def torch_api_hook(module, input, output, net_id):
-    """
-    Notice: only wrapped api and mapped one2one layer will trigger this hook. They are leaves.
-    """
     global __in_torch_api_hook__
     if __in_torch_api_hook__:
         return None
 
-    t_rep = current_torch_report()
+    torch_report = current_torch_report()
 
     # not in report_guard
     # if stack is emtpy, this api might be used in loss function or optimizer, skip
-    if t_rep is None or t_rep.stack._top() is None:
+    if torch_report is None or torch_report.stack._top() is None:
         return None
 
     # if this api is not processing tensors, do not create report
@@ -72,21 +88,27 @@ def torch_api_hook(module, input, output, net_id):
         return None
 
     # if an api under _layer_ignore_sublayer, do not create report
-    # a layer under _layer_ignore_sublayer will not register this hook
-    # except a mapped one2one layer
-    if t_rep.stack._top().net in t_rep.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):
+    # a layer under _layer_ignore_sublayer will not register this hook except it is a mapped one2one layer
+    # torch_report.stack._top().net can not be an api layer !!!
+    if torch_report.stack._top().net in torch_report.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):
         return None
 
     __in_torch_api_hook__ = True
 
+    # if current module is an api layer, we do not want to hold it
+    if hasattr(module, "__api__"):
+        _module = TorchModuleStr(module)
+    else:
+        _module = module
+
     frame_info, frames = extract_frame_summary()
     new_in = utils.clone_structure(input)
     new_out = utils.clone_structure(output)
-    fwd_item = t_rep.put_item("forward", new_in, new_out, module, net_id, frame_info, frames)
-    bwd_item = t_rep.put_item("backward", new_in, new_out, module, net_id, frame_info, frames)
+    fwd_item = torch_report.put_item("forward", new_in, new_out, _module, net_id, frame_info, frames)
+    bwd_item = torch_report.put_item("backward", new_in, new_out, _module, net_id, frame_info, frames)
     bwd_item.set_forward(fwd_item)
 
-    t_rep.stack.push_api(module, fwd_item, bwd_item)
+    torch_report.stack.push_api(_module, fwd_item, bwd_item)
 
     for i, (t,) in enumerate(utils.for_each_grad_tensor(input)):
         t.register_hook(partial(torch_tensor_hook, bwd_item=bwd_item, nth_tensor=i))
@@ -104,36 +126,41 @@ def paddle_api_hook(module, input, output, net_id):
     if __in_paddle_api_hook__:
         return None
 
-    p_rep = current_paddle_report()
+    paddle_report = current_paddle_report()
 
-    if p_rep is None or p_rep.stack._top() is None:
+    if paddle_report is None or paddle_report.stack._top() is None:
         return None
 
     if output is None or all([not isinstance(x, paddle.Tensor) for x in utils.flatten(output)]):
         return None
 
-    if p_rep.stack._top().net in p_rep.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):
+    if paddle_report.stack._top().net in paddle_report.layer_map._layer_ignore_sublayer and hasattr(module, "__api__"):
         return None
 
     __in_paddle_api_hook__ = True
+
+    if hasattr(module, "__api__"):
+        _module = PaddleLayerStr(module)
+    else:
+        _module = module
 
     options = utils.yamls.options
     frame_info, frames = extract_frame_summary()
     new_in = utils.clone_structure(input)
     new_out = utils.clone_structure(output)
-    fwd_item = p_rep.put_item("forward", new_in, new_out, module, net_id, frame_info, frames)
-    bwd_item = p_rep.put_item("backward", new_in, new_out, module, net_id, frame_info, frames)
+    fwd_item = paddle_report.put_item("forward", new_in, new_out, _module, net_id, frame_info, frames)
+    bwd_item = paddle_report.put_item("backward", new_in, new_out, _module, net_id, frame_info, frames)
     bwd_item.set_forward(fwd_item)
 
-    p_rep.stack.push_api(module, fwd_item, bwd_item)
+    paddle_report.stack.push_api(_module, fwd_item, bwd_item)
 
     for i, (t,) in enumerate(utils.for_each_grad_tensor(input)):
         t.register_hook(partial(paddle_tensor_hook, bwd_item=bwd_item, nth_tensor=i, net_id=net_id))
 
     # if single_step, need return torch output
     if net_id != -1 and options["single_step"] and options["diff_phase"] == "forward":
-        t_rep = current_torch_report()
-        t_fwd_item = t_rep.find_item(p_rep, net_id, "forward")
+        torch_report = current_torch_report()
+        t_fwd_item = torch_report.find_item(paddle_report, net_id, "forward")
 
         retval = utils.map_structure_and_replace_key(_torch_tensor_to_paddle_tensor, [t_fwd_item.output], output)
         __in_paddle_api_hook__ = False
@@ -190,12 +217,12 @@ def register_paddle_hooker(runner):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
-    layers = layer_map.layers_skip_ignore(layer)
+    layers = layer_map.struct_hook_layers(layer)
     for mod in layers:
         pre_handle = mod.register_forward_pre_hook(paddle_pre_layer_hook)
-        # call api_hook before post_layer_hook => current will be module itself
-        # if mod in layer_map._layer_one2one.keys():
-        if True:
+        # layers includes layer marked by ignore_recursively
+        # if ignore_recursively, skip add report hook. if one2one, add report hook
+        if mod not in layer_map._layer_ignore:
             handle = mod.register_forward_post_hook(partial(paddle_api_hook, net_id=idx))
             remove_handles.append(handle)
         post_handle = mod.register_forward_post_hook(paddle_post_layer_hook)
@@ -221,11 +248,10 @@ def register_torch_hooker(runner):
 
     remove_handles = []
     idx = 0
-    modules = layer_map.layers_skip_ignore(module)
+    modules = layer_map.struct_hook_layers(module)
     for mod in modules:
         pre_handle = mod.register_forward_pre_hook(torch_pre_layer_hook)
-        # if mod in layer_map._layer_one2one.values():
-        if True:
+        if mod not in layer_map._layer_ignore:
             handle = mod.register_forward_hook(partial(torch_api_hook, net_id=idx))
             remove_handles.append(handle)
         post_handle = mod.register_forward_hook(torch_post_layer_hook)

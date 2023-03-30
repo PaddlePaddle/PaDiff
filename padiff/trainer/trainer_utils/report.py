@@ -53,6 +53,7 @@ class ReportItem:
         self.output = output
 
         self.net = net
+        self.net_str = net.__name__ if hasattr(net, "__api__") else net.__class__.__name__
         self.net_id = net_id
         self.fwd_item = None
         self.bwd_item = None
@@ -74,7 +75,8 @@ class ReportItem:
 
     def set_input_grads(self, nth, value):
         assert nth < len(self.input_grads)
-        self.input_grads[nth] = value
+        new_value = utils.clone_structure(value)
+        self.input_grads[nth] = new_value
 
     def print_stacks(self):
         def print_frames(fs, indent=8):
@@ -102,9 +104,7 @@ class ReportItem:
         strings = []
         strings.append("ReportItem: \n    type={}".format(self.type))
         strings.append("    step_idx: {}".format(self.step))
-        strings.append(
-            "    net: {}\n".format(self.__name__ if hasattr(self, "__api__") else self.net.__class__.__name__)
-        )
+        strings.append("    net: {}\n".format(self.net_str))
         return "\n".join(strings)
 
 
@@ -157,7 +157,7 @@ class Report:
         strings = []
         strings.append("Report name is: " + self.name)
         for item in self.items:
-            strings.append("    " + str(item.step) + ": [{}]".format(type(item.net)))
+            strings.append("    " + str(item.step) + ": [{}]".format(item.net_str))
         return "\n".join(strings)
 
 

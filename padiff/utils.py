@@ -181,6 +181,8 @@ def log_file(filename, mode, info):
     with open(filepath, mode) as f:
         f.write(info)
 
+    return filepath
+
 
 def log(*args):
     print("[AutoDiff]", *args)
@@ -519,6 +521,20 @@ class LayerMap(object):
                 for sublayer in self._traversal_layers_with_ignore(child):
                     yield sublayer
 
+    def _traversal_layers_for_model_struct(self, net):
+        # any in self._layer_ignore_sublayer should be returned
+        # to check whether an api should be record
+        for child in net.children():
+            if (child not in self._layer_ignore and not is_wrap_layer(child)) or (
+                child in self._layer_ignore_sublayer
+            ):
+                if not hasattr(child, "no_skip"):
+                    setattr(child, "no_skip", True)
+                yield child
+            if child not in self._layer_ignore_sublayer:
+                for sublayer in self._traversal_layers_with_ignore(child):
+                    yield sublayer
+
     def special_init_layers(self):
         return self.map.items()
 
@@ -534,9 +550,13 @@ class LayerMap(object):
         return layers
 
     def layers_skip_ignore(self, layer):
-        # NOTICE: root level always in return vals, though it could be a wrap layer
         layers = [layer]
         layers.extend(self._traversal_layers_with_ignore(layer))
+        return layers
+
+    def struct_hook_layers(self, layer):
+        layers = [layer]
+        layers.extend(self._traversal_layers_for_model_struct(layer))
         return layers
 
     def auto(self, layer, module):
