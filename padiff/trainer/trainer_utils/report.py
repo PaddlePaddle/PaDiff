@@ -74,7 +74,8 @@ class ReportItem:
 
     def set_input_grads(self, nth, value):
         assert nth < len(self.input_grads)
-        self.input_grads[nth] = value
+        new_value = utils.clone_structure(value)
+        self.input_grads[nth] = new_value
 
     def print_stacks(self):
         def print_frames(fs, indent=8):

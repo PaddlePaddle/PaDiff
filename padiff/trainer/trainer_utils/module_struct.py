@@ -101,15 +101,16 @@ class LayerStack(object):
                 self._top().children.append(net)
                 net.father = self._top()
             net.set_report(fwd, bwd)
-            for N in self.stack:
-                N.leafs.append(net)
+            # for N in self.stack:
+            #     N.leafs.append(net)
+            return
 
         # a layer
         net = self._top()
         net.set_report(fwd, bwd)
-        if net.is_one2one_layer:
-            for N in self.stack[:-1]:
-                N.leafs.append(net)
+        # if net.is_one2one_layer:
+        #     for N in self.stack[:-1]:
+        #         N.leafs.append(net)
 
 
 class NetWrap(object):
@@ -121,7 +122,7 @@ class NetWrap(object):
         self.father = None
 
         # leafs under this net
-        self.leafs = []
+        # self.leafs = []
 
         self.is_api = False
         self.is_one2one_layer = False
@@ -185,7 +186,7 @@ def copy_module_struct(root):
     for n in retval:
         n.father = new_node
         new_node.children.append(n)
-        new_node.leafs.extend(n.leafs)
+        # new_node.leafs.extend(n.leafs)
 
     return [new_node]
 

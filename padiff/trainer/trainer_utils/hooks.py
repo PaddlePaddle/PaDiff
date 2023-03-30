@@ -190,12 +190,12 @@ def register_paddle_hooker(runner):
     remove_handles = []
     # TODO(xiongkun): duplicate layer is not support, implement custom generator to support (different net_id is ok).
     idx = 0
-    layers = layer_map.layers_skip_ignore(layer)
+    layers = layer_map.struct_hook_layers(layer)
     for mod in layers:
         pre_handle = mod.register_forward_pre_hook(paddle_pre_layer_hook)
-        # call api_hook before post_layer_hook => current will be module itself
-        # if mod in layer_map._layer_one2one.keys():
-        if True:
+        # layers includes layer marked by ignore_recursively
+        # if ignore_recursively, skip add report hook. if one2one, add report hook
+        if mod not in layer_map._layer_ignore:
             handle = mod.register_forward_post_hook(partial(paddle_api_hook, net_id=idx))
             remove_handles.append(handle)
         post_handle = mod.register_forward_post_hook(paddle_post_layer_hook)
@@ -221,11 +221,10 @@ def register_torch_hooker(runner):
 
     remove_handles = []
     idx = 0
-    modules = layer_map.layers_skip_ignore(module)
+    modules = layer_map.struct_hook_layers(module)
     for mod in modules:
         pre_handle = mod.register_forward_pre_hook(torch_pre_layer_hook)
-        # if mod in layer_map._layer_one2one.values():
-        if True:
+        if mod not in layer_map._layer_ignore:
             handle = mod.register_forward_hook(partial(torch_api_hook, net_id=idx))
             remove_handles.append(handle)
         post_handle = mod.register_forward_hook(torch_post_layer_hook)
