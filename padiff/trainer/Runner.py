@@ -68,7 +68,6 @@ class Runner(object):
     def forward_step(self, example_inp):
         paddle_input, torch_input = example_inp
         with report_guard(self.torch_rep, self.paddle_rep):
-
             with register_torch_hooker(self):
                 try:
                     torch_output = self.module(**torch_input)
