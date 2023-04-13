@@ -24,7 +24,7 @@ PaDiff是基于PaddlePaddle与PyTorch的模型精度对齐工具。传入Paddle�
 
 -   文档目录 [Guides](docs/README.md)
 -   使用教程 [Tutorial](docs/Tutorial.md)
--   接口参数说明 [Interface](docs/Interface.md)
+-   接口参数说明 [Interface](docs/Interfaces.md)
 -   常见问题解答 [FAQs](docs/FAQs.md)
 
 
@@ -74,7 +74,7 @@ module = SimpleModule()
 
 inp = paddle.rand((100, 100)).numpy().astype("float32")
 inp = ({'x': paddle.to_tensor(inp)},
-     {'y': torch.as_tensor(inp) })
+     {'x': torch.as_tensor(inp) })
 
 auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0, 'compare_mode': 'strict', 'single_step':False})
 ```
