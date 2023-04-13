@@ -13,6 +13,9 @@
 # limitations under the License.
 
 
+__version__ = "0.2.0"
+
+
 # for api -> Layer
 
 import sys, os
@@ -235,7 +238,6 @@ if os.getenv("PADIFF_API_CHECK") != "OFF":
 
     sys.meta_path = [PaDiffFinder()] + sys.meta_path
 
-__version__ = "0.1.0"
 
 import paddle
 import torch
