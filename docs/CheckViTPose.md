@@ -315,7 +315,7 @@ from padiff import auto_diff, assign_weight, LayerMap()
 
 def test_forward():
 
-  	# step 1: 得到 paddle 以及 torch 模型
+    # step 1: 得到 paddle 以及 torch 模型
     pretrained = './ViTPose/vitpose-b.pth'
     state_dict = torch.load(pretrained)['state_dict']
     torch_model = tiny_pose_torch()
@@ -340,7 +340,7 @@ def test_forward():
     assign_weight(paddle_model, torch_model, layer_map)
 
     # step 5: 定义损失函数
-		def paddle_loss(input):
+    def paddle_loss(input):
       	# ...
     
     def torch_loss(input):
@@ -361,7 +361,7 @@ def test_forward():
           	auto_weights=False,
           	layer_map=layer_map,
           	options={
-            	  'atol':0.0, 
+                'atol':0.0, 
               	'rtol':1e-5,
               	'single_step':False,
               	'diff_phase':'forward',
@@ -420,7 +420,7 @@ from padiff import auto_diff, assign_weight, LayerMap()
 
 def test_forward():
 
-  	# step 1: 得到 paddle 以及 torch 模型
+    # step 1: 得到 paddle 以及 torch 模型
     pretrained = './ViTPose/vitpose-b.pth'
     state_dict = torch.load(pretrained)['state_dict']
     torch_model = tiny_pose_torch()
@@ -459,7 +459,7 @@ def test_forward():
           	auto_weights=False,
           	layer_map=layer_map,
           	options={
-            	  'atol':0.0, 
+                'atol':0.0, 
               	'rtol':1e-5,
               	'single_step':False,
               	'diff_phase':'both',
@@ -478,7 +478,7 @@ from padiff import auto_diff, assign_weight, LayerMap()
 
 def test_forward():
 
-  	# step 1: 得到 paddle 以及 torch 模型
+    # step 1: 得到 paddle 以及 torch 模型
     pretrained = './ViTPose/vitpose-b.pth'
     state_dict = torch.load(pretrained)['state_dict']
     torch_model = tiny_pose_torch()
