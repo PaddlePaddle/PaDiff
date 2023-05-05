@@ -2,7 +2,7 @@
 - [设置自定义初始化逻辑的完整流程示例](#设置自定义初始化逻辑的完整流程示例)
   - [错误例子示例](#错误例子示例)
   - [自定义模型初始化函数](#自定义模型初始化函数)
-  - [将模型初始化函数提供给本 repo](#将模型初始化函数提供给本-repo)
+  - [如何向本 repo 贡献模型初始化函数](#如何向本-repo-贡献模型初始化函数)
 
 
 ## 已支持Special Init的组件
@@ -12,6 +12,13 @@
 -   BatchNorm2D
 
 ## 设置自定义初始化逻辑的完整流程示例
+
+自定义模型初始化逻辑的过程主要为：
+1. 编写模型初始化函数
+2. 使用 add_special_init 接口注册函数
+3. 通过 LayerMap 触发并使用模型初始化函数
+4. 向本 repo 贡献你的初始化函数 （与前面的步骤无关）
+
 
 ### 错误例子示例
 
@@ -103,7 +110,7 @@ Paddle Model
 
 初始化函数的签名非常简单，两个输入参数分别为 paddle 模型与对应的 torch 模型，在函数中实现从 torch 模型拷贝参数到 paddle 模型即可，无需返回值。
 
-编写自定义模型初始化函数并注册触发的示例代码如下：
+编写自定义模型初始化函数，进行函数注册，成功触发自定义初始化逻辑的示例代码如下：
 
 ```py
 import paddle
@@ -113,7 +120,7 @@ from padiff import auto_diff, assign_weight, add_special_init, LayerMap
 import numpy 
 
 '''
-    模型定义同上，此处略过...
+    模型定义同上，此处略过
     class PaddleNet ...
     class TorchNet ...
     class PaddleComponent ...
@@ -176,7 +183,7 @@ auto_diff(paddle_net, torch_net, inp, auto_weights=True, options={"atol": 1e-4},
 
 
 
-### 将模型初始化函数提供给本 repo
+### 如何向本 repo 贡献模型初始化函数
 
 **对 Paddle 框架提供的Layer组件，如果存在与 Torch 提供的组件不对齐，可以将相应的初始化函数提供给本 Repo**
 
@@ -198,7 +205,7 @@ import paddle
 from .special_init_pool import global_special_init_pool as init_pool
 
 
-@init_pool.register(paddle_name="PaddleComponent", torch_name="TorchComponent")  	# 此处填写模型的类名
+@init_pool.register(paddle_name="PaddleComponent", torch_name="TorchComponent")    # 此处填写模型的类名
 def init_component(layer, module):
     print(" ***** init component ***** ")  
     # 在自定义的初始化函数中，手动对齐 linear1 vs linear1, linear2 vs linear2

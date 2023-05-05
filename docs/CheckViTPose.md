@@ -274,24 +274,24 @@ def test_forward():
 
         inp = ({'x': paddle_batch['image']},  
                {'x': torch_batch['img']})
-				
+
         # step 6: 调用 auto_diff 接口
         result = auto_diff(
-          	paddle_model,
-          	torch_model,
-          	inp,
-          	auto_weights=False,
-          	layer_map=layer_map,
-          	options={
-            	  'atol':0.0, 
-              	'rtol':1e-5,
-              	'single_step':False,
-              	'diff_phase':'forward',
+            paddle_model,
+            torch_model,
+            inp,
+            auto_weights=False,
+            layer_map=layer_map,
+            options={
+                'atol':0.0, 
+                'rtol':1e-5,
+                'single_step':False,
+                'diff_phase':'forward',
             }
         )
         
         if result == False:
-          	break
+            break
 ```
 
 
@@ -341,10 +341,10 @@ def test_forward():
 
     # step 5: 定义损失函数
     def paddle_loss(input):
-      	# ...
+        # ...
     
     def torch_loss(input):
-      	# ...
+        # ...
 
     # step 6: 取得对应的输入数据
     for idx, (paddle_batch, torch_batch
@@ -352,28 +352,28 @@ def test_forward():
 
         inp = ({'x': paddle_batch['image']},  
                {'x': torch_batch['img']})
-				
+
         # step 7: 调用 auto_diff 接口
         result = auto_diff(
-          	paddle_model,
-          	torch_model,
-          	inp,
-          	auto_weights=False,
-          	layer_map=layer_map,
-          	options={
-                'atol':0.0, 
-              	'rtol':1e-5,
-              	'single_step':False,
-              	'diff_phase':'forward',
+            paddle_model,
+            torch_model,
+            inp,
+            auto_weights=False,
+            layer_map=layer_map,
+            options={
+            'atol':0.0, 
+                'rtol':1e-5,
+                'single_step':False,
+                'diff_phase':'forward',
             },
-          	loss_fn=[								# 传入 loss 函数
-              	paddle_loss,
-              	torch_loss,
+            loss_fn=[                                # 传入 loss 函数
+                paddle_loss,
+                torch_loss,
             ],
         )
         
         if result == False:
-          	break
+            break
 ```
 
 
@@ -453,22 +453,22 @@ def test_forward():
 
         # step 6: 调用 auto_diff 接口，提供对应的 optimizer
         result = auto_diff(
-          	paddle_model,
-          	torch_model,
-          	inp,
-          	auto_weights=False,
-          	layer_map=layer_map,
-          	options={
-                'atol':0.0, 
-              	'rtol':1e-5,
-              	'single_step':False,
-              	'diff_phase':'both',
+            paddle_model,
+            torch_model,
+            inp,
+            auto_weights=False,
+            layer_map=layer_map,
+            options={
+            'atol':0.0, 
+                'rtol':1e-5,
+                'single_step':False,
+                'diff_phase':'both',
             }
-          	optimizer=[paddle_opt, torch_opt]
+            optimizer=[paddle_opt, torch_opt]
         )
         
         if result == False:
-          	break
+            break
 ```
 
 2.   使用同一组输入进行多 step 对齐检查
@@ -513,7 +513,7 @@ def test_forward():
             'diff_phase':'both',
         }
         optimizer=[paddle_opt, torch_opt],
-      	steps=10,
+        steps=10,
     )
 ```
 
@@ -545,7 +545,7 @@ def test_forward():
 ```py
 from padiff import auto_diff, assign_weight, LayerMap()
 
-def test_forward():		
+def test_forward():        
     # ... 
 
     result = auto_diff(
