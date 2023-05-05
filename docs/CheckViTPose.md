@@ -532,7 +532,7 @@ def test_forward():
 
 ### 工具逻辑说明：关于 single_step 模式
 
-《图片》
+![single_step](https://user-images.githubusercontent.com/79986504/236400079-70b6b914-a234-4fcd-8c83-491f5b98264a.png)
 
 ### 关于参数设置
 
