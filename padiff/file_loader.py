@@ -127,17 +127,17 @@ class json_loader:
                 continue
 
             if torch_module not in self.torch_apis.keys():
-                self.torch_apis[torch_module] = {torch_api}
+                self.torch_apis[torch_module] = set(torch_api)
             else:
                 self.torch_apis[torch_module].add(torch_api)
 
             if paddle_module not in self.paddle_apis.keys():
-                self.paddle_apis[paddle_module] = {paddle_api}
+                self.paddle_apis[paddle_module] = set(paddle_api)
             else:
                 self.paddle_apis[paddle_module].add(paddle_api)
 
         # paddle.nn.Conv2D called _conv_nd, this layer is used frequently, so add it to ADDITIONAL_PATH
-        self.ADDITIONAL_PATH = {"paddle.nn.functional.conv": {"_conv_nd"}}
+        self.ADDITIONAL_PATH = {"paddle.nn.functional.conv": set("_conv_nd")}
         self.paddle_apis.update(self.ADDITIONAL_PATH)
 
         # Deprecated
