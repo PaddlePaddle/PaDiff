@@ -172,6 +172,7 @@ auto_diff(paddle_net, torch_net, inp, auto_weights=True, options={"atol": 1e-4},
 ```
 
 上述代码的运行结果如下图：
+![Kev s) rorkspace prthon zetest py](https://user-images.githubusercontent.com/79986504/236400634-7b4ec90e-326f-4845-9e1d-318e83b9bfd9.png)
 
 
 
