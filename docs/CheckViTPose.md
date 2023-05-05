@@ -244,7 +244,7 @@ from padiff import auto_diff, assign_weight, LayerMap()
 
 def test_forward():
 
-  	# step 1: 得到 paddle 以及 torch 模型
+    # step 1: 得到 paddle 以及 torch 模型
     pretrained = './ViTPose/vitpose-b.pth'
     state_dict = torch.load(pretrained)['state_dict']
     torch_model = tiny_pose_torch()
