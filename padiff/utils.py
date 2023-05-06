@@ -306,8 +306,6 @@ def compare_tensor_ret_bool(tensor1, tensor2, atol=0, rtol=1e-7, compare_mode="m
     """
     compare tensor and return bool
     """
-    if tensor1 is None and tensor2 is None:
-        return True
     if compare_mode == "strict":
         return np.allclose(tensor1, tensor2, atol=atol, rtol=rtol)
     elif compare_mode == "mean":
@@ -323,8 +321,7 @@ def assert_tensor_equal(tensor1, tensor2, options):
     atol = options["atol"]
     rtol = options["rtol"]
     compare_mode = options["compare_mode"]
-    if tensor1 is None and tensor2 is None:
-        return True
+
     if compare_mode == "mean":
         np.testing.assert_allclose(tensor1.mean(), tensor2.mean(), atol=atol, rtol=rtol)
     elif compare_mode == "strict":
