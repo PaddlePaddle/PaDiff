@@ -292,9 +292,13 @@ def check_grad(layer, module, options, layer_map=LayerMap()):
             if p_grad is None and t_grad is None:
                 return
             elif p_grad is None and t_grad is not None:
-                raise RuntimeError(f"Found paddle grad is `None`, when torch grad exists. Please check the paddle grad.")
+                raise RuntimeError(
+                    f"Found paddle grad is `None`, when torch grad exists. Please check the paddle grad."
+                )
             elif t_grad is None and p_grad is not None:
-                raise RuntimeError(f"Found torch grad is `None`, when paddle grad exists. Please check the torch grad.")
+                raise RuntimeError(
+                    f"Found torch grad is `None`, when paddle grad exists. Please check the torch grad."
+                )
 
             if settings["transpose"]:
                 t_grad = numpy.transpose(t_grad)
