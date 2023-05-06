@@ -374,12 +374,7 @@ def init_options(options):
     default_options.update(options)
     options.update(default_options)
 
-    if options["single_step"]:
-        options["steps"] = 1
-        log("  In single_step mode, steps will be set to `1`.")
-        options["use_opt"] = False
-        log("  In single_step mode, optimizer will not be used.")
-    elif options["diff_phase"] == "backward":
+    if not options["single_step"] and options["diff_phase"] == "backward":
         options["diff_phase"] = "both"
         log("  Not in single_step mode, diff_phase `backward` is not supported, set to `both` instead.")
 
