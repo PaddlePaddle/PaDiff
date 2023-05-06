@@ -286,18 +286,19 @@ def check_grad(layer, module, options, layer_map=LayerMap()):
         )
         p_grad = paddle_param.grad.numpy() if paddle_param.grad is not None else None
         t_grad = torch_param.grad.detach().cpu().numpy() if torch_param.grad is not None else None
-        if settings["transpose"] and t_grad is not None:
-            t_grad = numpy.transpose(t_grad)
-        
-        if p_grad is None and t_grad is None:
-            return
-        elif p_grad is None and t_grad is not None:
-            raise RuntimeError(f"Found paddle grad is `None`, when torch grad exists. Please check the paddle grad.")
-        elif t_grad is None and p_grad is not None:
-            raise RuntimeError(f"Found torch grad is `None`, when paddle grad exists. Please check the torch grad.")
 
         # check grad
         try:
+            if p_grad is None and t_grad is None:
+                return
+            elif p_grad is None and t_grad is not None:
+                raise RuntimeError(f"Found paddle grad is `None`, when torch grad exists. Please check the paddle grad.")
+            elif t_grad is None and p_grad is not None:
+                raise RuntimeError(f"Found torch grad is `None`, when paddle grad exists. Please check the torch grad.")
+
+            if settings["transpose"]:
+                t_grad = numpy.transpose(t_grad)
+
             assert_tensor_equal(p_grad, t_grad, settings)
         except Exception as e:
             nonlocal _grad_check
