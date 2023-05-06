@@ -24,6 +24,7 @@ PaDiff是基于PaddlePaddle与PyTorch的模型精度对齐工具。传入Paddle�
 
 -   文档目录 [Guides](docs/README.md)
 -   使用教程 [Tutorial](docs/Tutorial.md)
+-   对齐ViTPose流程 [ViTPose](docs/CheckViTPose.md)
 -   接口参数说明 [Interface](docs/Interfaces.md)
 -   常见问题解答 [FAQs](docs/FAQs.md)
 
