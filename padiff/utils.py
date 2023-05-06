@@ -428,8 +428,7 @@ def init_padiff_path(layer, module):
     def _set_padiff_path(net, path):
         for name, child in net.named_children():
             path.append(name)
-            if not hasattr(child, "padiff_path"):
-                setattr(child, "padiff_path", ".".join(path))
+            setattr(child, "padiff_path", ".".join(path))
             _set_padiff_path(child, path)
             path.pop()
 
