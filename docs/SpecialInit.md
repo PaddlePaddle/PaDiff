@@ -4,21 +4,21 @@
   - [自定义模型初始化函数](#自定义模型初始化函数)
   - [如何向本 repo 贡献模型初始化函数](#如何向本-repo-贡献模型初始化函数)
 
-
 ## 已支持Special Init的组件
 
--   MultiHeadAttention
--   LSTM
--   BatchNorm2D
+- MultiHeadAttention
+- LSTM
+- BatchNorm2D
+- Con1D, Conv2D, Conv3D(经过paddle.nn.utils.weight_norm封装后)
 
 ## 设置自定义初始化逻辑的完整流程示例
 
 自定义模型初始化逻辑的过程主要为：
+
 1. 编写模型初始化函数
 2. 使用 add_special_init 接口注册函数
 3. 通过 LayerMap 触发并使用模型初始化函数
 4. 向本 repo 贡献你的初始化函数 （与前面的步骤无关）
-
 
 ### 错误例子示例
 
@@ -104,8 +104,6 @@ Paddle Model
      +--- Linear
 ```
 
-
-
 ### 自定义模型初始化函数
 
 初始化函数的签名非常简单，两个输入参数分别为 paddle 模型与对应的 torch 模型，在函数中实现从 torch 模型拷贝参数到 paddle 模型即可，无需返回值。
@@ -181,17 +179,15 @@ auto_diff(paddle_net, torch_net, inp, auto_weights=True, options={"atol": 1e-4},
 上述代码的运行结果如下图：
 ![Kev s) rorkspace prthon zetest py](https://user-images.githubusercontent.com/79986504/236400634-7b4ec90e-326f-4845-9e1d-318e83b9bfd9.png)
 
-
-
 ### 如何向本 repo 贡献模型初始化函数
 
 **对 Paddle 框架提供的Layer组件，如果存在与 Torch 提供的组件不对齐，可以将相应的初始化函数提供给本 Repo**
 
-1.   找到 special_init 文件夹，并新建你的文件
+1. 找到 special_init 文件夹，并新建你的文件
 
 该文件夹位于 `PaDiff/padiff/special_init`，请在该文件夹下新建文件 `init_XXXXX.py` （必须以 `init_` 开头）
 
-2.   在新建的文件中编写初始化函数
+2. 在新建的文件中编写初始化函数
 
 在本例中，即为 init_component 函数，编写完函数后，需要添加一个装饰器以注册该函数。
 
@@ -241,8 +237,6 @@ def init_component(layer, module):
         paddle.assign(paddle.to_tensor(np_value), paddle_param)
 ```
 
-3.   提交PR
+3. 提交PR
 
 完成上面的文件编写后，可以联系 repo 管理员 review 并合入，提交后 padiff 工具就能够支持对应模型的初始化逻辑，无需重复编写。
-
-
