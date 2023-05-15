@@ -44,7 +44,7 @@ def init_MultiHeadAttention(layer, module):
         if "cross_attn" in pname or "q_proj" in pname or "k_proj" in pname or "v_proj" in pname:
             param_np = name_param_dict[pname]
         else:
-            param_np = module.state_dict()[pname].numpy()
+            param_np = module.state_dict()[pname].detach().cpu().numpy()
 
         if pname.endswith("weight"):
             param_np = numpy.transpose(param_np)
