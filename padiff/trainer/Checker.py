@@ -19,7 +19,7 @@ from .trainer_utils import (
     print_struct_info,
     reorder_and_match_reports,
 )
-from ..utils import log, assert_tensor_equal, LayerMap, model_repr_info, log_file, diff_log_path
+from ..utils import log, assert_tensor_equal, LayerMap, log_file, diff_log_path
 from ..weights import process_each_weight, shape_check
 import numpy
 
@@ -222,7 +222,7 @@ def check_weight(layer, module, options, layer_map=LayerMap()):
             settings,
         )
         p_param = paddle_param.numpy()
-        t_param = torch_param.detach().cpu().numpy()
+        t_param = torch_param.numpy()
 
         if settings["transpose"]:
             t_param = numpy.transpose(t_param)
@@ -239,8 +239,8 @@ def check_weight(layer, module, options, layer_map=LayerMap()):
                 "paddle path:\n    {}\n"
                 "torch path:\n    {}\n"
                 "{}\n\n".format(
-                    model_repr_info(paddle_sublayer),
-                    model_repr_info(torch_submodule),
+                    paddle_sublayer.model_repr_info(),
+                    torch_submodule.model_repr_info(),
                     paddle_sublayer.padiff_path + "." + paddle_pname,
                     torch_submodule.padiff_path + "." + torch_pname,
                     type(e).__name__ + ":  " + str(e),
@@ -284,8 +284,8 @@ def check_grad(layer, module, options, layer_map=LayerMap()):
             torch_param,
             settings,
         )
-        p_grad = paddle_param.grad.numpy() if paddle_param.grad is not None else None
-        t_grad = torch_param.grad.detach().cpu().numpy() if torch_param.grad is not None else None
+        p_grad = paddle_param.grad()
+        t_grad = torch_param.grad()
 
         # check grad
         try:
@@ -313,8 +313,8 @@ def check_grad(layer, module, options, layer_map=LayerMap()):
                 "paddle path:\n    {}\n"
                 "torch path:\n    {}\n"
                 "{}\n\n".format(
-                    model_repr_info(paddle_sublayer),
-                    model_repr_info(torch_submodule),
+                    paddle_sublayer.model_repr_info(),
+                    torch_submodule.model_repr_info(),
                     paddle_sublayer.padiff_path + "." + paddle_pname,
                     torch_submodule.padiff_path + "." + torch_pname,
                     type(e).__name__ + ":  " + str(e),

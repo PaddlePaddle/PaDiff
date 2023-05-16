@@ -21,8 +21,9 @@ from ..utils import log
 
 
 class Trainer:
-    def __init__(self, layer, module, loss_fn, opt, layer_map, options):
-        self.runner = Runner(layer, module, loss_fn, layer_map, options)
+    def __init__(self, models, loss_fn, opt, layer_map, options):
+        self.model_types = [x.model_type for x in models]
+        self.runner = Runner(models, loss_fn, layer_map, options)
         self.optimizer_helper = OptimizerHelper(opt, options)
         self.options = options
         self.steps = options["steps"]
@@ -37,12 +38,14 @@ class Trainer:
         return ret
 
     def do_check_grad(self):
-        ret = Checker.check_grad(self.runner.layer, self.runner.module, options=self.options, layer_map=self.layer_map)
+        ret = Checker.check_grad(
+            self.runner.models[0], self.runner.models[1], options=self.options, layer_map=self.layer_map
+        )
         return ret
 
     def do_check_weight(self):
         ret = Checker.check_weight(
-            self.runner.layer, self.runner.module, options=self.options, layer_map=self.layer_map
+            self.runner.models[0], self.runner.models[1], options=self.options, layer_map=self.layer_map
         )
         return ret
 
@@ -59,8 +62,8 @@ class Trainer:
         ret = True
         for step_id in range(self.options["steps"]):
             log(f"=================Train Step {step_id}=================")
-            paddle_report = Report("paddle")
-            torch_report = Report("torch")
+            paddle_report = Report(self.model_types[0])
+            torch_report = Report(self.model_types[1])
             self.do_run(paddle_report, torch_report, example_inp)
             ret = self.do_check_fwd_bwd(paddle_report, torch_report) and ret
             if ret == False:

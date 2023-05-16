@@ -30,16 +30,20 @@ class yaml_loader:
         self._options = {}
 
     def get_weight_settings(self, paddle_layer, torch_module, param_name):
-        assign_config = self._assign_yaml.get(paddle_layer.__class__.__name__, None)
+        assign_config = self._assign_yaml.get(paddle_layer.class_name, None)
         settings = {
             "transpose": False,
         }
 
+        if paddle_layer.model_type == torch_module.model_type:
+            settings.update(self._options)
+            return settings
+
         if assign_config is not None:
             assert (
-                torch_module.__class__.__name__ in assign_config["torch"]
+                torch_module.class_name in assign_config["torch"]
             ), "Not correspond, paddle layer {}  vs torch module {}. check your __init__ to make sure every sublayer is corresponded, or view the model struct reports in diff_log.".format(
-                paddle_layer.__class__.__name__, torch_module.__class__.__name__
+                paddle_layer.class_name, torch_module.class_name
             )
 
         if (

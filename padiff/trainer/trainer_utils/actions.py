@@ -91,3 +91,41 @@ class EqualAction(Action):
 
                     pdb.set_trace()
                 raise e
+
+
+@global_actions.register
+class PPAction(Action):
+    def match(self, torch_net, paddle_net):
+        try:
+            assert isinstance(torch_net, paddle.nn.Layer)
+            assert isinstance(paddle_net, paddle.nn.Layer)
+        except:
+            return False
+        return True
+
+    @property
+    def priority(self):
+        return 0
+
+    def __call__(self, torch_item, paddle_item, cfg):
+        """
+        NOTE:
+        """
+        is_debug = cfg["debug"]
+        torch_tensors = torch_item.compare_tensors()
+        paddle_tensors = paddle_item.compare_tensors()
+        for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):
+            if tt.numel() == 0 or pt.numel() == 0:
+                warnings.warn("Found Tensor shape is [0], compare skipped!")
+                continue
+            try:
+                utils.assert_tensor_equal(tt.detach().cpu().numpy(), pt.numpy(), cfg)
+            except Exception as e:
+                if is_debug:
+                    print("Mean of inputs:")
+                    print(torch_item.input[0].numpy().mean())
+                    print(paddle_item.input[0].numpy().mean())
+                    import pdb
+
+                    pdb.set_trace()
+                raise e

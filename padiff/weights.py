@@ -15,15 +15,13 @@
 from itertools import zip_longest
 
 import numpy
-import paddle
-import torch
 
 from .utils import (
     log,
     map_for_each_sublayer,
     LayerMap,
     weight_struct_info,
-    model_repr_info,
+    PadiffModel,
 )
 from .file_loader import global_yaml_loader as yamls
 
@@ -51,7 +49,6 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
         paddle_param,
         torch_param,
     ):
-
         settings = yamls.get_weight_settings(paddle_sublayer, torch_submodule, paddle_pname)
 
         process(
@@ -67,31 +64,31 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
     layers = layer_map.weight_init_layers(layer)
     modules = layer_map.weight_init_layers(module)
 
-    for paddle_sublayer, torch_submodule in zip_longest(layers, modules, fillvalue=None):
-        if paddle_sublayer is None or torch_submodule is None:
+    for model_1, model_2 in zip_longest(layers, modules, fillvalue=None):
+        if model_1 is None or model_2 is None:
             raise RuntimeError("Torch and Paddle return difference number of sublayers. Check your model.")
-        for (paddle_pname, paddle_param), (torch_pname, torch_param) in zip(
-            paddle_sublayer.named_parameters(prefix="", include_sublayers=False),
-            torch_submodule.named_parameters(prefix="", recurse=False),
+        for (param_name_1, param_1), (param_name_2, param_2) in zip(
+            model_1.named_parameters(recursively=False),
+            model_2.named_parameters(recursively=False),
         ):
             try:
                 _process_runner(
                     process,
-                    paddle_sublayer,
-                    torch_submodule,
-                    paddle_pname,
-                    torch_pname,
-                    paddle_param,
-                    torch_param,
+                    model_1,
+                    model_2,
+                    param_name_1,
+                    param_name_2,
+                    param_1,
+                    param_2,
                 )
             except Exception as e:
                 err_str = f"Error occured between:\n"
-                err_str += f"    paddle: {model_repr_info(paddle_sublayer)}\n"
-                err_str += f"            {paddle_sublayer.padiff_path + '.' + paddle_pname}\n"
-                err_str += f"    torch: {model_repr_info(torch_submodule)}\n"
-                err_str += f"           {torch_submodule.padiff_path + '.' + torch_pname}\n\n"
+                err_str += f"    first model {model_1.name}: {model_1.model_repr_info()}\n"
+                err_str += f"            {model_1.padiff_path + '.' + param_name_1}\n"
+                err_str += f"    second model {model_2.name}: {model_2.model_repr_info()}\n"
+                err_str += f"            {model_2.padiff_path + '.' + param_name_2}\n"
                 err_str += f"{type(e).__name__ + ':  ' + str(e)}\n"
-                err_str += weight_struct_info(layer, module, paddle_sublayer, torch_submodule)
+                err_str += weight_struct_info(layer, module, model_1, model_2)
                 raise RuntimeError(err_str)
 
 
@@ -104,8 +101,8 @@ def shape_check(
     torch_param,
     settings,
 ):
-    p_shape = list(paddle_param.shape)
-    t_shape = list(torch_param.shape)
+    p_shape = paddle_param.shape()
+    t_shape = torch_param.shape()
     if settings["transpose"]:
         t_shape.reverse()
     assert p_shape == t_shape, ("Shape of paddle param `{}` and torch param `{}` is not the same. {} vs {}\n").format(
@@ -131,14 +128,14 @@ def _assign_weight(
         torch_param,
         settings,
     )
-    np_value = torch_param.data.detach().cpu().numpy()
+    np_value = torch_param.numpy()
     if settings["transpose"]:
         np_value = numpy.transpose(np_value)
 
-    paddle.assign(paddle.to_tensor(np_value), paddle_param)
+    paddle_param.set_data(np_value)
 
 
-def assign_weight(layer, module, layer_map=LayerMap()):
+def assign_weight(target_model, source_model, layer_map=LayerMap()):
     """
     Init weights of layer(paddle) and module(torch) with same value
 
@@ -146,35 +143,37 @@ def assign_weight(layer, module, layer_map=LayerMap()):
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
     """
+    assert isinstance(target_model, PadiffModel), "The first param of assign_weight should be a PadiffModel"
+    assert isinstance(source_model, PadiffModel), "The second param of assign_weight should be a PadiffModel"
 
-    assert isinstance(layer, paddle.nn.Layer), "The first param of assign_weight should be a paddle.nn.Layer"
-    assert isinstance(module, torch.nn.Module), "The second param of assign_weight should be a torch.nn.Module"
-
-    for torch_submodule, paddle_sublayer in layer_map.special_init_layers():
-        paddle_layer_name = paddle_sublayer.__class__.__name__
-        torch_module_name = torch_submodule.__class__.__name__
-        key_name = build_name(paddle_layer_name, torch_module_name)
-        if key_name not in init_pool.funcs.keys():
-            log(
-                "*** Special init paddle layer `{}` and torch module `{}` is not supported ***".format(
-                    paddle_layer_name, torch_module_name
+    # TODO: special init is not nessesary for current requirement, so just skip here
+    # need update later
+    if target_model.model_type == "paddle" and source_model.model_type == "torch":
+        for torch_submodule, paddle_sublayer in layer_map.special_init_layers():
+            paddle_layer_name = paddle_sublayer.__class__.__name__
+            torch_module_name = torch_submodule.__class__.__name__
+            key_name = build_name(paddle_layer_name, torch_module_name)
+            if key_name not in init_pool.funcs.keys():
+                log(
+                    "*** Special init paddle layer `{}` and torch module `{}` is not supported ***".format(
+                        paddle_layer_name, torch_module_name
+                    )
                 )
-            )
-            log("    Checkout the parameters are inited by yourself")
-            log("    ,or you can register your init method!")
-        else:
-            try:
-                init_pool.funcs[key_name](paddle_sublayer, torch_submodule)
-            except Exception as e:
-                print(
-                    f"Special init paddle layer `{paddle_layer_name}` and torch module `{torch_module_name}` failed."
-                )
-                print(type(e).__name__ + ":  " + str(e))
-                log("Assign weight Failed !!!")
-                return False
+                log("    Checkout the parameters are inited by yourself")
+                log("    ,or you can register your init method!")
+            else:
+                try:
+                    init_pool.funcs[key_name](paddle_sublayer, torch_submodule)
+                except Exception as e:
+                    print(
+                        f"Special init paddle layer `{paddle_layer_name}` and torch module `{torch_module_name}` failed."
+                    )
+                    print(type(e).__name__ + ":  " + str(e))
+                    log("Assign weight Failed !!!")
+                    return False
 
     try:
-        process_each_weight(_assign_weight, layer, module, layer_map)
+        process_each_weight(_assign_weight, target_model, source_model, layer_map)
         log("Assign weight success !!!")
         return True
     except Exception as e:
@@ -192,8 +191,10 @@ def remove_inplace(layer, module):
         module (torch.nn.Module): input torch module
     """
 
-    def _remove_inplace(layer, module):
-        if hasattr(module, "inplace"):
-            module.inplace = False
+    def _remove_inplace(model_1, model_2):
+        if hasattr(model_1, "inplace"):
+            model_1.inplace = False
+        if hasattr(model_2, "inplace"):
+            model_2.inplace = False
 
     map_for_each_sublayer(_remove_inplace, layer, module)

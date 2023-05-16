@@ -13,26 +13,24 @@
 # limitations under the License.
 
 
+import paddle
+import torch
+
 __all__ = [
     "OptimizerHelper",
 ]
 
 
 class OptimizerHelper:
-    def __init__(self, opt, options):
+    def __init__(self, optimizers, options):
         self.use_opt = options["use_opt"]
-        if options["use_opt"]:
-            self.paddle_opt = opt[0]
-            self.torch_opt = opt[1]
-            self.opt_type = options["opt_type"]
+        self.optimizers = optimizers
 
     def step(self):
         if self.use_opt:
-            if self.opt_type == "Lambda":
-                self.paddle_opt()
-                self.torch_opt()
-            elif self.opt_type == "Opt":
-                self.paddle_opt.step()
-                self.paddle_opt.clear_grad()
-                self.torch_opt.step()
-                self.torch_opt.zero_grad()
+            for opt in self.optimizers:
+                if isinstance(opt, (paddle.optimizer.Optimizer, torch.optim.Optimizer)):
+                    opt.step()
+                    opt.clear_grad()
+                else:
+                    opt()

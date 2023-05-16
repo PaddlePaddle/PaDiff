@@ -15,12 +15,7 @@
 
 import paddle
 import torch
-from .utils import (
-    log,
-    init_options,
-    init_LayerMap,
-    init_padiff_path,
-)
+from .utils import log, init_options, init_LayerMap, init_padiff_path, padiff_model
 from .weights import assign_weight
 from .trainer import Trainer
 
@@ -30,16 +25,15 @@ torch.set_printoptions(precision=10)
 
 
 def auto_diff(
-    layer, module, example_inp, auto_weights=True, options={}, layer_map=None, loss_fn=None, optimizer=None, steps=1
+    models, names, example_inp, auto_weights=True, options={}, layer_map=None, loss_fn=None, optimizer=None, steps=1
 ):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
     Args:
-        layer (paddle.nn.Layer): paddle layer that needs compare
-        module (torch.nn.Module): torch module that needs compare
+        models : list of PadiffModel
         example_inp (paddle_input, torch_input): input data for paddle layer and torch module.
-            paddle_input and torch_input should be dict and send into net like `module(**input)`.
+            paddle_input and torch_input should be dict and send into model like `module(**input)`.
         auto_weights (boolean, optional): uniformly init the parameters of models
         options (dict, optional):
             atol, compare_mode
@@ -49,35 +43,42 @@ def auto_diff(
     """
 
     # checkout inputs
-    assert isinstance(layer, paddle.nn.Layer), "Invalid Argument."
-    assert isinstance(module, torch.nn.Module), "Invalid Argument."
+    assert len(models) == 2, "Need input 2 models."
+
+    if names is not None:
+        assert len(models) == len(names)
+        models = [padiff_model(x, name) for x, name in zip(models, names)]
+    else:
+        raise RuntimeError()
+
     assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
 
-    paddle_input, torch_input = example_inp
-    assert isinstance(paddle_input, dict), "Invalid Argument."
-    assert isinstance(torch_input, dict), "Invalid Argument."
+    for inputs in example_inp:
+        assert isinstance(inputs, dict), "Invalid Argument."
 
     if loss_fn is not None:
-        paddle_loss, torch_loss = loss_fn
-        assert callable(paddle_loss), "Invalid loss function"
-        assert callable(torch_loss), "Invalid loss function"
         options["use_loss"] = True
+        assert len(loss_fn) == len(models)
+
+        for loss in loss_fn:
+            assert callable(loss), "Invalid loss function"
 
     if optimizer is not None:
-        paddle_opt, torch_opt = optimizer
         options["use_opt"] = True
-        if isinstance(paddle_opt, paddle.optimizer.Optimizer) and isinstance(torch_opt, torch.optim.Optimizer):
-            options["opt_type"] = "Opt"
-        else:
-            options["opt_type"] = "Lambda"
+        assert len(optimizer) == len(models)
+
+        for opt in optimizer:
+            assert isinstance(opt, (paddle.optimizer.Optimizer, torch.optim.Optimizer)) or callable(
+                opt
+            ), "Invalid optimizer"
 
     # prepare models and options
     options["steps"] = steps
     init_options(options)
-    layer_map = init_LayerMap(layer, module, layer_map)
-    init_padiff_path(layer, module)
-    trainer = Trainer(layer, module, loss_fn, optimizer, layer_map, options)
-    if auto_weights and not assign_weight(layer, module, layer_map):
+    layer_map = init_LayerMap(layer_map)
+    init_padiff_path(models)
+    trainer = Trainer(models, loss_fn, optimizer, layer_map, options)
+    if auto_weights and not assign_weight(models[0], models[1], layer_map):
         return False
 
     ret = trainer.train(example_inp)

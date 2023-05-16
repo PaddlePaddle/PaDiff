@@ -15,7 +15,7 @@
 import os
 import sys
 import shutil
-from itertools import zip_longest
+from itertools import zip_longest, chain
 
 import numpy as np
 import paddle
@@ -29,7 +29,6 @@ from .file_loader import global_yaml_loader as yamls
 
 from .special_init import global_special_init_pool as init_pool
 from .special_init import build_name
-from itertools import zip_longest
 
 
 """
@@ -139,8 +138,8 @@ def map_for_each_sublayer(fn, layer, module):
     """
     Automatically fill weights by randn.
     """
-    for paddle_sublayer, torch_submodule in zip(layer.sublayers(True), module.modules()):
-        fn(paddle_sublayer, torch_submodule)
+    for model_1, model_2 in zip(layer.submodels(), module.submodels()):
+        fn(model_1, model_2)
 
 
 def map_structure_and_replace_key(func, structure1, structure2):
@@ -188,28 +187,14 @@ def log(*args):
     print("[AutoDiff]", *args)
 
 
-def model_repr_info(model):
-    extra_lines = []
-    extra_repr = model.extra_repr()
-    if extra_repr:
-        extra_lines = extra_repr.split("\n")
-    if len(extra_lines) == 1:
-        repr_info = extra_lines[0]
-    else:
-        repr_info = ""
-
-    retstr = model.__class__.__name__ + "(" + repr_info + ")"
-    return retstr
-
-
 def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
-    t_title = "Torch Model\n" + "=" * 25 + "\n"
-    t_retval = print_weight_struct(module, mark=torch_submodule, prefix=[" " * 4])
-    t_info = t_title + "\n".join(t_retval)
-
-    p_title = "Paddle Model\n" + "=" * 25 + "\n"
-    p_retval = print_weight_struct(layer, mark=paddle_sublayer, prefix=[" " * 4])
+    p_title = f"First Model {layer}\n" + "=" * 25 + "\n"
+    p_retval = print_weight_struct(layer.model, mark=paddle_sublayer.model, prefix=[" " * 4])
     p_info = p_title + "\n".join(p_retval)
+
+    t_title = f"Second Model {module}\n" + "=" * 25 + "\n"
+    t_retval = print_weight_struct(module.model, mark=torch_submodule.model, prefix=[" " * 4])
+    t_info = t_title + "\n".join(t_retval)
 
     retstr = ""
 
@@ -241,7 +226,7 @@ def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
     return retstr
 
 
-def print_weight_struct(net, mark=None, prefix=[]):
+def print_weight_struct(model, mark=None, prefix=[]):
     cur_str = ""
     for i, s in enumerate(prefix):
         if i == len(prefix) - 1:
@@ -254,20 +239,20 @@ def print_weight_struct(net, mark=None, prefix=[]):
             else:
                 cur_str += s
 
-    cur_str += str(net.__class__.__name__)
+    cur_str += str(model.__class__.__name__)
 
-    if not hasattr(net, "no_skip"):
+    if not hasattr(model, "no_skip"):
         cur_str += "  (skip)"
 
-    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(net, "padiff_path"):
-        cur_str += "  (" + net.padiff_path + ")"
+    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(model, "padiff_path"):
+        cur_str += "  (" + model.padiff_path + ")"
 
-    if mark is net:
+    if mark is model:
         cur_str += "    <---  *** HERE ***"
 
     ret_strs = [cur_str]
 
-    children = list(net.children())
+    children = list(model.children())
     for i, child in enumerate(children):
         pre = " |--- "
         if i == len(children) - 1:
@@ -280,8 +265,8 @@ def print_weight_struct(net, mark=None, prefix=[]):
     return ret_strs
 
 
-def debug_print(net, mark=None, prefix=[]):
-    retval = print_weight_struct(net, mark=None, prefix=[])
+def debug_print(model, mark=None, prefix=[]):
+    retval = print_weight_struct(model, mark=None, prefix=[])
     print("\n".join(retval))
 
 
@@ -365,10 +350,10 @@ def init_options(options):
         "compare_mode": "mean",
         "single_step": False,
         "debug": False,
-        "cmd": False,
         "use_loss": False,
         "use_opt": False,
         "steps": 1,
+        "curent_model_idx": None,
     }
 
     default_options.update(options)
@@ -400,7 +385,7 @@ def init_options(options):
     yamls.options = options
 
 
-def init_LayerMap(layer, module, layer_map):
+def init_LayerMap(layer_map):
     if layer_map is None:
         layer_map = LayerMap()
     elif isinstance(layer_map, dict):
@@ -409,26 +394,20 @@ def init_LayerMap(layer, module, layer_map):
         layer_map = new_map
     else:
         assert isinstance(layer_map, LayerMap), "Invalid Argument."
-
-    layer_map.ignore_class(layer)
-    layer_map.ignore_class(module)
-
     return layer_map
 
 
-def init_padiff_path(layer, module):
-    def _set_padiff_path(net, path):
-        for name, child in net.named_children():
+def init_padiff_path(models):
+    def _set_padiff_path(model, path):
+        for name, child in model.named_children():
             path.append(name)
-            setattr(child, "padiff_path", ".".join(path))
+            setattr(child.model, "padiff_path", ".".join(path))
             _set_padiff_path(child, path)
             path.pop()
 
-    setattr(layer, "padiff_path", layer.__class__.__name__)
-    setattr(module, "padiff_path", module.__class__.__name__)
-
-    _set_padiff_path(layer, [layer.__class__.__name__])
-    _set_padiff_path(module, [module.__class__.__name__])
+    for model in models:
+        setattr(model.model, "padiff_path", model.name)
+        _set_padiff_path(model, [model.name])
 
 
 """
@@ -436,12 +415,8 @@ def init_padiff_path(layer, module):
 """
 
 
-def is_wrap_layer(layer):
-    if isinstance(layer, paddle.nn.Layer):
-        no_param = len(list(layer.parameters(include_sublayers=False))) == 0
-    elif isinstance(layer, torch.nn.Module):
-        no_param = len(list(layer.parameters(recurse=False))) == 0
-    return no_param
+def is_wrap_layer(model):
+    return len(list(model.parameters(recursively=False))) == 0
 
 
 class LayerMap(object):
@@ -450,21 +425,6 @@ class LayerMap(object):
         self._layer_ignore = set()  # ignore layer in this set
         self._layer_ignore_sublayer = set()  # ignore sublayer of layers in this set (do not include themselves)
 
-        self._ignore_cls = (  # these classes will be ignored
-            paddle.nn.Sequential,
-            torch.nn.Sequential,
-        )
-
-    @staticmethod
-    def modify_layer_map(layer_map):
-        swap_keys = []
-        for key in layer_map.keys():
-            if not isinstance(key, torch.nn.Module):
-                swap_keys.append(key)
-        for key in swap_keys:
-            layer_map[layer_map[key]] = key
-            layer_map.pop(key)
-
     @property
     def map(self):
         return self._layer_one2one
@@ -472,7 +432,6 @@ class LayerMap(object):
     @map.setter
     def map(self, inp):
         assert isinstance(inp, dict), "LayerMap.map wants `dict` obj as input"
-        LayerMap.modify_layer_map(inp)
         self._layer_one2one.update(inp)
         self._layer_ignore_sublayer.update(set(inp.keys()))
         self._layer_ignore_sublayer.update(set(inp.values()))
@@ -491,53 +450,52 @@ class LayerMap(object):
         self._layer_ignore_sublayer.update(set(layers))
         self._layer_ignore.update(set(layers))
 
-    def ignore_class(self, layer, ign_cls=None):
+    def ignore_class(self, layer, ign_cls):
         ignored = set()
-        if ign_cls == None:
-            ign_cls = self._ignore_cls
         for sublayer in self.layers_skip_ignore(layer):
             if isinstance(sublayer, ign_cls):
                 ignored.add(sublayer)
         self._layer_ignore.update(ignored)
 
-    def _traversal_layers_with_ignore(self, net):
-        for child in net.children():
-            if (child not in self._layer_ignore and not is_wrap_layer(child)) or (
+    def _traversal_layers_with_ignore(self, model):
+        for child_padiff_model in model.children():
+            child = child_padiff_model.model
+            if (child not in self._layer_ignore and not is_wrap_layer(child_padiff_model)) or (
                 child in self.map.keys() or child in self.map.values()
             ):
                 if not hasattr(child, "no_skip"):
                     setattr(child, "no_skip", True)
-                yield child
+                yield child_padiff_model
             if child not in self._layer_ignore_sublayer:
-                for sublayer in self._traversal_layers_with_ignore(child):
+                for sublayer in self._traversal_layers_with_ignore(child_padiff_model):
                     yield sublayer
 
-    def _traversal_layers_for_model_struct(self, net):
+    def _traversal_layers_for_model_struct(self, model):
         # any in self._layer_ignore_sublayer should be returned
         # to check whether an api should be record
-        for child in net.children():
-            if (child not in self._layer_ignore and not is_wrap_layer(child)) or (
+        for child_padiff_model in model.children():
+            child = child_padiff_model.model
+            if (child not in self._layer_ignore and not is_wrap_layer(child_padiff_model)) or (
                 child in self._layer_ignore_sublayer
             ):
                 if not hasattr(child, "no_skip"):
                     setattr(child, "no_skip", True)
-                yield child
+                yield child_padiff_model
             if child not in self._layer_ignore_sublayer:
-                for sublayer in self._traversal_layers_with_ignore(child):
+                for sublayer in self._traversal_layers_for_model_struct(child_padiff_model):
                     yield sublayer
 
     def special_init_layers(self):
+        # TODO: return padiff model
         return self.map.items()
+
+    def layers_in_map(self):
+        return chain(self.map.keys(), self.map.values())
 
     def weight_init_layers(self, layer):
         # layers in layer_map should be inited in `special_init`, so they will be skipped here
         layers = [layer]
-        if isinstance(layer, paddle.nn.Layer):
-            layers.extend(filter(lambda x: x not in self.map.values(), self._traversal_layers_with_ignore(layer)))
-        elif isinstance(layer, torch.nn.Module):
-            layers.extend(filter(lambda x: x not in self.map.keys(), self._traversal_layers_with_ignore(layer)))
-        else:
-            raise RuntimeError("Invalid model type: {}".format(type(layer)))
+        layers.extend(filter(lambda x: x.model not in self.layers_in_map(), self._traversal_layers_with_ignore(layer)))
         return layers
 
     def layers_skip_ignore(self, layer):
@@ -557,8 +515,8 @@ class LayerMap(object):
         NOTICE: LayerMap.auto suppose that all sublayers/submodules are defined in same order, if not, this method may not work correctly.
         """
 
-        def _traversal_layers(net, path, registered):
-            for name, child in net.named_children():
+        def _traversal_layers(model, path, registered):
+            for name, child in model.named_children():
                 path.append(name)
                 if child.__class__.__name__ in registered and child not in self._layer_ignore:
                     yield (child, ".".join(path))
@@ -606,3 +564,260 @@ class LayerMap(object):
         log("auto update LayerMap SUCCESS!!!\n")
 
         self.map = _map
+
+
+"""
+PadiffModel
+"""
+
+
+class PadiffModel:
+    def __init__(self, model, name, model_type):
+        self.model = model
+        self.model_type = model_type
+        self.name = name
+
+    def __call__(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
+    def __str__(self, *args, **kwargs):
+        return f"Model({self.model_type}::{self.name})"
+
+    def __repr__(self, *args, **kwargs):
+        return f"Model({self.model_type}::{self.name})"
+
+    def model_repr_info(self):
+        model = self.model
+        extra_lines = []
+        extra_repr = model.extra_repr()
+        if extra_repr:
+            extra_lines = extra_repr.split("\n")
+        if len(extra_lines) == 1:
+            repr_info = extra_lines[0]
+        else:
+            repr_info = ""
+
+        retstr = model.__class__.__name__ + "(" + repr_info + ")"
+        return retstr
+
+    @property
+    def padiff_path(self):
+        return self.model.padiff_path
+
+    @property
+    def class_name(self):
+        return self.model.__class__.__name__
+
+    def parameters(self):
+        raise NotImplementedError()
+
+    def named_parameters(self):
+        raise NotImplementedError()
+
+    # child sublayers, do not include self
+    def children(self):
+        raise NotImplementedError()
+
+    def named_children(self):
+        raise NotImplementedError()
+
+    # get sublayers recursively include self
+    def submodels(self):
+        raise NotImplementedError()
+
+    def named_submodels(self):
+        raise NotImplementedError()
+
+    def get_device(self):
+        raise NotImplementedError()
+
+    def to_cpu(self):
+        raise NotImplementedError()
+
+    def to(self, device):
+        raise NotImplementedError()
+
+    def register_forward_pre_hook(self, hook):
+        raise NotImplementedError()
+
+    def register_forward_post_hook(self, hook):
+        raise NotImplementedError()
+
+
+class PaddleModel(PadiffModel):
+    def __init__(self, model, name):
+        super(PaddleModel, self).__init__(model, name, "paddle")
+
+    def parameters(self, recursively):
+        origin_iter = self.model.parameters(include_sublayers=recursively)
+        return deco_iter(origin_iter, padiff_param)
+
+    def named_parameters(self, recursively):
+        origin_iter = self.model.named_parameters(include_sublayers=recursively)
+        return deco_iter(origin_iter, padiff_param)
+
+    def children(self):
+        origin_iter = self.model.children()
+        return deco_iter(origin_iter, padiff_model)
+
+    def named_children(self):
+        origin_iter = self.model.named_children()
+        return deco_iter(origin_iter, padiff_model)
+
+    def submodels(self):
+        origin_iter = self.model.sublayers(True)
+        return deco_iter(origin_iter, padiff_model)
+
+    def named_submodels(self):
+        origin_iter = self.model.named_sublayers(include_self=True)
+        return deco_iter(origin_iter, padiff_model)
+
+    def get_device(self):
+        return paddle.get_device()
+
+    def to_cpu(self):
+        self.model.to("cpu")
+        paddle.device.cuda.empty_cache()
+
+    def to(self, device):
+        self.model.to(device)
+
+    def register_forward_pre_hook(self, hook):
+        return self.model.register_forward_pre_hook(hook)
+
+    def register_forward_post_hook(self, hook):
+        return self.model.register_forward_post_hook(hook)
+
+
+class TorchModel(PadiffModel):
+    def __init__(self, model, name):
+        super(TorchModel, self).__init__(model, name, "torch")
+
+    def parameters(self, recursively):
+        origin_iter = self.model.parameters(recurse=recursively)
+        return deco_iter(origin_iter, padiff_param)
+
+    def named_parameters(self, recursively):
+        origin_iter = self.model.named_parameters(recurse=recursively)
+        return deco_iter(origin_iter, padiff_param)
+
+    def children(self):
+        origin_iter = self.model.children()
+        return deco_iter(origin_iter, padiff_model)
+
+    def named_children(self):
+        origin_iter = self.model.named_children()
+        return deco_iter(origin_iter, padiff_model)
+
+    def submodels(self):
+        origin_iter = self.model.modules()
+        return deco_iter(origin_iter, padiff_model)
+
+    def named_submodels(self):
+        origin_iter = self.model.named_modules(remove_duplicate=True)
+        return deco_iter(origin_iter, padiff_model)
+
+    def get_device(self):
+        return next(self.model.parameters()).device
+
+    def to_cpu(self):
+        self.model.to("cpu")
+        torch.cuda.empty_cache()
+
+    def to(self, device):
+        self.model.to(device)
+
+    def register_forward_pre_hook(self, hook):
+        return self.model.register_forward_pre_hook(hook)
+
+    def register_forward_post_hook(self, hook):
+        return self.model.register_forward_hook(hook)
+
+
+class PadiffParam:
+    def __init__(self, param, param_type):
+        self.param = param
+        self.param_type = param_type
+
+    def numpy(self):
+        raise NotImplementedError()
+
+    def set_data(self, np_value):
+        raise NotImplementedError()
+
+    def shape(self):
+        raise NotImplementedError()
+
+    def grad(self):
+        raise NotImplementedError()
+
+
+class PaddleParam(PadiffParam):
+    def __init__(self, param):
+        super(PaddleParam, self).__init__(param, "paddle")
+
+    def numpy(self):
+        return self.param.numpy()
+
+    def set_data(self, np_value):
+        paddle.assign(paddle.to_tensor(np_value), self.param)
+
+    def shape(self):
+        return list(self.param.shape)
+
+    def grad(self):
+        if self.param.grad is not None:
+            return self.param.grad.numpy()
+        else:
+            return None
+
+
+class TorchParam(PadiffParam):
+    def __init__(self, param):
+        super(TorchParam, self).__init__(param, "torch")
+
+    def numpy(self):
+        return self.param.data.detach().cpu().numpy()
+
+    def set_data(self, np_value):
+        self.param.data = torch.as_tensor(np_value).type(self.param.dtype).to(self.param.device)
+
+    def shape(self):
+        return list(self.param.shape)
+
+    def grad(self):
+        if self.param.grad is not None:
+            return self.param.grad.detach().cpu().numpy()
+        else:
+            return None
+
+
+def padiff_model(model, name=None):
+    if name is None:
+        name = model.__class__.__name__
+    if isinstance(model, paddle.nn.Layer):
+        return PaddleModel(model, name)
+    elif isinstance(model, torch.nn.Module):
+        return TorchModel(model, name)
+    else:
+        return model
+
+
+def padiff_param(param):
+    if isinstance(param, paddle.fluid.framework.EagerParamBase):
+        return PaddleParam(param)
+    elif isinstance(param, torch.nn.parameter.Parameter):
+        return TorchParam(param)
+    else:
+        return param
+
+
+def deco_iter(iterator, fn):
+    def new_generator():
+        for obj in iterator:
+            if isinstance(obj, (tuple, list)):
+                yield tuple(map(fn, obj))
+            else:
+                yield fn(obj)
+
+    return new_generator()

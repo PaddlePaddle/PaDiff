@@ -165,49 +165,35 @@ class Report:
     report_guard
 """
 
-global_torch_report = None
-global_paddle_report = None
+global_reports = [None, None]
 global_torch_counter = Counter()
 global_paddle_counter = Counter()
 
 
 @contextlib.contextmanager
-def report_guard(torch_report, paddle_report):
-    global global_torch_report, global_paddle_report
-    old_t = global_torch_report
-    old_p = global_paddle_report
+def report_guard(reports):
+    global global_reports
+    old_reports = global_reports
     try:
-        global_torch_report = torch_report
-        global_paddle_report = paddle_report
+        global_reports = reports
 
-        torch_report.counter = global_torch_counter
-        paddle_report.counter = global_paddle_counter
+        reports[0].counter = global_torch_counter
+        reports[1].counter = global_paddle_counter
 
-        torch_report.counter.clear()
-        paddle_report.counter.clear()
+        reports[0].counter.clear()
+        reports[1].counter.clear()
 
         yield
 
     finally:
-        global_torch_report = old_t
-        global_paddle_report = old_p
-        torch_report.counter = None
-        paddle_report.counter = None
+        global_reports = old_reports
+        reports[0].counter = None
+        reports[1].counter = None
 
 
-def current_paddle_report():
-    if global_paddle_report is None:
+def current_reports():
+    global global_reports
+    if global_reports is None:
         return None
-        raise RuntimeError(
-            "Please call `current_paddle_report()` within contextmanager `report_guard(Report(), Report())`."
-        )
-    return global_paddle_report
 
-
-def current_torch_report():
-    if global_torch_report is None:
-        return None
-        raise RuntimeError(
-            "Please call `current_torch_report()` within contextmanager `report_guard(Report(), Report())`."
-        )
-    return global_torch_report
+    return global_reports

@@ -13,22 +13,6 @@
 # limitations under the License.
 
 from .actions import get_action
-from .hooks import register_paddle_hooker, register_torch_hooker, paddle_api_hook, torch_api_hook
+from .hooks import register_hooker, api_hook
 from .module_struct import copy_module_struct, print_struct_info, reorder_and_match_reports, debug_print_struct
-from .report import Report, report_guard, current_paddle_report, current_torch_report
-
-__all__ = [
-    "get_action",
-    "register_paddle_hooker",
-    "register_torch_hooker",
-    "paddle_api_hook",
-    "torch_api_hook",
-    "copy_module_struct",
-    "print_struct_info",
-    "reorder_and_match_reports",
-    "debug_print_struct",
-    "Report",
-    "report_guard",
-    "current_paddle_report",
-    "current_torch_report",
-]
+from .report import Report, report_guard

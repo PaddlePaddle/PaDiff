@@ -69,9 +69,9 @@ class PaDiffFinder(MetaPathFinder):
 
 def wrap_func(fullname, func):
     def wrapped(*args, **kwargs):
+        from .trainer.trainer_utils import api_hook
 
         if fullname.startswith("paddle"):
-            from .trainer.trainer_utils import paddle_api_hook
 
             class PaddleApi(paddle.nn.Layer):
                 def __init__(self, func):
@@ -88,10 +88,9 @@ def wrap_func(fullname, func):
 
             layer = PaddleApi(func)
             # need idx to support single step, set idx -1 here to skip api in single step mode
-            handle = layer.register_forward_post_hook(partial(paddle_api_hook, net_id=-1))
+            handle = layer.register_forward_post_hook(partial(api_hook, net_id=-1))
 
         elif fullname.startswith("torch"):
-            from .trainer.trainer_utils import torch_api_hook
 
             class TorchApi(torch.nn.Module):
                 def __init__(self, func):
@@ -107,7 +106,7 @@ def wrap_func(fullname, func):
                     return self.__name__
 
             layer = TorchApi(func)
-            handle = layer.register_forward_hook(partial(torch_api_hook, net_id=-1))
+            handle = layer.register_forward_hook(partial(api_hook, net_id=-1))
 
         else:
             raise RuntimeError("Import Err: module_type not in (paddle, torch)")
@@ -124,7 +123,7 @@ def wrap_func(fullname, func):
 def wrap_method(method_fullname, method):
     def wrapped(tensor_obj, *args, **kwargs):
         if method_fullname.startswith("paddle"):
-            from .trainer.trainer_utils import paddle_api_hook
+            from .trainer.trainer_utils import api_hook
 
             class PaddleMethod(paddle.nn.Layer):
                 def __init__(self, method):
@@ -140,10 +139,10 @@ def wrap_method(method_fullname, method):
                     return self.__name__
 
             layer = PaddleMethod(method)
-            handle = layer.register_forward_post_hook(partial(paddle_api_hook, net_id=-1))
+            handle = layer.register_forward_post_hook(partial(api_hook, net_id=-1))
 
         elif method_fullname.startswith("torch"):
-            from .trainer.trainer_utils import torch_api_hook
+            from .trainer.trainer_utils import api_hook
 
             class TorchMethod(torch.nn.Module):
                 def __init__(self, method):
@@ -159,7 +158,7 @@ def wrap_method(method_fullname, method):
                     return self.__name__
 
             layer = TorchMethod(method)
-            handle = layer.register_forward_hook(partial(torch_api_hook, net_id=-1))
+            handle = layer.register_forward_hook(partial(api_hook, net_id=-1))
 
         else:
             raise RuntimeError("Import Err: module_type not in (paddle, torch)")
