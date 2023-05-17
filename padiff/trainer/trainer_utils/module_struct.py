@@ -166,6 +166,9 @@ def copy_module_struct(root):
         for attr in ("is_api", "is_one2one_layer", "is_leaf", "fwd_report", "bwd_report"):
             val = getattr(root, attr)
             setattr(retval, attr, val)
+        if hasattr(root, "model_name"):
+            val = getattr(root, "model_name")
+            setattr(retval, "model_name", val)
         setattr(retval, "origin", root)
         return retval
 
@@ -336,20 +339,29 @@ def get_path(node):
     return msg
 
 
-def print_struct_info(nodes):
-    for idx, node in enumerate(nodes):
-        root = node
-        while root.father is not None:
-            root = root.father
-        title = f"Model[{idx}] {root.fullname}\n" + "=" * 40 + "\n"
+def print_struct_info(roots, nodes):
+    lines = 0
+    infos = []
+
+    for idx in range(2):
+        node = nodes[idx]
+        root = roots[idx]
+        title = f"{root.model_name}\n" + "=" * 40 + "\n"
         retval = tree_print(root, mark=node, prefix=[" " * 4])
         info = title + "\n".join(retval)
+        infos.append(info)
+        lines += len(retval)
 
-        if len(retval) > 50:
-            file_name = f"model_{idx}_struct_{root.fullname}.log"
-            log_file(file_name, "w", info)
-            log(f"Model Struct saved to `{diff_log_path}/{file_name}`, which is marked with `<---  *** HERE ***` !")
-        else:
+    if lines > 100:
+        file_names = [f"diff_{roots[idx].model_name}.log" for idx in range(2)]
+        for idx in range(2):
+            info = infos[idx]
+            log_file(file_names[idx], "w", info)
+        log(f"Compare diff log saved to `{diff_log_path}/{file_names[0]}` and `{diff_log_path}/{file_names[1]}`.")
+        log("Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !")
+
+    else:
+        for info in infos:
             print(info)
 
 

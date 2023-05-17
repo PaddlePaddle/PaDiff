@@ -284,27 +284,33 @@ def log(*args):
     print("[AutoDiff]", *args)
 
 
-def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
-    p_title = f"Model[0] {layer}\n" + "=" * 25 + "\n"
-    p_retval = weight_struct_string(layer.model, mark=paddle_sublayer.model, prefix=[" " * 4])
-    p_info = p_title + "\n".join(p_retval)
+def weight_struct_info(models, submodels):
+    lines = 0
+    infos = []
 
-    t_title = f"Model[0] {module}\n" + "=" * 25 + "\n"
-    t_retval = weight_struct_string(module.model, mark=torch_submodule.model, prefix=[" " * 4])
-    t_info = t_title + "\n".join(t_retval)
+    for idx in range(2):
+        model = models[idx]
+        submodel = submodels[idx]
+        title = f"{model.name}\n" + "=" * 40 + "\n"
+        retval = weight_struct_string(model, mark=submodel, prefix=[" " * 4])
+        info = title + "\n".join(retval)
+        infos.append(info)
+        lines += len(retval)
 
     retstr = ""
-
-    if len(p_retval) + len(t_retval) > 100:
-        log_file("paddle_weight_check.log", "w", p_info)
-        log_file("torch_weight_check.log", "w", t_info)
-        retstr += f"Model Struct saved to `{diff_log_path + '/torch_weight_check.log'}` and `{diff_log_path + '/paddle_weight_check.log'}`.\n"
+    if lines > 100:
+        file_names = [f"weight_{models[idx].name}.log" for idx in range(2)]
+        for idx in range(2):
+            info = infos[idx]
+            log_file(file_names[idx], "w", info)
+        retstr += (
+            f"Weight diff log saved to `{diff_log_path}/{file_names[0]}` and `{diff_log_path}/{file_names[1]}`.\n"
+        )
         retstr += "Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !\n"
     else:
-        retstr += t_info
-        retstr += "\n"
-        retstr += p_info
-        retstr += "\n"
+        for info in infos:
+            retstr += info
+            retstr += "\n"
 
     retstr += "\nNOTICE: submodel will be marked with `(skip)` because: \n"
     retstr += "    1. This submodel is contained by layer_map.\n"
@@ -335,15 +341,15 @@ def weight_struct_string(model, mark=None, prefix=[]):
             else:
                 cur_str += s
 
-    cur_str += str(model.__class__.__name__)
+    cur_str += str(model.class_name)
 
-    if not hasattr(model, "no_skip"):
+    if not hasattr(model.model, "no_skip"):
         cur_str += "  (skip)"
 
-    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(model, "padiff_path"):
+    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(model.model, "padiff_path"):
         cur_str += "  (" + model.padiff_path + ")"
 
-    if mark is model:
+    if mark.model is model.model:
         cur_str += "    <---  *** HERE ***"
 
     ret_strs = [cur_str]

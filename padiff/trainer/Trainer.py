@@ -33,6 +33,8 @@ class Trainer:
     def do_run(self, reports, example_inp):
         self.runner.set_report(reports)
         self.runner.forward_step(example_inp)
+        setattr(reports[0].stack.root, "model_name", self.models[0].name)
+        setattr(reports[1].stack.root, "model_name", self.models[1].name)
 
     def do_check_fwd_bwd(self, reports):
         ret = Checker.check_forward_and_backward(reports, self.options)

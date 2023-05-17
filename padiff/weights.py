@@ -59,7 +59,7 @@ def process_each_weight(process, model_0, model_1, layer_map):
                 err_str += f"    Model[1] {submodel_1.fullname}: {submodel_1.model_repr_info()}\n"
                 err_str += f"            {submodel_1.padiff_path + '.' + param_name_1}\n"
                 err_str += f"{type(e).__name__ + ':  ' + str(e)}\n"
-                err_str += weight_struct_info(model_0, model_1, submodel_0, submodel_1)
+                err_str += weight_struct_info((model_0, model_1), (submodel_0, submodel_1))
                 raise RuntimeError(err_str)
 
 
@@ -130,7 +130,7 @@ def check_shape(submodels, param_names, params, settings):
         shape_1.reverse()
     assert (
         shape_0 == shape_1
-    ), f"Shape of param `{param_names[0]}` in first model and param `{param_names[1]}` in second model is not the same. {shape_0} vs {shape_1}\n"
+    ), f"Shape of param `{param_names[0]}` in Model[0] and param `{param_names[1]}` in Model[1] is not the same. {shape_0} vs {shape_1}\n"
 
 
 def check_weight(model_0, model_1, options, layer_map):

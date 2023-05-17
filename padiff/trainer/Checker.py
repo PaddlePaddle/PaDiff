@@ -94,7 +94,7 @@ def check_forward(roots, reports, options):
     except Exception as e:
         compare_info = e
         if len(roots[0].children) == 0 or len(roots[1].children) == 0:
-            print_info(items, e, -1, grad=False, nodes=roots)
+            print_info(items, roots, e, -1, grad=False)
             return False
 
     # reorder current level
@@ -108,7 +108,7 @@ def check_forward(roots, reports, options):
         log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again:")
         print(type(e).__name__ + ":  " + str(e))
         log("Compare detail:")
-        print_info(items, compare_info, -1, grad=False, nodes=roots)
+        print_info(items, roots, compare_info, -1, grad=False)
         return False
 
     for child_0, child_1 in zip(roots[0].children, roots[1].children):
@@ -120,7 +120,7 @@ def check_forward(roots, reports, options):
     log(
         f"Sublayers of first model {roots[0].fullname} and second model {roots[1].fullname} are corresponded, but diff found at their output!"
     )
-    print_info(items, compare_info, -1, grad=False, nodes=roots)
+    print_info(items, roots, compare_info, -1, grad=False)
     return False
 
 
@@ -135,7 +135,7 @@ def check_backward(roots, reports, options):
     except Exception as e:
         compare_info = e
         if len(roots[0].children) == 0 or len(roots[1].children) == 0:
-            print_info(items, e, -1, grad=True, nodes=roots)
+            print_info(items, roots, e, -1, grad=True)
             return False
 
     # reorder current level
@@ -149,7 +149,7 @@ def check_backward(roots, reports, options):
         log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again:")
         print(type(e).__name__ + ":  " + str(e))
         log("Compare detail:")
-        print_info(items, compare_info, -1, grad=True, nodes=roots)
+        print_info(items, roots, compare_info, -1, grad=True)
         return False
 
     for child_0, child_1 in zip(reversed(roots[0].children), reversed(roots[1].children)):
@@ -161,11 +161,11 @@ def check_backward(roots, reports, options):
     log(
         f"Grad of sublayers of first model {roots[0].fullname} and second model {roots[1].fullname} are corresponded, but diff found at their output!"
     )
-    print_info(items, compare_info, -1, grad=True, nodes=roots)
+    print_info(items, roots, compare_info, -1, grad=True)
     return False
 
 
-def print_info(items, exc, step_idx, grad=False, nodes=None):
+def print_info(items, nodes, exc, step_idx, grad=False):
     if step_idx == -1:
         step_idx = items[1].step
     log("FAILED !!!")
@@ -181,19 +181,26 @@ def print_info(items, exc, step_idx, grad=False, nodes=None):
                 step_idx, items[0].net_id, items[1].net_id
             )
         )
-    log("    Type of layer is  : {} vs {}".format(items[0].net_str, items[1].net_str))
+    log("    Type of layer is: {} vs {}".format(items[0].net_str, items[1].net_str))
 
     print(str(exc))
 
-    if nodes is not None:
-        print("\n")
-        log("Check model struct:")
-        print_struct_info(nodes)
+    def get_root(node):
+        root = node
+        while root.father is not None:
+            root = root.father
+        return root
 
-    print(f"\n\nStacks of Model[0]:")
+    roots = [get_root(x) for x in nodes]
+
+    print("\n")
+    log("Check model struct:")
+    print_struct_info(roots, nodes)
+
+    print(f"\n\n{roots[0].model_name} Stacks:")
     print("=========================")
     items[0].print_stacks()
-    print(f"Stacks of Model[1]:")
+    print(f"{roots[1].model_name} Stacks:")
     print("=========================")
     items[1].print_stacks()
     print("")
