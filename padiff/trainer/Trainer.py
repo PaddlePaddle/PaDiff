@@ -69,6 +69,8 @@ class Trainer:
                 log("Diff phase is forward, weight and grad check skipped.")
             else:
                 ret = self.do_check_grad() and ret
+                if ret == False:
+                    return False
                 self.do_optimizer()
                 ret = self.do_check_weight() and ret
 
@@ -104,6 +106,10 @@ class Trainer:
                     return False
 
                 ret = self.do_check_grad() and ret
+                if ret == False:
+                    log("Diff found at sinle_step mode `backward` part!")
+                    return False
+
                 self.do_optimizer()
                 ret = self.do_check_weight() and ret
 

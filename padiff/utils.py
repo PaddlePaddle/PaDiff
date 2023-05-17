@@ -188,11 +188,11 @@ def log(*args):
 
 
 def weight_struct_info(layer, module, paddle_sublayer, torch_submodule):
-    p_title = f"First Model {layer}\n" + "=" * 25 + "\n"
+    p_title = f"Model[0] {layer}\n" + "=" * 25 + "\n"
     p_retval = print_weight_struct(layer.model, mark=paddle_sublayer.model, prefix=[" " * 4])
     p_info = p_title + "\n".join(p_retval)
 
-    t_title = f"Second Model {module}\n" + "=" * 25 + "\n"
+    t_title = f"Model[0] {module}\n" + "=" * 25 + "\n"
     t_retval = print_weight_struct(module.model, mark=torch_submodule.model, prefix=[" " * 4])
     t_info = t_title + "\n".join(t_retval)
 
@@ -606,14 +606,14 @@ class PadiffModel:
         return self.model.__class__.__name__
 
     @property
-    def model_info(self):
+    def fullname(self):
         return f"{self.model_type}::{self.name}"
 
     def __str__(self, *args, **kwargs):
-        return f"Model({self.model_info})"
+        return f"Model({self.fullname})"
 
     def __repr__(self, *args, **kwargs):
-        return f"Model({self.model_info})"
+        return f"Model({self.fullname})"
 
     def parameters(self):
         raise NotImplementedError()

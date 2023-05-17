@@ -37,7 +37,7 @@ class Runner(object):
         # layer_map should be part of the module
         self.layer_map = layer_map
 
-        remove_inplace(models[0], models[1])
+        remove_inplace(models)
 
         self.reports = [None, None]
 

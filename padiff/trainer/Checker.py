@@ -205,56 +205,50 @@ def print_info(items, exc, step_idx, grad=False, nodes=None):
 """
 
 
-def check_weight(layer, module, options, layer_map=LayerMap()):
+def check_weight(model_0, model_1, options, layer_map=LayerMap()):
     _weight_check = True
 
     def _check_weight(
-        paddle_sublayer,
-        torch_submodule,
-        paddle_pname,
-        torch_pname,
-        paddle_param,
-        torch_param,
+        submodels,
+        param_names,
+        params,
         settings,
     ):
         shape_check(
-            paddle_sublayer,
-            torch_submodule,
-            paddle_pname,
-            torch_pname,
-            paddle_param,
-            torch_param,
+            submodels,
+            param_names,
+            params,
             settings,
         )
-        p_param = paddle_param.numpy()
-        t_param = torch_param.numpy()
+        np_value_0 = params[0].numpy()
+        np_value_1 = params[1].numpy()
 
         if settings["transpose"]:
-            t_param = numpy.transpose(t_param)
+            np_value_1 = numpy.transpose(np_value_1)
 
         # check weight
         try:
-            assert_tensor_equal(p_param, t_param, settings)
+            assert_tensor_equal(np_value_0, np_value_1, settings)
         except Exception as e:
             nonlocal _weight_check
             _weight_check = False
             info = (
                 "=" * 25 + "\n" + "After training, weight value is different.\n"
-                "between paddle: `{}`, torch: `{}` \n"
-                "paddle path:\n    {}\n"
-                "torch path:\n    {}\n"
+                "between Model[0] `{}`, Model[1] `{}` \n"
+                "Model[0] param path:\n    {}\n"
+                "Model[1] param path:\n    {}\n"
                 "{}\n\n".format(
-                    paddle_sublayer.model_repr_info(),
-                    torch_submodule.model_repr_info(),
-                    paddle_sublayer.padiff_path + "." + paddle_pname,
-                    torch_submodule.padiff_path + "." + torch_pname,
+                    model_0[0].model_repr_info(),
+                    model_1[1].model_repr_info(),
+                    submodels[0].padiff_path + "." + param_names[0],
+                    submodels[1].padiff_path + "." + param_names[1],
                     type(e).__name__ + ":  " + str(e),
                 )
             )
             log_file("weight_diff.log", "a", info)
 
     try:
-        process_each_weight(_check_weight, layer, module, layer_map)
+        process_each_weight(_check_weight, model_0, model_1, layer_map)
     except Exception as e:
         log("Err occurs when compare weight!!!\n")
         print(type(e).__name__ + ":  " + str(e))
@@ -268,67 +262,63 @@ def check_weight(layer, module, options, layer_map=LayerMap()):
     return _weight_check
 
 
-def check_grad(layer, module, options, layer_map=LayerMap()):
+def check_grad(model_0, model_1, options, layer_map=LayerMap()):
     _grad_check = True
 
     def _check_grad(
-        paddle_sublayer,
-        torch_submodule,
-        paddle_pname,
-        torch_pname,
-        paddle_param,
-        torch_param,
+        submodels,
+        param_names,
+        params,
         settings,
     ):
         shape_check(
-            paddle_sublayer,
-            torch_submodule,
-            paddle_pname,
-            torch_pname,
-            paddle_param,
-            torch_param,
+            submodels,
+            param_names,
+            params,
             settings,
         )
-        p_grad = paddle_param.grad()
-        t_grad = torch_param.grad()
+
+        # grad() returns numpy value here
+        grad_0 = params[0].grad()
+        grad_1 = params[1].grad()
 
         # check grad
         try:
-            if p_grad is None and t_grad is None:
+            if grad_0 is None and grad_1 is None:
                 return
-            elif p_grad is None and t_grad is not None:
+            elif grad_0 is None and grad_1 is not None:
                 raise RuntimeError(
-                    f"Found paddle grad is `None`, when torch grad exists. Please check the paddle grad."
+                    f"Found grad in first model is `None`, when grad in second model exists. Please check grad value in first model."
                 )
-            elif t_grad is None and p_grad is not None:
+            elif grad_0 is not None and grad_1 is None:
                 raise RuntimeError(
-                    f"Found torch grad is `None`, when paddle grad exists. Please check the torch grad."
+                    f"Found grad in second model is `None`, when grad in first model exists. Please check grad value in second model."
                 )
 
             if settings["transpose"]:
-                t_grad = numpy.transpose(t_grad)
+                grad_1 = numpy.transpose(grad_1)
 
-            assert_tensor_equal(p_grad, t_grad, settings)
+            assert_tensor_equal(grad_0, grad_1, settings)
         except Exception as e:
             nonlocal _grad_check
             _grad_check = False
             info = (
                 "=" * 25 + "\n" + "After training, grad value is different.\n"
-                "between paddle: `{}`, torch: `{}` \n"
-                "paddle path:\n    {}\n"
-                "torch path:\n    {}\n"
+                "between Model[0] `{}`, Model[1] `{}` \n"
+                "Model[0] grad path:\n    {}\n"
+                "Model[1] grad path:\n    {}\n"
                 "{}\n\n".format(
-                    paddle_sublayer.model_repr_info(),
-                    torch_submodule.model_repr_info(),
-                    paddle_sublayer.padiff_path + "." + paddle_pname,
-                    torch_submodule.padiff_path + "." + torch_pname,
+                    model_0[0].model_repr_info(),
+                    model_1[1].model_repr_info(),
+                    submodels[0].padiff_path + "." + param_names[0],
+                    submodels[1].padiff_path + "." + param_names[1],
                     type(e).__name__ + ":  " + str(e),
                 )
             )
             log_file("grad_diff.log", "a", info)
 
     try:
-        process_each_weight(_check_grad, layer, module, layer_map)
+        process_each_weight(_check_grad, model_0, model_1, layer_map)
     except Exception as e:
         log("Err occurs when compare grad!!!\n")
         print(type(e).__name__ + ":  " + str(e))

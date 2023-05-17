@@ -29,7 +29,7 @@ from .special_init import global_special_init_pool as init_pool
 from .special_init import build_name
 
 
-def process_each_weight(process, layer, module, layer_map=LayerMap()):
+def process_each_weight(process, model_0, model_1, layer_map=LayerMap()):
     """
     Apply process for each pair of parameters in layer(paddle) and module(torch)
 
@@ -42,97 +42,79 @@ def process_each_weight(process, layer, module, layer_map=LayerMap()):
 
     def _process_runner(
         process,
-        paddle_sublayer,
-        torch_submodule,
-        paddle_pname,
-        torch_pname,
-        paddle_param,
-        torch_param,
+        submodels,
+        param_names,
+        params,
     ):
-        settings = yamls.get_weight_settings(paddle_sublayer, torch_submodule, paddle_pname)
+        settings = yamls.get_weight_settings(submodels[0], submodels[1], param_names[0])
 
         process(
-            paddle_sublayer,
-            torch_submodule,
-            paddle_pname,
-            torch_pname,
-            paddle_param,
-            torch_param,
+            submodels,
+            param_names,
+            params,
             settings,
         )
 
-    layers = layer_map.weight_init_layers(layer)
-    modules = layer_map.weight_init_layers(module)
+    submodels_0 = layer_map.weight_init_layers(model_0)
+    submodels_1 = layer_map.weight_init_layers(model_1)
 
-    for model_1, model_2 in zip_longest(layers, modules, fillvalue=None):
-        if model_1 is None or model_2 is None:
+    for submodel_0, submodel_1 in zip_longest(submodels_0, submodels_1, fillvalue=None):
+        if submodel_0 is None or submodel_1 is None:
             raise RuntimeError("Torch and Paddle return difference number of sublayers. Check your model.")
-        for (param_name_1, param_1), (param_name_2, param_2) in zip(
-            model_1.named_parameters(recursively=False),
-            model_2.named_parameters(recursively=False),
+        for (param_name_0, param_0), (param_name_1, param_1) in zip(
+            submodel_0.named_parameters(recursively=False),
+            submodel_1.named_parameters(recursively=False),
         ):
             try:
                 _process_runner(
                     process,
-                    model_1,
-                    model_2,
-                    param_name_1,
-                    param_name_2,
-                    param_1,
-                    param_2,
+                    (submodel_0, submodel_1),
+                    (param_name_0, param_name_1),
+                    (param_0, param_1),
                 )
             except Exception as e:
                 err_str = f"Error occured between:\n"
-                err_str += f"    first model {model_1.name}: {model_1.model_repr_info()}\n"
-                err_str += f"            {model_1.padiff_path + '.' + param_name_1}\n"
-                err_str += f"    second model {model_2.name}: {model_2.model_repr_info()}\n"
-                err_str += f"            {model_2.padiff_path + '.' + param_name_2}\n"
+                err_str += f"    Model[0] {submodel_0.fullname}: {submodel_0.model_repr_info()}\n"
+                err_str += f"            {submodel_0.padiff_path + '.' + param_name_0}\n"
+                err_str += f"    Model[1] {submodel_1.fullname}: {submodel_1.model_repr_info()}\n"
+                err_str += f"            {submodel_1.padiff_path + '.' + param_name_1}\n"
                 err_str += f"{type(e).__name__ + ':  ' + str(e)}\n"
-                err_str += weight_struct_info(layer, module, model_1, model_2)
+                err_str += weight_struct_info(model_0, model_1, submodel_0, submodel_1)
                 raise RuntimeError(err_str)
 
 
 def shape_check(
-    paddle_sublayer,
-    torch_submodule,
-    paddle_pname,
-    torch_pname,
-    paddle_param,
-    torch_param,
+    submodels,
+    param_names,
+    params,
     settings,
 ):
-    p_shape = paddle_param.shape()
-    t_shape = torch_param.shape()
+    shape_0 = params[0].shape()
+    shape_1 = params[1].shape()
     if settings["transpose"]:
-        t_shape.reverse()
-    assert p_shape == t_shape, ("Shape of paddle param `{}` and torch param `{}` is not the same. {} vs {}\n").format(
-        paddle_pname, torch_pname, p_shape, t_shape
-    )
+        shape_1.reverse()
+    assert (
+        shape_0 == shape_1
+    ), f"Shape of param `{param_names[0]}` in first model and param `{param_names[1]}` in second model is not the same. {shape_0} vs {shape_1}\n"
 
 
 def _assign_weight(
-    paddle_sublayer,
-    torch_submodule,
-    paddle_pname,
-    torch_pname,
-    paddle_param,
-    torch_param,
+    submodels,
+    param_names,
+    params,
     settings,
 ):
     shape_check(
-        paddle_sublayer,
-        torch_submodule,
-        paddle_pname,
-        torch_pname,
-        paddle_param,
-        torch_param,
+        submodels,
+        param_names,
+        params,
         settings,
     )
-    np_value = torch_param.numpy()
+    np_value = params[1].numpy()
     if settings["transpose"]:
         np_value = numpy.transpose(np_value)
 
-    paddle_param.set_data(np_value)
+    params[0].set_data(np_value)
 
 
 def assign_weight(target_model, source_model, layer_map=LayerMap()):
@@ -182,7 +164,7 @@ def assign_weight(target_model, source_model, layer_map=LayerMap()):
         return False
 
 
-def remove_inplace(layer, module):
+def remove_inplace(models):
     """
     Set `inplace` tag to `False` for torch module
 
@@ -197,4 +179,4 @@ def remove_inplace(layer, module):
         if hasattr(model_2, "inplace"):
             model_2.inplace = False
 
-    map_for_each_sublayer(_remove_inplace, layer, module)
+    map_for_each_sublayer(_remove_inplace, models[0], models[1])
