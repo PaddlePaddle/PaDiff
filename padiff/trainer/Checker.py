@@ -35,13 +35,13 @@ class Checker:
         return ret
 
     @staticmethod
-    def check_weight(layer, module, options, layer_map):
-        ret = check_weight(layer, module, options=options, layer_map=layer_map)
+    def check_weight(models, options, layer_map):
+        ret = check_weight(models, options=options, layer_map=layer_map)
         return ret
 
     @staticmethod
-    def check_grad(layer, module, options, layer_map):
-        ret = check_grad(layer, module, options=options, layer_map=layer_map)
+    def check_grad(models, options, layer_map):
+        ret = check_grad(models, options=options, layer_map=layer_map)
         return ret
 
 
@@ -86,7 +86,7 @@ def check_forward_and_backward(reports, options):
 def check_forward(roots, reports, options):
     act = get_action(roots[0].net, roots[1].net)
     items = [x.fwd_report for x in roots]
-    assert items[0].type == items[1].type and items[0].type == "forward"
+    assert all(x.type == "forward" for x in items)
 
     try:
         act(items[0], items[1], options)
@@ -127,7 +127,7 @@ def check_forward(roots, reports, options):
 def check_backward(roots, reports, options):
     act = get_action(roots[0].net, roots[1].net)
     items = [x.bwd_report for x in roots]
-    assert items[0].type == items[1].type and items[0].type == "backward"
+    assert all(x.type == "backward" for x in items)
 
     try:
         act(items[0], items[1], options)
@@ -169,21 +169,14 @@ def print_info(items, nodes, exc, step_idx, grad=False):
     if step_idx == -1:
         step_idx = items[1].step
     log("FAILED !!!")
-    if grad:
-        log(
-            "    Diff found in `Backward Stage` in step: {}, net_id is {} vs {}".format(
-                step_idx, items[0].net_id, items[1].net_id
-            )
+    log(
+        "    Diff found in {} in step: {}, net_id is {} vs {}".format(
+            ("`Backward Stage`" if grad else "`Forward  Stage`"), step_idx, items[0].net_id, items[1].net_id
         )
-    else:
-        log(
-            "    Diff found in `Forward  Stage` in step: {}, net_id is {} vs {}".format(
-                step_idx, items[0].net_id, items[1].net_id
-            )
-        )
+    )
     log("    Type of layer is: {} vs {}".format(items[0].net_str, items[1].net_str))
 
-    print(str(exc))
+    print(str(exc) + "\n\n")
 
     def get_root(node):
         root = node
@@ -192,8 +185,6 @@ def print_info(items, nodes, exc, step_idx, grad=False):
         return root
 
     roots = [get_root(x) for x in nodes]
-
-    print("\n")
     log("Check model struct:")
     print_struct_info(roots, nodes)
 

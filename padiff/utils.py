@@ -76,18 +76,6 @@ def _clone_tensor(inp):
         return inp
 
 
-def clone_tensors(inputs):
-    """
-    Clone the tensors in inputs. for example:
-    Inputs = [2, Tensor1, "sdf", Tensor2]
-    Return = [Tensor1_cloned, Tensor2_cloned]
-    """
-    cloned_inputs = []
-    for (t,) in for_each_tensor(inputs):
-        cloned_inputs.append(_clone_tensor(t))
-    return cloned_inputs
-
-
 def clone_structure(inputs):
     """
     Clone a nested structure.
@@ -370,3 +358,47 @@ def weight_struct_string(model, mark=None, prefix=[]):
 def debug_print(model, mark=None, prefix=[]):
     retval = weight_struct_string(model, mark=None, prefix=[])
     print("\n".join(retval))
+
+
+"""
+    stack tools
+"""
+
+
+import os.path as osp
+import traceback
+
+
+def _is_system_package(filename):
+    exclude = [
+        "lib/python",
+        "/usr/local",
+        osp.dirname(paddle.__file__),
+        osp.dirname(torch.__file__),
+        osp.dirname(__file__),  # exclude padiff
+    ]
+    for pattern in exclude:
+        if pattern in filename:
+            return True
+    return False
+
+
+def extract_frame_summary():
+    """
+    extract the current call stack by traceback module.
+    gather the call information and put them into ReportItem to helper locate the error.
+
+    frame_summary:
+        line: line of the code
+        lineno: line number of the file
+        filename: file name of the stack
+        name: the function name.
+    """
+    frame_summarys = traceback.StackSummary.extract(traceback.walk_stack(None))
+    last_user_fs = None
+    for fs in frame_summarys:
+        if not _is_system_package(fs.filename):
+            last_user_fs = fs
+            break
+    assert last_user_fs is not None, "Error happend, can't return None."
+    return last_user_fs, frame_summarys

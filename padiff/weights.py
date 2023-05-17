@@ -30,13 +30,13 @@ from .special_init import global_special_init_pool as init_pool
 from .special_init import build_name
 
 
-def process_each_weight(process, model_0, model_1, layer_map):
+def process_each_weight(process, models, layer_map):
     def _process_runner(process, submodels, param_names, params):
         settings = yamls.get_weight_settings(submodels[0], submodels[1], param_names[0])
         process(submodels, param_names, params, settings)
 
-    submodels_0 = layer_map.weight_init_layers(model_0)
-    submodels_1 = layer_map.weight_init_layers(model_1)
+    submodels_0 = layer_map.weight_init_layers(models[0])
+    submodels_1 = layer_map.weight_init_layers(models[1])
 
     for submodel_0, submodel_1 in zip_longest(submodels_0, submodels_1, fillvalue=None):
         if submodel_0 is None or submodel_1 is None:
@@ -59,10 +59,11 @@ def process_each_weight(process, model_0, model_1, layer_map):
                 err_str += f"    Model[1] {submodel_1.fullname}: {submodel_1.model_repr_info()}\n"
                 err_str += f"            {submodel_1.padiff_path + '.' + param_name_1}\n"
                 err_str += f"{type(e).__name__ + ':  ' + str(e)}\n"
-                err_str += weight_struct_info((model_0, model_1), (submodel_0, submodel_1))
+                err_str += weight_struct_info(models, (submodel_0, submodel_1))
                 raise RuntimeError(err_str)
 
 
+# this interface is exposed, so it takes two models as inputs
 def assign_weight(target_model, source_model, layer_map={}):
     """
     Init weights of layer(paddle) and module(torch) with same value
@@ -72,20 +73,13 @@ def assign_weight(target_model, source_model, layer_map={}):
         module (torch.nn.Module): input torch module
     """
 
-    def _assign_weight(submodels, param_names, params, settings):
-        check_shape(submodels, param_names, params, settings)
-        np_value = params[1].numpy()
-        if settings["transpose"]:
-            np_value = numpy.transpose(np_value)
-
-        params[0].set_data(np_value)
-
     if not isinstance(target_model, PadiffModel):
         target_model = padiff_model(target_model)
     if not isinstance(source_model, PadiffModel):
         source_model = padiff_model(source_model)
 
     layer_map = init_LayerMap(layer_map)
+    models = (target_model, source_model)
 
     # TODO: special init is not nessesary for current requirement, so just skip here
     # need update later
@@ -113,8 +107,16 @@ def assign_weight(target_model, source_model, layer_map={}):
                     log("Assign weight Failed !!!")
                     return False
 
+    def _assign_weight(submodels, param_names, params, settings):
+        check_shape(models, param_names, params, settings)
+        np_value = params[1].numpy()
+        if settings["transpose"]:
+            np_value = numpy.transpose(np_value)
+
+        params[0].set_data(np_value)
+
     try:
-        process_each_weight(_assign_weight, target_model, source_model, layer_map)
+        process_each_weight(_assign_weight, models, layer_map)
         log("Assign weight success !!!")
         return True
     except Exception as e:
@@ -123,21 +125,21 @@ def assign_weight(target_model, source_model, layer_map={}):
         return False
 
 
-def check_shape(submodels, param_names, params, settings):
+def check_shape(models, param_names, params, settings):
     shape_0 = params[0].shape()
     shape_1 = params[1].shape()
     if settings["transpose"]:
         shape_1.reverse()
     assert (
         shape_0 == shape_1
-    ), f"Shape of param `{param_names[0]}` in Model[0] and param `{param_names[1]}` in Model[1] is not the same. {shape_0} vs {shape_1}\n"
+    ), f"Shape of param `{param_names[0]}` in {models[0].name} and param `{param_names[1]}` in {models[1].name} is not the same. {shape_0} vs {shape_1}\n"
 
 
-def check_weight(model_0, model_1, options, layer_map):
+def check_weight(models, options, layer_map):
     _weight_check = True
 
     def _check_weight(submodels, param_names, params, settings):
-        check_shape(submodels, param_names, params, settings)
+        check_shape(models, param_names, params, settings)
 
         np_value_0 = params[0].numpy()
         np_value_1 = params[1].numpy()
@@ -157,8 +159,8 @@ def check_weight(model_0, model_1, options, layer_map):
                 "Model[0] param path:\n    {}\n"
                 "Model[1] param path:\n    {}\n"
                 "{}\n\n".format(
-                    model_0[0].model_repr_info(),
-                    model_1[1].model_repr_info(),
+                    models[0].model_repr_info(),
+                    models[1].model_repr_info(),
                     submodels[0].padiff_path + "." + param_names[0],
                     submodels[1].padiff_path + "." + param_names[1],
                     type(e).__name__ + ":  " + str(e),
@@ -167,7 +169,7 @@ def check_weight(model_0, model_1, options, layer_map):
             log_file("weight_diff.log", "a", info)
 
     try:
-        process_each_weight(_check_weight, model_0, model_1, layer_map)
+        process_each_weight(_check_weight, models, layer_map)
     except Exception as e:
         log("Err occurs when compare weight!!!\n")
         print(type(e).__name__ + ":  " + str(e))
@@ -181,11 +183,11 @@ def check_weight(model_0, model_1, options, layer_map):
     return _weight_check
 
 
-def check_grad(model_0, model_1, options, layer_map):
+def check_grad(models, options, layer_map):
     _grad_check = True
 
     def _check_grad(submodels, param_names, params, settings):
-        check_shape(submodels, param_names, params, settings)
+        check_shape(models, param_names, params, settings)
 
         # grad() returns numpy value here
         grad_0 = params[0].grad()
@@ -197,11 +199,11 @@ def check_grad(model_0, model_1, options, layer_map):
                 return
             elif grad_0 is None and grad_1 is not None:
                 raise RuntimeError(
-                    f"Found grad in first model is `None`, when grad in second model exists. Please check grad value in first model."
+                    f"Found grad in {model[0].name} is `None`, when grad in {model[1].name} exists. Please check the grad value."
                 )
             elif grad_0 is not None and grad_1 is None:
                 raise RuntimeError(
-                    f"Found grad in second model is `None`, when grad in first model exists. Please check grad value in second model."
+                    f"Found grad in {model[1].name} is `None`, when grad in {model[0].name} exists. Please check the grad value."
                 )
 
             if settings["transpose"]:
@@ -217,8 +219,8 @@ def check_grad(model_0, model_1, options, layer_map):
                 "Model[0] grad path:\n    {}\n"
                 "Model[1] grad path:\n    {}\n"
                 "{}\n\n".format(
-                    model_0[0].model_repr_info(),
-                    model_1[1].model_repr_info(),
+                    models[0].model_repr_info(),
+                    models[1].model_repr_info(),
                     submodels[0].padiff_path + "." + param_names[0],
                     submodels[1].padiff_path + "." + param_names[1],
                     type(e).__name__ + ":  " + str(e),
@@ -227,7 +229,7 @@ def check_grad(model_0, model_1, options, layer_map):
             log_file("grad_diff.log", "a", info)
 
     try:
-        process_each_weight(_check_grad, model_0, model_1, layer_map)
+        process_each_weight(_check_grad, models, layer_map)
     except Exception as e:
         log("Err occurs when compare grad!!!\n")
         print(type(e).__name__ + ":  " + str(e))

@@ -43,12 +43,21 @@ def auto_diff(
     Returns:
         True for success, False for failed.
     """
+    assert isinstance(model_0, (paddle.nn.Layer, torch.nn.Module))
+    assert isinstance(model_1, (paddle.nn.Layer, torch.nn.Module))
 
+    models = (model_0, model_1)
     if "model_names" in options:
         assert len(options["model_names"]) == 2
-        models = [padiff_model(x, name) for x, name in zip((model_0, model_1), options["model_names"])]
+        assert options["model_names"][0] != options["model_names"][1], "Can not use same name for two model."
+        models = [padiff_model(x, name) for x, name in zip(models, options["model_names"])]
     else:
-        models = [padiff_model(x) for x in (model_0, model_1)]
+        if model_0.__class__.__name__ != model_1.__class__.__name__:
+            names = [x.__class__.__name__ for x in models]
+        else:
+            names = [x.__class__.__name__ + f"_{idx}" for x, idx in enumerate(models)]
+        log(f"*** model_names not provided, use `{names[0]}` and `{names[1]}` as default ***")
+        models = [padiff_model(x, name) for x, name in zip(models, names)]
 
     assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
 

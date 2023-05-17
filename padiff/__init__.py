@@ -69,7 +69,7 @@ class PaDiffFinder(MetaPathFinder):
 
 def wrap_func(fullname, func):
     def wrapped(*args, **kwargs):
-        from .trainer.trainer_utils import api_hook
+        from .trainer.trainer_utils import info_hook
 
         if fullname.startswith("paddle"):
 
@@ -88,7 +88,7 @@ def wrap_func(fullname, func):
 
             layer = PaddleApi(func)
             # need idx to support single step, set idx -1 here to skip api in single step mode
-            handle = layer.register_forward_post_hook(partial(api_hook, net_id=-1))
+            handle = layer.register_forward_post_hook(partial(info_hook, net_id=-1))
 
         elif fullname.startswith("torch"):
 
@@ -106,7 +106,7 @@ def wrap_func(fullname, func):
                     return self.__name__
 
             layer = TorchApi(func)
-            handle = layer.register_forward_hook(partial(api_hook, net_id=-1))
+            handle = layer.register_forward_hook(partial(info_hook, net_id=-1))
 
         else:
             raise RuntimeError("Import Err: module_type not in (paddle, torch)")
@@ -122,7 +122,7 @@ def wrap_func(fullname, func):
 
 def wrap_method(method_fullname, method):
     def wrapped(tensor_obj, *args, **kwargs):
-        from .trainer.trainer_utils import api_hook
+        from .trainer.trainer_utils import info_hook
 
         if method_fullname.startswith("paddle"):
 
@@ -140,7 +140,7 @@ def wrap_method(method_fullname, method):
                     return self.__name__
 
             layer = PaddleMethod(method)
-            handle = layer.register_forward_post_hook(partial(api_hook, net_id=-1))
+            handle = layer.register_forward_post_hook(partial(info_hook, net_id=-1))
 
         elif method_fullname.startswith("torch"):
 
@@ -158,7 +158,7 @@ def wrap_method(method_fullname, method):
                     return self.__name__
 
             layer = TorchMethod(method)
-            handle = layer.register_forward_hook(partial(api_hook, net_id=-1))
+            handle = layer.register_forward_hook(partial(info_hook, net_id=-1))
 
         else:
             raise RuntimeError("Import Err: module_type not in (paddle, torch)")

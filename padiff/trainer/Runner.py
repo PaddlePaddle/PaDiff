@@ -26,20 +26,13 @@ import os
 
 class Runner(object):
     def __init__(self, models, loss_fn, layer_map, options):
-        # self.paddle_device = paddle.get_device()
-        # self.torch_device = next(module.parameters()).device
-
         self.models = models
         self.options = options
-
         self.loss_fn = loss_fn
-
-        # layer_map should be part of the module
         self.layer_map = layer_map
+        self.reports = [None, None]
 
         remove_inplace(models)
-
-        self.reports = [None, None]
 
         if os.getenv("PADIFF_CUDA_MEMORY") != "OFF":
             self.devices = [model.get_device() for model in self.models]
@@ -93,18 +86,10 @@ class Runner(object):
         if not self.options["single_step"]:
             log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
 
-    def property_print_torch(self, mode=None):
-        strs = debug_print_struct(self.torch_rep.stack.root)
+    def property_print(self, idx, mode=None):
+        strs = debug_print_struct(self.reports[idx].stack.root)
         if mode is None:
             print(strs)
         else:
-            path = log_file("debug_torch_report", "w", strs)
-            print(f"debug log path: {path}")
-
-    def property_print_paddle(self, mode=None):
-        strs = debug_print_struct(self.paddle_rep.stack.root)
-        if mode is None:
-            print(strs)
-        else:
-            path = log_file("debug_paddle_report", "w", strs)
+            path = log_file("debug_report", "w", strs)
             print(f"debug log path: {path}")
