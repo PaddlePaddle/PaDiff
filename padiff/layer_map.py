@@ -152,7 +152,7 @@ class LayerMap(object):
             torch_name = torch_module.__class__.__name__
             name = build_name(paddle_name, torch_name)
             if name in init_pool.funcs.keys():
-                _map.update({torch_module: paddle_layer})
+                _map.update({paddle_layer: torch_module})
                 print(
                     f"++++    paddle `{paddle_name}` at `{paddle_path}` <==> torch `{torch_name}` at `{torch_path}`."
                 )

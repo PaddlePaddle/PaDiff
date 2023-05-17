@@ -23,7 +23,6 @@ def init_LSTM(layer, module):
         layer.named_parameters(prefix="", include_sublayers=False),
         module.parameters(recurse=False),
     ):
-
         p_shape = list(paddle_param.shape)
         t_shape = list(torch_param.shape)
 

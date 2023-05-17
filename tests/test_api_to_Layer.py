@@ -20,7 +20,9 @@ import unittest
 
 from padiff.trainer.trainer_utils import Report
 from padiff.trainer import Trainer
-from padiff.utils import init_options, LayerMap
+from padiff.utils import init_options
+from padiff.padiff_abstracts import padiff_model
+from padiff import LayerMap
 import paddle
 import torch
 
@@ -64,9 +66,9 @@ class TestCaseName(unittest.TestCase):
 
         paddle_report = Report("paddle")
         torch_report = Report("torch")
-        trainer = Trainer(layer, module, None, None, LayerMap(), options)
+        trainer = Trainer((padiff_model(layer), padiff_model(module)), None, None, LayerMap(), options)
 
-        trainer.do_run(paddle_report, torch_report, inp)
+        trainer.do_run((paddle_report, torch_report), inp)
 
         # [layer(SimpleLayer, Linear) + api(linear, relu) + method(mul, add)] * (fwd, bwd) = 12
         assert len(paddle_report.items) == 12

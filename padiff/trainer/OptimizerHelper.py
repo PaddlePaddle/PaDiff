@@ -29,8 +29,14 @@ class OptimizerHelper:
     def step(self):
         if self.use_opt:
             for opt in self.optimizers:
-                if isinstance(opt, (paddle.optimizer.Optimizer, torch.optim.Optimizer)):
+                if isinstance(
+                    opt,
+                    paddle.optimizer.Optimizer,
+                ):
                     opt.step()
                     opt.clear_grad()
+                elif isinstance(opt, torch.optim.Optimizer):
+                    opt.step()
+                    opt.zero_grad()
                 else:
                     opt()

@@ -35,10 +35,10 @@ def register_hooker(runner, model_idx):
     options["curent_model_idx"] = model_idx
 
     model = runner.models[model_idx]
-    device = runner.devices[model_idx]
     layer_map = runner.layer_map
 
     if os.getenv("PADIFF_CUDA_MEMORY") != "OFF":
+        device = runner.devices[model_idx]
         model.to(device)
 
     remove_handles = []

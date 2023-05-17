@@ -13,6 +13,6 @@
 # limitations under the License.
 
 from .actions import get_action
-from .hooks import register_hooker, api_hook
+from .hooks import register_hooker, info_hook
 from .module_struct import copy_module_struct, print_struct_info, reorder_and_match_reports, debug_print_struct
 from .report import Report, report_guard
