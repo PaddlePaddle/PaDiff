@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .. import utils
+from ...utils import log_file, log, diff_log_path
 import os
 
 
@@ -347,10 +347,8 @@ def print_struct_info(nodes):
 
         if len(retval) > 50:
             file_name = f"model_{idx}_struct_{root.fullname}.log"
-            utils.log_file(file_name, "w", info)
-            utils.log(
-                f"Model Struct saved to `{utils.diff_log_path}/{file_name}`, which is marked with `<---  *** HERE ***` !"
-            )
+            log_file(file_name, "w", info)
+            log(f"Model Struct saved to `{diff_log_path}/{file_name}`, which is marked with `<---  *** HERE ***` !")
         else:
             print(info)
 

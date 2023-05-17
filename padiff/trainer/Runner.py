@@ -18,8 +18,8 @@ from ..utils import (
     max_diff,
     tensors_mean,
     log_file,
+    remove_inplace,
 )
-from ..weights import remove_inplace, assign_weight
 
 import os
 
@@ -45,9 +45,6 @@ class Runner(object):
             self.devices = [model.get_device() for model in self.models]
             for model in self.models:
                 model.to_cpu()
-
-    def assign_weight_(self):
-        return assign_weight(self.models[0], self.models[1], self.layer_map)
 
     def set_report(self, reports):
         reports[0].layer_map = self.layer_map

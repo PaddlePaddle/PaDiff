@@ -18,42 +18,22 @@ import numpy
 
 from .utils import (
     log,
-    map_for_each_sublayer,
-    LayerMap,
+    log_file,
+    diff_log_path,
     weight_struct_info,
-    PadiffModel,
+    assert_tensor_equal,
 )
+from .layer_map import init_LayerMap
+from .padiff_abstracts import padiff_model, PadiffModel
 from .file_loader import global_yaml_loader as yamls
-
 from .special_init import global_special_init_pool as init_pool
 from .special_init import build_name
 
 
-def process_each_weight(process, model_0, model_1, layer_map=LayerMap()):
-    """
-    Apply process for each pair of parameters in layer(paddle) and module(torch)
-
-    Args:
-        process (function): process applied to parameters
-        layer (paddle.nn.Layer): input paddle layer
-        module (torch.nn.Module): input torch module
-        layer_map (dict, optional): manually map paddle layer and torch module.
-    """
-
-    def _process_runner(
-        process,
-        submodels,
-        param_names,
-        params,
-    ):
+def process_each_weight(process, model_0, model_1, layer_map):
+    def _process_runner(process, submodels, param_names, params):
         settings = yamls.get_weight_settings(submodels[0], submodels[1], param_names[0])
-
-        process(
-            submodels,
-            param_names,
-            params,
-            settings,
-        )
+        process(submodels, param_names, params, settings)
 
     submodels_0 = layer_map.weight_init_layers(model_0)
     submodels_1 = layer_map.weight_init_layers(model_1)
@@ -83,41 +63,7 @@ def process_each_weight(process, model_0, model_1, layer_map=LayerMap()):
                 raise RuntimeError(err_str)
 
 
-def shape_check(
-    submodels,
-    param_names,
-    params,
-    settings,
-):
-    shape_0 = params[0].shape()
-    shape_1 = params[1].shape()
-    if settings["transpose"]:
-        shape_1.reverse()
-    assert (
-        shape_0 == shape_1
-    ), f"Shape of param `{param_names[0]}` in first model and param `{param_names[1]}` in second model is not the same. {shape_0} vs {shape_1}\n"
-
-
-def _assign_weight(
-    submodels,
-    param_names,
-    params,
-    settings,
-):
-    shape_check(
-        submodels,
-        param_names,
-        params,
-        settings,
-    )
-    np_value = params[1].numpy()
-    if settings["transpose"]:
-        np_value = numpy.transpose(np_value)
-
-    params[0].set_data(np_value)
-
-
-def assign_weight(target_model, source_model, layer_map=LayerMap()):
+def assign_weight(target_model, source_model, layer_map={}):
     """
     Init weights of layer(paddle) and module(torch) with same value
 
@@ -125,8 +71,21 @@ def assign_weight(target_model, source_model, layer_map=LayerMap()):
         layer (paddle.nn.Layer): input paddle layer
         module (torch.nn.Module): input torch module
     """
-    assert isinstance(target_model, PadiffModel), "The first param of assign_weight should be a PadiffModel"
-    assert isinstance(source_model, PadiffModel), "The second param of assign_weight should be a PadiffModel"
+
+    def _assign_weight(submodels, param_names, params, settings):
+        check_shape(submodels, param_names, params, settings)
+        np_value = params[1].numpy()
+        if settings["transpose"]:
+            np_value = numpy.transpose(np_value)
+
+        params[0].set_data(np_value)
+
+    if not isinstance(target_model, PadiffModel):
+        target_model = padiff_model(target_model)
+    if not isinstance(source_model, PadiffModel):
+        source_model = padiff_model(source_model)
+
+    layer_map = init_LayerMap(layer_map)
 
     # TODO: special init is not nessesary for current requirement, so just skip here
     # need update later
@@ -164,19 +123,119 @@ def assign_weight(target_model, source_model, layer_map=LayerMap()):
         return False
 
 
-def remove_inplace(models):
-    """
-    Set `inplace` tag to `False` for torch module
+def check_shape(submodels, param_names, params, settings):
+    shape_0 = params[0].shape()
+    shape_1 = params[1].shape()
+    if settings["transpose"]:
+        shape_1.reverse()
+    assert (
+        shape_0 == shape_1
+    ), f"Shape of param `{param_names[0]}` in first model and param `{param_names[1]}` in second model is not the same. {shape_0} vs {shape_1}\n"
 
-    Args:
-        layer (paddle.nn.Layer): input paddle layer
-        module (torch.nn.Module): input torch module
-    """
 
-    def _remove_inplace(model_1, model_2):
-        if hasattr(model_1, "inplace"):
-            model_1.inplace = False
-        if hasattr(model_2, "inplace"):
-            model_2.inplace = False
+def check_weight(model_0, model_1, options, layer_map):
+    _weight_check = True
 
-    map_for_each_sublayer(_remove_inplace, models[0], models[1])
+    def _check_weight(submodels, param_names, params, settings):
+        check_shape(submodels, param_names, params, settings)
+
+        np_value_0 = params[0].numpy()
+        np_value_1 = params[1].numpy()
+
+        if settings["transpose"]:
+            np_value_1 = numpy.transpose(np_value_1)
+
+        # check weight
+        try:
+            assert_tensor_equal(np_value_0, np_value_1, settings)
+        except Exception as e:
+            nonlocal _weight_check
+            _weight_check = False
+            info = (
+                "=" * 25 + "\n" + "After training, weight value is different.\n"
+                "between Model[0] `{}`, Model[1] `{}` \n"
+                "Model[0] param path:\n    {}\n"
+                "Model[1] param path:\n    {}\n"
+                "{}\n\n".format(
+                    model_0[0].model_repr_info(),
+                    model_1[1].model_repr_info(),
+                    submodels[0].padiff_path + "." + param_names[0],
+                    submodels[1].padiff_path + "." + param_names[1],
+                    type(e).__name__ + ":  " + str(e),
+                )
+            )
+            log_file("weight_diff.log", "a", info)
+
+    try:
+        process_each_weight(_check_weight, model_0, model_1, layer_map)
+    except Exception as e:
+        log("Err occurs when compare weight!!!\n")
+        print(type(e).__name__ + ":  " + str(e))
+        return False
+
+    if _weight_check == False:
+        log(f"Diff found in model weights after optimizer step, check report `{diff_log_path + '/weight_diff.log'}`.")
+    else:
+        log("weight compared.")
+
+    return _weight_check
+
+
+def check_grad(model_0, model_1, options, layer_map):
+    _grad_check = True
+
+    def _check_grad(submodels, param_names, params, settings):
+        check_shape(submodels, param_names, params, settings)
+
+        # grad() returns numpy value here
+        grad_0 = params[0].grad()
+        grad_1 = params[1].grad()
+
+        # check grad
+        try:
+            if grad_0 is None and grad_1 is None:
+                return
+            elif grad_0 is None and grad_1 is not None:
+                raise RuntimeError(
+                    f"Found grad in first model is `None`, when grad in second model exists. Please check grad value in first model."
+                )
+            elif grad_0 is not None and grad_1 is None:
+                raise RuntimeError(
+                    f"Found grad in second model is `None`, when grad in first model exists. Please check grad value in second model."
+                )
+
+            if settings["transpose"]:
+                grad_1 = numpy.transpose(grad_1)
+
+            assert_tensor_equal(grad_0, grad_1, settings)
+        except Exception as e:
+            nonlocal _grad_check
+            _grad_check = False
+            info = (
+                "=" * 25 + "\n" + "After training, grad value is different.\n"
+                "between Model[0] `{}`, Model[1] `{}` \n"
+                "Model[0] grad path:\n    {}\n"
+                "Model[1] grad path:\n    {}\n"
+                "{}\n\n".format(
+                    model_0[0].model_repr_info(),
+                    model_1[1].model_repr_info(),
+                    submodels[0].padiff_path + "." + param_names[0],
+                    submodels[1].padiff_path + "." + param_names[1],
+                    type(e).__name__ + ":  " + str(e),
+                )
+            )
+            log_file("grad_diff.log", "a", info)
+
+    try:
+        process_each_weight(_check_grad, model_0, model_1, layer_map)
+    except Exception as e:
+        log("Err occurs when compare grad!!!\n")
+        print(type(e).__name__ + ":  " + str(e))
+        return False
+
+    if _grad_check == False:
+        log(f"Diff found in model grad after backward, check report `{diff_log_path + '/grad_diff.log'}`.")
+    else:
+        log("grad compared.")
+
+    return _grad_check

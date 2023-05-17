@@ -19,9 +19,8 @@ from .trainer_utils import (
     print_struct_info,
     reorder_and_match_reports,
 )
-from ..utils import log, assert_tensor_equal, LayerMap, log_file, diff_log_path
-from ..weights import process_each_weight, shape_check
-import numpy
+from ..utils import assert_tensor_equal, log
+from ..weights import check_weight, check_grad
 
 
 __all__ = [
@@ -36,12 +35,12 @@ class Checker:
         return ret
 
     @staticmethod
-    def check_weight(layer, module, options, layer_map=LayerMap()):
+    def check_weight(layer, module, options, layer_map):
         ret = check_weight(layer, module, options=options, layer_map=layer_map)
         return ret
 
     @staticmethod
-    def check_grad(layer, module, options, layer_map=LayerMap()):
+    def check_grad(layer, module, options, layer_map):
         ret = check_grad(layer, module, options=options, layer_map=layer_map)
         return ret
 
@@ -198,135 +197,3 @@ def print_info(items, exc, step_idx, grad=False, nodes=None):
     print("=========================")
     items[1].print_stacks()
     print("")
-
-
-"""
-    check weight and grad
-"""
-
-
-def check_weight(model_0, model_1, options, layer_map=LayerMap()):
-    _weight_check = True
-
-    def _check_weight(
-        submodels,
-        param_names,
-        params,
-        settings,
-    ):
-        shape_check(
-            submodels,
-            param_names,
-            params,
-            settings,
-        )
-        np_value_0 = params[0].numpy()
-        np_value_1 = params[1].numpy()
-
-        if settings["transpose"]:
-            np_value_1 = numpy.transpose(np_value_1)
-
-        # check weight
-        try:
-            assert_tensor_equal(np_value_0, np_value_1, settings)
-        except Exception as e:
-            nonlocal _weight_check
-            _weight_check = False
-            info = (
-                "=" * 25 + "\n" + "After training, weight value is different.\n"
-                "between Model[0] `{}`, Model[1] `{}` \n"
-                "Model[0] param path:\n    {}\n"
-                "Model[1] param path:\n    {}\n"
-                "{}\n\n".format(
-                    model_0[0].model_repr_info(),
-                    model_1[1].model_repr_info(),
-                    submodels[0].padiff_path + "." + param_names[0],
-                    submodels[1].padiff_path + "." + param_names[1],
-                    type(e).__name__ + ":  " + str(e),
-                )
-            )
-            log_file("weight_diff.log", "a", info)
-
-    try:
-        process_each_weight(_check_weight, model_0, model_1, layer_map)
-    except Exception as e:
-        log("Err occurs when compare weight!!!\n")
-        print(type(e).__name__ + ":  " + str(e))
-        return False
-
-    if _weight_check == False:
-        log(f"Diff found in model weights after optimizer step, check report `{diff_log_path + '/weight_diff.log'}`.")
-    else:
-        log("weight compared.")
-
-    return _weight_check
-
-
-def check_grad(model_0, model_1, options, layer_map=LayerMap()):
-    _grad_check = True
-
-    def _check_grad(
-        submodels,
-        param_names,
-        params,
-        settings,
-    ):
-        shape_check(
-            submodels,
-            param_names,
-            params,
-            settings,
-        )
-
-        # grad() returns numpy value here
-        grad_0 = params[0].grad()
-        grad_1 = params[1].grad()
-
-        # check grad
-        try:
-            if grad_0 is None and grad_1 is None:
-                return
-            elif grad_0 is None and grad_1 is not None:
-                raise RuntimeError(
-                    f"Found grad in first model is `None`, when grad in second model exists. Please check grad value in first model."
-                )
-            elif grad_0 is not None and grad_1 is None:
-                raise RuntimeError(
-                    f"Found grad in second model is `None`, when grad in first model exists. Please check grad value in second model."
-                )
-
-            if settings["transpose"]:
-                grad_1 = numpy.transpose(grad_1)
-
-            assert_tensor_equal(grad_0, grad_1, settings)
-        except Exception as e:
-            nonlocal _grad_check
-            _grad_check = False
-            info = (
-                "=" * 25 + "\n" + "After training, grad value is different.\n"
-                "between Model[0] `{}`, Model[1] `{}` \n"
-                "Model[0] grad path:\n    {}\n"
-                "Model[1] grad path:\n    {}\n"
-                "{}\n\n".format(
-                    model_0[0].model_repr_info(),
-                    model_1[1].model_repr_info(),
-                    submodels[0].padiff_path + "." + param_names[0],
-                    submodels[1].padiff_path + "." + param_names[1],
-                    type(e).__name__ + ":  " + str(e),
-                )
-            )
-            log_file("grad_diff.log", "a", info)
-
-    try:
-        process_each_weight(_check_grad, model_0, model_1, layer_map)
-    except Exception as e:
-        log("Err occurs when compare grad!!!\n")
-        print(type(e).__name__ + ":  " + str(e))
-        return False
-
-    if _grad_check == False:
-        log(f"Diff found in model grad after backward, check report `{diff_log_path + '/grad_diff.log'}`.")
-    else:
-        log("grad compared.")
-
-    return _grad_check

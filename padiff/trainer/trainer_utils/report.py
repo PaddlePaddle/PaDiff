@@ -14,7 +14,7 @@
 
 import contextlib
 
-from .. import utils
+from ...utils import for_each_grad_tensor, for_each_tensor
 from .module_struct import (
     LayerStack,
 )
@@ -71,7 +71,7 @@ class ReportItem:
             return None
         assert self.input is not None, "Backward while input is None, not expected."
 
-        return [None for i in utils.for_each_grad_tensor(self.input)]
+        return [None for i in for_each_grad_tensor(self.input)]
 
     def set_input_grads(self, nth, value):
         assert nth < len(self.input_grads)
@@ -92,9 +92,9 @@ class ReportItem:
 
     def tensors_for_compare(self):
         if self.type == "forward":
-            return utils.for_each_tensor(self.output)
+            return for_each_tensor(self.output)
         if self.type == "backward":
-            return utils.for_each_tensor(self.input_grads)
+            return for_each_tensor(self.input_grads)
 
     def __repr__(self):
         return self.__str__()

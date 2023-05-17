@@ -122,8 +122,9 @@ def wrap_func(fullname, func):
 
 def wrap_method(method_fullname, method):
     def wrapped(tensor_obj, *args, **kwargs):
+        from .trainer.trainer_utils import api_hook
+
         if method_fullname.startswith("paddle"):
-            from .trainer.trainer_utils import api_hook
 
             class PaddleMethod(paddle.nn.Layer):
                 def __init__(self, method):
@@ -142,7 +143,6 @@ def wrap_method(method_fullname, method):
             handle = layer.register_forward_post_hook(partial(api_hook, net_id=-1))
 
         elif method_fullname.startswith("torch"):
-            from .trainer.trainer_utils import api_hook
 
             class TorchMethod(torch.nn.Module):
                 def __init__(self, method):
@@ -241,7 +241,7 @@ if os.getenv("PADIFF_API_CHECK") != "OFF":
 import paddle
 import torch
 
-from .utils import LayerMap
+from .layer_map import LayerMap
 from .weights import assign_weight
 from .auto_diff import auto_diff
 from .special_init import add_special_init

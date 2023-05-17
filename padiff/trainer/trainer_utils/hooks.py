@@ -15,7 +15,14 @@
 import contextlib
 from functools import partial
 from .report import current_reports
-from .. import utils
+from ...utils import (
+    yamls,
+    clone_structure,
+    map_structure_and_replace_key,
+    flatten,
+    for_each_grad_tensor,
+    map_structure_and_replace_key,
+)
 import os
 import paddle
 import torch
@@ -29,17 +36,17 @@ import torch
 def paddle_tensor_hook(x_grad, bwd_item, nth_tensor, net_id, model_idx):
     # print (nth_tensor, bwd_item.input_grads, bwd_item.input)
     # record paddle grad
-    new_grad = utils.clone_structure(x_grad)
+    new_grad = clone_structure(x_grad)
     bwd_item.set_input_grads(nth_tensor, new_grad)
 
-    options = utils.yamls.options
+    options = yamls.options
     # single_step and not an API
     if model_idx == 0 and net_id != -1 and options["single_step"] and options["diff_phase"] == "backward":
         paddle_report = current_reports()[0]
         torch_report = current_reports()[1]
         t_fwd_item = torch_report.find_item(paddle_report, net_id, "backward")
 
-        return utils.map_structure_and_replace_key(
+        return map_structure_and_replace_key(
             partial(_transform_tensor, type="paddle" if isinstance(x_grad, paddle.Tensor) else "torch"),
             [t_fwd_item.output],
             x_grad,
@@ -81,7 +88,7 @@ def api_hook(model, input, output, net_id):
     """
     Notice: only wrapped api and layer in one2one will trigger this hook. They are leaves.
     """
-    options = utils.yamls.options
+    options = yamls.options
     if not options or options["curent_model_idx"] is None:
         return None
     model_idx = options["curent_model_idx"]
@@ -98,7 +105,7 @@ def api_hook(model, input, output, net_id):
         return None
 
     # if this api is not processing tensors, do not create report
-    if output is None or all([not isinstance(x, (paddle.Tensor, torch.Tensor)) for x in utils.flatten(output)]):
+    if output is None or all([not isinstance(x, (paddle.Tensor, torch.Tensor)) for x in flatten(output)]):
         return None
 
     # if an api under _layer_ignore_sublayer, do not create report
@@ -116,15 +123,15 @@ def api_hook(model, input, output, net_id):
         _model = model
 
     frame_info, frames = extract_frame_summary()
-    new_in = utils.clone_structure(input)
-    new_out = utils.clone_structure(output)
+    new_in = clone_structure(input)
+    new_out = clone_structure(output)
     fwd_item = report.put_item("forward", new_in, new_out, _model, net_id, frame_info, frames)
     bwd_item = report.put_item("backward", new_in, new_out, _model, net_id, frame_info, frames)
     bwd_item.set_forward(fwd_item)
 
     report.stack.push_api(_model, fwd_item, bwd_item)
 
-    for i, (t,) in enumerate(utils.for_each_grad_tensor(input)):
+    for i, (t,) in enumerate(for_each_grad_tensor(input)):
         t.register_hook(
             partial(paddle_tensor_hook, bwd_item=bwd_item, nth_tensor=i, net_id=net_id, model_idx=model_idx)
         )
@@ -134,7 +141,7 @@ def api_hook(model, input, output, net_id):
         torch_report = current_reports()[1]
         t_fwd_item = torch_report.find_item(report, net_id, "forward")
 
-        retval = utils.map_structure_and_replace_key(
+        retval = map_structure_and_replace_key(
             partial(_transform_tensor, type="paddle" if isinstance(model, paddle.nn.Layer) else "torch"),
             [t_fwd_item.output],
             output,
@@ -193,7 +200,7 @@ def post_layer_hook(layer, input, output, model_idx):
 
 @contextlib.contextmanager
 def register_hooker(runner, model_idx):
-    options = utils.yamls.options
+    options = yamls.options
     options["curent_model_idx"] = model_idx
 
     model = runner.models[model_idx]

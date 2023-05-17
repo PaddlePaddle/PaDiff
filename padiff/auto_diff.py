@@ -15,7 +15,9 @@
 
 import paddle
 import torch
-from .utils import log, init_options, init_LayerMap, init_padiff_path, padiff_model
+from .utils import log, init_options, init_padiff_path
+from .padiff_abstracts import padiff_model
+from .layer_map import init_LayerMap
 from .weights import assign_weight
 from .trainer import Trainer
 
@@ -83,6 +85,4 @@ def auto_diff(
     else:
         log("FAILED !!!\n")
 
-    # TODO(linjieccc): pytest failed if log clean is enabled
-    # clean_log_dir()
     return ret
