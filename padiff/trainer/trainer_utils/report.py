@@ -75,8 +75,7 @@ class ReportItem:
 
     def set_input_grads(self, nth, value):
         assert nth < len(self.input_grads)
-        new_value = utils.clone_structure(value)
-        self.input_grads[nth] = new_value
+        self.input_grads[nth] = value
 
     def print_stacks(self):
         def print_frames(fs, indent=8):
@@ -91,7 +90,7 @@ class ReportItem:
     def stacks(self):
         return self.frames
 
-    def compare_tensors(self):
+    def tensors_for_compare(self):
         if self.type == "forward":
             return utils.for_each_tensor(self.output)
         if self.type == "backward":

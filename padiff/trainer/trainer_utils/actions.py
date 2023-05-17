@@ -29,9 +29,9 @@ class ActionPool:
         sorted(self.pool, key=lambda x: x.priority, reverse=True)
         return cls
 
-    def find_actions(self, torch_net, paddle_net):
+    def find_actions(self, model_0, model_1):
         for act in self.pool:
-            if act.match(torch_net, paddle_net):
+            if act.match(model_0, model_1):
                 return act
         raise RuntimeError("No action is matched, not expected.")
 
@@ -44,10 +44,10 @@ def get_action(*args, **kargs):
 
 
 class Action:
-    def match(self, torch_net, paddle_net):
+    def match(self, model_0, model_1):
         raise NotImplementedError("")
 
-    def __call__(self, torch_item, paddle_item, cfg):
+    def __call__(self, item_0, item_1, cfg):
         raise NotImplementedError("")
 
     @property
@@ -57,10 +57,10 @@ class Action:
 
 @global_actions.register
 class EqualAction(Action):
-    def match(self, torch_net, paddle_net):
+    def match(self, model_0, model_1):
         try:
-            assert isinstance(torch_net, torch.nn.Module)
-            assert isinstance(paddle_net, paddle.nn.Layer)
+            assert isinstance(model_0, paddle.nn.Layer)
+            assert isinstance(model_1, torch.nn.Module)
         except:
             return False
         return True
@@ -69,24 +69,24 @@ class EqualAction(Action):
     def priority(self):
         return 0
 
-    def __call__(self, torch_item, paddle_item, cfg):
+    def __call__(self, item_0, item_1, cfg):
         """
         NOTE:
         """
         is_debug = cfg["debug"]
-        torch_tensors = torch_item.compare_tensors()
-        paddle_tensors = paddle_item.compare_tensors()
-        for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):
-            if tt.numel() == 0 or pt.numel() == 0:
+        tensors_0 = item_0.tensors_for_compare()
+        tensors_1 = item_1.tensors_for_compare()
+        for (t0,), (t1,) in zip(tensors_0, tensors_1):
+            if t0.numel() == 0 or t1.numel() == 0:
                 warnings.warn("Found Tensor shape is [0], compare skipped!")
                 continue
             try:
-                utils.assert_tensor_equal(tt.detach().cpu().numpy(), pt.numpy(), cfg)
+                utils.assert_tensor_equal(t0.detach().cpu().numpy(), t1.detach().cpu().numpy(), cfg)
             except Exception as e:
                 if is_debug:
                     print("Mean of inputs:")
-                    print(torch_item.input[0].numpy().mean())
-                    print(paddle_item.input[0].numpy().mean())
+                    print(item_0.input[0].numpy().mean())
+                    print(item_1.input[0].numpy().mean())
                     import pdb
 
                     pdb.set_trace()
@@ -95,36 +95,36 @@ class EqualAction(Action):
 
 @global_actions.register
 class PPAction(Action):
-    def match(self, torch_net, paddle_net):
+    def match(self, model_0, model_1):
         try:
-            assert isinstance(torch_net, paddle.nn.Layer)
-            assert isinstance(paddle_net, paddle.nn.Layer)
+            assert isinstance(model_0, paddle.nn.Layer)
+            assert isinstance(model_1, paddle.nn.Layer)
         except:
             return False
         return True
 
     @property
     def priority(self):
-        return 0
+        return 1
 
-    def __call__(self, torch_item, paddle_item, cfg):
+    def __call__(self, item_0, item_1, cfg):
         """
         NOTE:
         """
         is_debug = cfg["debug"]
-        torch_tensors = torch_item.compare_tensors()
-        paddle_tensors = paddle_item.compare_tensors()
-        for (tt,), (pt,) in zip(torch_tensors, paddle_tensors):
-            if tt.numel() == 0 or pt.numel() == 0:
+        tensors_0 = item_0.tensors_for_compare()
+        tensors_1 = item_1.tensors_for_compare()
+        for (t0,), (t1,) in zip(tensors_0, tensors_1):
+            if t0.numel() == 0 or t1.numel() == 0:
                 warnings.warn("Found Tensor shape is [0], compare skipped!")
                 continue
             try:
-                utils.assert_tensor_equal(tt.detach().cpu().numpy(), pt.numpy(), cfg)
+                utils.assert_tensor_equal(t0.detach().cpu().numpy(), t1.detach().cpu().numpy(), cfg)
             except Exception as e:
                 if is_debug:
                     print("Mean of inputs:")
-                    print(torch_item.input[0].numpy().mean())
-                    print(paddle_item.input[0].numpy().mean())
+                    print(item_0.input[0].numpy().mean())
+                    print(item_1.input[0].numpy().mean())
                     import pdb
 
                     pdb.set_trace()

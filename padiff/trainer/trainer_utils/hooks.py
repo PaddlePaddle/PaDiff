@@ -29,7 +29,8 @@ import torch
 def paddle_tensor_hook(x_grad, bwd_item, nth_tensor, net_id, model_idx):
     # print (nth_tensor, bwd_item.input_grads, bwd_item.input)
     # record paddle grad
-    bwd_item.set_input_grads(nth_tensor, x_grad)
+    new_grad = utils.clone_structure(x_grad)
+    bwd_item.set_input_grads(nth_tensor, new_grad)
 
     options = utils.yamls.options
     # single_step and not an API
