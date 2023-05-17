@@ -22,6 +22,7 @@ from ..utils import log
 
 class Trainer:
     def __init__(self, models, loss_fn, opt, layer_map, options):
+        self.models = models
         self.model_types = [x.model_type for x in models]
         self.runner = Runner(models, loss_fn, layer_map, options)
         self.optimizer_helper = OptimizerHelper(opt, options)
@@ -29,24 +30,20 @@ class Trainer:
         self.steps = options["steps"]
         self.layer_map = layer_map
 
-    def do_run(self, paddle_report, torch_report, example_inp):
-        self.runner.set_report(paddle_report, torch_report)
+    def do_run(self, reports, example_inp):
+        self.runner.set_report(reports)
         self.runner.forward_step(example_inp)
 
-    def do_check_fwd_bwd(self, paddle_report, torch_report):
-        ret = Checker.check_forward_and_backward(torch_report, paddle_report, self.options)
+    def do_check_fwd_bwd(self, reports):
+        ret = Checker.check_forward_and_backward(reports, self.options)
         return ret
 
     def do_check_grad(self):
-        ret = Checker.check_grad(
-            self.runner.models[0], self.runner.models[1], options=self.options, layer_map=self.layer_map
-        )
+        ret = Checker.check_grad(self.models[0], self.models[1], options=self.options, layer_map=self.layer_map)
         return ret
 
     def do_check_weight(self):
-        ret = Checker.check_weight(
-            self.runner.models[0], self.runner.models[1], options=self.options, layer_map=self.layer_map
-        )
+        ret = Checker.check_weight(self.models[0], self.models[1], options=self.options, layer_map=self.layer_map)
         return ret
 
     def do_optimizer(self):
@@ -62,10 +59,9 @@ class Trainer:
         ret = True
         for step_id in range(self.options["steps"]):
             log(f"=================Train Step {step_id}=================")
-            paddle_report = Report(self.model_types[0])
-            torch_report = Report(self.model_types[1])
-            self.do_run(paddle_report, torch_report, example_inp)
-            ret = self.do_check_fwd_bwd(paddle_report, torch_report) and ret
+            reports = [Report(self.model_types[0]), Report(self.model_types[1])]
+            self.do_run(reports, example_inp)
+            ret = self.do_check_fwd_bwd(reports) and ret
             if ret == False:
                 return False
 
@@ -88,10 +84,9 @@ class Trainer:
             if diff_phase == "forward" or diff_phase == "both":
                 log(f"diff phase is {diff_phase}, run single_step forward part.")
                 self.options["diff_phase"] = "forward"
-                paddle_report = Report("paddle")
-                torch_report = Report("torch")
-                self.do_run(paddle_report, torch_report, example_inp)
-                ret = self.do_check_fwd_bwd(paddle_report, torch_report) and ret
+                reports = [Report(self.model_types[0]), Report(self.model_types[1])]
+                self.do_run(reports, example_inp)
+                ret = self.do_check_fwd_bwd(reports) and ret
                 if ret == False:
                     log("Diff found at sinle_step mode `forward` part!")
                     return False
@@ -100,11 +95,10 @@ class Trainer:
                 log(f"diff phase is {diff_phase}, run single_step backward part.")
                 self.options["diff_phase"] = "backward"
 
-                paddle_report = Report("paddle")
-                torch_report = Report("torch")
-                self.do_run(paddle_report, torch_report, example_inp)
+                reports = [Report(self.model_types[0]), Report(self.model_types[1])]
+                self.do_run(reports, example_inp)
 
-                ret = self.do_check_fwd_bwd(paddle_report, torch_report) and ret
+                ret = self.do_check_fwd_bwd(reports) and ret
                 if ret == False:
                     log("Diff found at sinle_step mode `backward` part!")
                     return False

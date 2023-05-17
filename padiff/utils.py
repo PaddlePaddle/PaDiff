@@ -432,7 +432,10 @@ class LayerMap(object):
     @map.setter
     def map(self, inp):
         assert isinstance(inp, dict), "LayerMap.map wants `dict` obj as input"
-        self._layer_one2one.update(inp)
+        new_inp = {}
+        for k, v in inp.items():
+            new_inp[v] = k
+        self._layer_one2one.update(new_inp)
         self._layer_ignore_sublayer.update(set(inp.keys()))
         self._layer_ignore_sublayer.update(set(inp.values()))
 
@@ -580,12 +583,6 @@ class PadiffModel:
     def __call__(self, *args, **kwargs):
         return self.model(*args, **kwargs)
 
-    def __str__(self, *args, **kwargs):
-        return f"Model({self.model_type}::{self.name})"
-
-    def __repr__(self, *args, **kwargs):
-        return f"Model({self.model_type}::{self.name})"
-
     def model_repr_info(self):
         model = self.model
         extra_lines = []
@@ -607,6 +604,16 @@ class PadiffModel:
     @property
     def class_name(self):
         return self.model.__class__.__name__
+
+    @property
+    def model_info(self):
+        return f"{self.model_type}::{self.name}"
+
+    def __str__(self, *args, **kwargs):
+        return f"Model({self.model_info})"
+
+    def __repr__(self, *args, **kwargs):
+        return f"Model({self.model_info})"
 
     def parameters(self):
         raise NotImplementedError()

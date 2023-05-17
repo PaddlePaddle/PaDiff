@@ -139,6 +139,10 @@ class NetWrap(object):
     def __repr__(self):
         return self.__str__()
 
+    @property
+    def fullname(self):
+        return f"{self.type}::{self.net_str}"
+
 
 """
     operate tree
@@ -182,87 +186,92 @@ def copy_module_struct(root):
     return [new_node]
 
 
-def reorder_and_match_reports(t_root, p_root, t_rep, p_rep):
-    if len(t_root.children) == 0 and len(p_root.children) == 0:
+# reorder roots[0] with struct of roots[1]
+def reorder_and_match_reports(roots, reports):
+    if len(roots[0].children) == 0 and len(roots[1].children) == 0:
         return
 
-    layer_map = p_rep.layer_map
+    layer_map = reports[0].layer_map
 
     # skip api layers
-    p_fwd = list(filter(lambda x: not hasattr(x.net, "__api__"), p_rep.get_fwd_items()))
-    p_table_view = TableView(p_fwd, lambda x: x.net_id)
+    fwd_0 = list(filter(lambda x: not hasattr(x.net, "__api__"), reports[0].get_fwd_items()))
+    table_view_0 = TableView(fwd_0, lambda x: x.net_id)
 
-    t_apis = list(filter(lambda x: x.is_api, t_root.children))
-    t_one2one = list(filter(lambda x: x.is_one2one_layer, t_root.children))
-    t_layers = list(filter(lambda x: not x.is_leaf, t_root.children))
+    # split children to 3 parts
+    apis_0 = list(filter(lambda x: x.is_api, roots[0].children))
+    one2one_0 = list(filter(lambda x: x.is_one2one_layer, roots[0].children))
+    layers_0 = list(filter(lambda x: not x.is_leaf, roots[0].children))
 
-    p_apis = list(filter(lambda x: x.is_api, p_root.children))
-    p_one2one = list(filter(lambda x: x.is_one2one_layer, p_root.children))
-    p_layers = list(filter(lambda x: not x.is_leaf, p_root.children))
+    apis_1 = list(filter(lambda x: x.is_api, roots[1].children))
+    one2one_1 = list(filter(lambda x: x.is_one2one_layer, roots[1].children))
+    layers_1 = list(filter(lambda x: not x.is_leaf, roots[1].children))
 
     try:
-        assert len(p_apis) == len(t_apis), "number of api is different"
-        assert len(p_one2one) == len(t_one2one), "number of one2one is different"
-        assert len(p_layers) == len(t_layers), "number of layer is different"
+        assert len(apis_0) == len(apis_1), "number of api is different"
+        assert len(one2one_0) == len(one2one_1), "number of one2one is different"
+        assert len(layers_0) == len(layers_1), "number of layer is different"
 
-        reorder_api(t_apis, p_apis)
-        reorder_one2one(t_one2one, p_one2one, layer_map)
+        # reset orders
+        reorder_api(apis_0, apis_1)
+        reorder_one2one(one2one_0, one2one_1, layer_map)
 
+        # for every child in roots[1], find correspond child in roots[0]
         new_children = []
-        for child in t_root.children:
+        for child in roots[1].children:
             if child.is_api:
-                new_children.append(p_apis[0])
-                p_apis.pop(0)
+                new_children.append(apis_0[0])
+                apis_0.pop(0)
             elif child.is_one2one_layer:
-                new_children.append(p_one2one[0])
-                p_one2one.pop(0)
+                new_children.append(one2one_0[0])
+                one2one_0.pop(0)
             else:
-                paddle_item = p_table_view[child.fwd_report.net_id]
-                p_child = next(x for x in p_layers if x.fwd_report is paddle_item)
-                if p_child is None:
+                # use table_view to find correspond layer with init order
+                report_item = table_view_0[child.fwd_report.net_id]
+                correspond_child = next(x for x in layers_0 if x.fwd_report is report_item)
+                if correspond_child is None:
                     raise RuntimeError("no match layer found")
-                new_children.append(p_child)
+                new_children.append(correspond_child)
 
-        p_root.children = new_children
+        roots[0].children = new_children
 
-        setattr(p_root, "reordered", True)
+        setattr(roots[0], "reordered", True)
 
     except Exception as e:
         raise e
 
 
-def reorder_api(t_apis, p_apis):
+def reorder_api(apis, targets):
     """
-    reorder p_apis based on t_apis
+    reorder apis based on targets
     TODO(wuzhafnei): need better match logic there
     Temporarily, just keep in order
     """
     return
 
 
-def reorder_one2one(t_oos, p_oos, layer_map):
-    def swap(items, l, r):
-        temp = items[l]
-        items[l] = items[r]
-        items[r] = temp
+def reorder_one2one(items, targets, layer_map):
+    def swap(seq, l, r):
+        temp = seq[l]
+        seq[l] = seq[r]
+        seq[r] = temp
         return
 
-    for idx, t_node in enumerate(t_oos):
+    for target_idx, target_node in enumerate(targets):
         # an api layer can not have one2one mark, so node.net is save
-        p_net = layer_map.map[t_node.net]
-        p_node = next(node for node in p_oos if node.net is p_net)
-        p_idx = p_oos.index(p_node)
-        if p_idx == idx:
+        mapped_net = layer_map.map[target_node.net]
+        correspond_node = next(node for node in items if node.net is mapped_net)
+        item_idx = items.index(correspond_node)
+        if item_idx == target_idx:
             continue
-        elif p_idx > idx:
-            swap(p_oos, p_idx, idx)
+        elif item_idx > target_idx:
+            swap(items, item_idx, target_idx)
         else:
             raise RuntimeError("Duplicate key or values, check your LayerMap")
 
     return
 
 
-def reorder_and_match_reports_recursively(t_root, p_root, t_rep, p_rep):
+def reorder_and_match_reports_recursively(roots, reports):
     """
     recoder tree's nodes with init order in place
     based on torch module and reorder paddle module
@@ -270,10 +279,10 @@ def reorder_and_match_reports_recursively(t_root, p_root, t_rep, p_rep):
     Notice:
         for one2one layers, they may not in order too (though they are leaves)
     """
-    reorder_and_match_reports(t_root, p_root, t_rep, p_rep)
+    reorder_and_match_reports(roots, reports)
 
-    for t_child, p_child in zip(t_root.children, p_root.children):
-        reorder_and_match_reports_recursively(t_child, p_child, p_rep, t_rep)
+    for child_0, child_1 in zip(roots[0].children, roots[1].children):
+        reorder_and_match_reports_recursively([child_0, child_1], reports)
 
     return
 
@@ -327,34 +336,23 @@ def get_path(node):
     return msg
 
 
-def print_struct_info(t_node, p_node):
-    t_root = t_node
-    while t_root.father is not None:
-        t_root = t_root.father
+def print_struct_info(nodes):
+    for idx, node in enumerate(nodes):
+        root = node
+        while root.father is not None:
+            root = root.father
+        title = f"Model[{idx}] {root.fullname}\n" + "=" * 40 + "\n"
+        retval = tree_print(root, mark=node, prefix=[" " * 4])
+        info = title + "\n".join(retval)
 
-    p_root = p_node
-    while p_root.father is not None:
-        p_root = p_root.father
-
-    t_title = "Torch Model\n" + "=" * 25 + "\n"
-    t_retval = tree_print(t_root, mark=t_node, prefix=[" " * 4])
-    t_info = t_title + "\n".join(t_retval)
-
-    p_title = "Paddle Model\n" + "=" * 25 + "\n"
-    p_retval = tree_print(p_root, mark=p_node, prefix=[" " * 4])
-    p_info = p_title + "\n".join(p_retval)
-
-    if len(p_retval) + len(t_retval) > 100:
-        utils.log_file("paddle_struct.log", "w", p_info)
-        utils.log_file("torch_struct.log", "w", t_info)
-        utils.log(
-            f"Model Struct saved to `{utils.diff_log_path + '/torch_struct.log'}` and `{utils.diff_log_path + '/paddle_struct.log'}`."
-        )
-        utils.log("Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !")
-
-    else:
-        print(p_info)
-        print(t_info)
+        if len(retval) > 50:
+            file_name = f"model_{idx}_struct_{root.fullname}.log"
+            utils.log_file(file_name, "w", info)
+            utils.log(
+                f"Model Struct saved to `{utils.diff_log_path}/{file_name}`, which is marked with `<---  *** HERE ***` !"
+            )
+        else:
+            print(info)
 
 
 """

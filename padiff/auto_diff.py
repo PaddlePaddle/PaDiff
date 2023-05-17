@@ -25,13 +25,13 @@ torch.set_printoptions(precision=10)
 
 
 def auto_diff(
-    models, names, example_inp, auto_weights=True, options={}, layer_map=None, loss_fn=None, optimizer=None, steps=1
+    model_0, model_1, example_inp, auto_weights=True, options={}, layer_map=None, loss_fn=None, optimizer=None, steps=1
 ):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
     Args:
-        models : list of PadiffModel
+        TODO update annotations
         example_inp (paddle_input, torch_input): input data for paddle layer and torch module.
             paddle_input and torch_input should be dict and send into model like `module(**input)`.
         auto_weights (boolean, optional): uniformly init the parameters of models
@@ -42,14 +42,11 @@ def auto_diff(
         True for success, False for failed.
     """
 
-    # checkout inputs
-    assert len(models) == 2, "Need input 2 models."
-
-    if names is not None:
-        assert len(models) == len(names)
-        models = [padiff_model(x, name) for x, name in zip(models, names)]
+    if "model_names" in options:
+        assert len(options["model_names"]) == 2
+        models = [padiff_model(x, name) for x, name in zip((model_0, model_1), options["model_names"])]
     else:
-        raise RuntimeError()
+        models = [padiff_model(x) for x in (model_0, model_1)]
 
     assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
 
@@ -58,15 +55,13 @@ def auto_diff(
 
     if loss_fn is not None:
         options["use_loss"] = True
-        assert len(loss_fn) == len(models)
-
+        assert len(loss_fn) == 2
         for loss in loss_fn:
             assert callable(loss), "Invalid loss function"
 
     if optimizer is not None:
         options["use_opt"] = True
-        assert len(optimizer) == len(models)
-
+        assert len(optimizer) == 2
         for opt in optimizer:
             assert isinstance(opt, (paddle.optimizer.Optimizer, torch.optim.Optimizer)) or callable(
                 opt

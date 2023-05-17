@@ -49,10 +49,10 @@ class Runner(object):
     def assign_weight_(self):
         return assign_weight(self.models[0], self.models[1], self.layer_map)
 
-    def set_report(self, paddle_rep, torch_rep):
-        paddle_rep.layer_map = self.layer_map
-        torch_rep.layer_map = self.layer_map
-        self.reports = [paddle_rep, torch_rep]
+    def set_report(self, reports):
+        reports[0].layer_map = self.layer_map
+        reports[1].layer_map = self.layer_map
+        self.reports = reports
 
     def forward_step(self, example_inp):
         paddle_input, torch_input = example_inp
