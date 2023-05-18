@@ -18,6 +18,7 @@ from itertools import zip_longest, chain
 
 from .utils import log
 from .special_init import build_name, global_special_init_pool as init_pool
+from .abstracts import create_proxy_model
 
 
 class LayerMap(object):
@@ -65,7 +66,13 @@ class LayerMap(object):
 
     def special_init_layers(self):
         # TODO: return proxy_model
-        return self.map.items()
+        map_items = self.map.items()
+
+        def new_generator():
+            for k, v in map_items:
+                yield create_proxy_model(v), create_proxy_model(k)
+
+        return new_generator()
 
     def layers_in_map(self):
         return chain(self.map.keys(), self.map.values())
@@ -111,56 +118,56 @@ class LayerMap(object):
                 for sublayer in self._traversal_layers_for_model_struct(child_model):
                     yield sublayer
 
-    def auto(self, layer, module):
+    def auto(self, src_model, base_model):
         """
-        This function will try to find components which support special init, and add them to layer_map automatically.
-
+        This method will try to find components which support special init, and add them to layer_map automatically.
         NOTICE: LayerMap.auto suppose that all sublayers/submodules are defined in same order, if not, this method may not work correctly.
         """
 
         def _traversal_layers(model, path, registered):
             for name, child in model.named_children():
                 path.append(name)
-                if child.__class__.__name__ in registered and child not in self._ignored_layers:
+                if child.fullname in registered and child.model not in self._ignored_layers:
                     yield (child, ".".join(path))
-                if child.__class__.__name__ not in registered and child not in self._sublayer_ignored_layers:
+                if child.fullname not in registered and child.model not in self._sublayer_ignored_layers:
                     for sublayer, ret_path in _traversal_layers(child, path, registered):
                         yield (sublayer, ret_path)
                 path.pop()
 
-        paddle_layers = list(_traversal_layers(layer, [layer.__class__.__name__], init_pool.registered_paddle_layers))
-        torch_modules = list(
-            _traversal_layers(module, [module.__class__.__name__], init_pool.registered_torch_modules)
-        )
+        assert isinstance(src_model, (paddle.nn.Layer, torch.nn.Module))
+        assert isinstance(base_model, (paddle.nn.Layer, torch.nn.Module))
+        src_model = create_proxy_model(src_model)
+        base_model = create_proxy_model(base_model)
+
+        src_submodels = list(_traversal_layers(src_model, [src_model.class_name], init_pool.registered_src_models))
+        base_submodels = list(_traversal_layers(base_model, [base_model.class_name], init_pool.registered_base_models))
 
         _map = {}
 
         log("auto update LayerMap start searching...\n")
 
-        for paddle_info, torch_info in zip_longest(paddle_layers, torch_modules, fillvalue=None):
-            if paddle_info is None or torch_info is None:
+        for src_info, base_info in zip_longest(src_submodels, base_submodels, fillvalue=None):
+            if src_info is None or base_info is None:
                 print(
-                    "\nError: The number of registered paddle sublayer and torch submodule is not the same! Check your model struct first!"
+                    "\nError: The number of submodels which need special init is not the same! Check your model struct first!"
                 )
                 log("auto update LayerMap FAILED!!!\n")
                 return
 
-            paddle_layer, paddle_path = paddle_info
-            torch_module, torch_path = torch_info
-            paddle_name = paddle_layer.__class__.__name__
-            torch_name = torch_module.__class__.__name__
-            name = build_name(paddle_name, torch_name)
+            src_model, src_path = src_info
+            base_model, base_path = base_info
+            name = build_name(src_model.model_type, src_model.class_name, base_model.model_type, base_model.class_name)
             if name in init_pool.funcs.keys():
-                _map.update({paddle_layer: torch_module})
+                _map.update({src_model.model: base_model.model})
                 print(
-                    f"++++    paddle `{paddle_name}` at `{paddle_path}` <==> torch `{torch_name}` at `{torch_path}`."
+                    f"++++    src_model `{src_model.fullname}` at `{src_path}` <==> base_model `{base_model.fullname}` at `{base_path}`    ++++"
                 )
             else:
                 print(
                     "\nError: When generating LayerMap in order, find that paddle sublayer can not matchs torch submodule."
                 )
-                print(f"    paddle: `{paddle_name}` at `{paddle_path}`")
-                print(f"    torch:  `{torch_name}` at `{torch_path}`")
+                print(f"    src_model: `{src_model.class_name}` at `{src_path}`")
+                print(f"    base_model:  `{base_model.class_name}` at `{base_path}`")
                 log("auto update LayerMap FAILED!!!\n")
                 return
         print()

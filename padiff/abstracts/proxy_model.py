@@ -63,13 +63,13 @@ class ProxyModel:
 
     @property
     def fullname(self):
-        return f"{self.model_type}::{self.name}"
+        return f"{self.model_type}::{self.class_name}"
 
     def __str__(self, *args, **kwargs):
-        return f"Model({self.fullname})"
+        return f"Model({self.model_type}::{self.name})"
 
     def __repr__(self, *args, **kwargs):
-        return f"Model({self.fullname})"
+        return f"Model({self.model_type}::{self.name})"
 
     def parameters(self):
         raise NotImplementedError()

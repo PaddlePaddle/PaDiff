@@ -81,31 +81,24 @@ def assign_weight(target_model, source_model, layer_map={}):
     layer_map = LayerMap.create_from(layer_map)
     models = (target_model, source_model)
 
-    # TODO: special init is not nessesary for current requirement, so just skip here
-    # need update later
-    if target_model.model_type == "paddle" and source_model.model_type == "torch":
-        for torch_submodule, paddle_sublayer in layer_map.special_init_layers():
-            paddle_layer_name = paddle_sublayer.__class__.__name__
-            torch_module_name = torch_submodule.__class__.__name__
-            key_name = build_name(paddle_layer_name, torch_module_name)
-            if key_name not in init_pool.funcs.keys():
-                log(
-                    "*** Special init paddle layer `{}` and torch module `{}` is not supported ***".format(
-                        paddle_layer_name, torch_module_name
-                    )
+    for src_model, base_model in layer_map.special_init_layers():
+        key_name = build_name(src_model.model_type, src_model.class_name, base_model.model_type, base_model.class_name)
+        if key_name not in init_pool.funcs.keys():
+            log(
+                "*** Special init src_model `{}` and base_model `{}` is not supported ***".format(
+                    src_model.fullname, base_model.fullname
                 )
-                log("    Checkout the parameters are inited by yourself")
-                log("    ,or you can register your init method!")
-            else:
-                try:
-                    init_pool.funcs[key_name](paddle_sublayer, torch_submodule)
-                except Exception as e:
-                    print(
-                        f"Special init paddle layer `{paddle_layer_name}` and torch module `{torch_module_name}` failed."
-                    )
-                    print(type(e).__name__ + ":  " + str(e))
-                    log("Assign weight Failed !!!")
-                    return False
+            )
+            log("    Checkout the parameters are inited by yourself")
+            log("    ,or you can register your init method!")
+        else:
+            try:
+                init_pool.funcs[key_name](src_model.model, base_model.model)
+            except Exception as e:
+                print(f"Special init src_model `{src_model.fullname}` and base_model `{base_model.fullname}` failed.")
+                print(type(e).__name__ + ":  " + str(e))
+                log("Assign weight Failed !!!")
+                return False
 
     def _assign_weight(submodels, param_names, params, settings):
         check_shape(models, param_names, params, settings)

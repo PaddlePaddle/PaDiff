@@ -30,8 +30,8 @@ class SpecialInitPool(object):
 
     def register(self, src_model_type, src_model_name, base_model_type, base_model_name):
         name = build_name(src_model_type, src_model_name, base_model_type, base_model_name)
-        self.registered_src_models.add((src_model_type, src_model_name))
-        self.registered_base_models.add((base_model_type, base_model_name))
+        self.registered_src_models.add(src_model_type + "::" + src_model_name)
+        self.registered_base_models.add(base_model_type + "::" + base_model_name)
 
         def do_reg(func):
             self.funcs[name] = func
@@ -45,6 +45,6 @@ global_special_init_pool = SpecialInitPool()
 
 def add_special_init(src_model_type, src_model_name, base_model_type, base_model_name, func):
     name = build_name(src_model_type, src_model_name, base_model_type, base_model_name)
-    global_special_init_pool.registered_src_models.add((src_model_type, src_model_name))
-    global_special_init_pool.registered_base_models.add((base_model_type, base_model_name))
+    global_special_init_pool.registered_src_models.add(src_model_type + "::" + src_model_name)
+    global_special_init_pool.registered_base_models.add(base_model_type + "::" + base_model_name)
     global_special_init_pool.funcs[name] = func
