@@ -22,95 +22,94 @@ from .special_init import build_name, global_special_init_pool as init_pool
 
 class LayerMap(object):
     def __init__(self):
-        self._layer_one2one = {}  # key: torch.nn.Module, value: paddle.nn.Layer
-        self._layer_ignore = set()  # ignore layer in this set
-        self._layer_ignore_sublayer = set()  # ignore sublayer of layers in this set (do not include themselves)
+        self._layer_map = {}  # key: component of base_model, value: component of src_model
+        self._ignored_layers = set()  # ignore layer in this set
+        self._sublayer_ignored_layers = set()  # ignore sublayer of layers in this set (do not include themselves)
 
     @property
     def map(self):
-        return self._layer_one2one
+        return self._layer_map
 
     @map.setter
-    def map(self, inp):
-        assert isinstance(inp, dict), "LayerMap.map wants `dict` obj as input"
-        new_inp = {}
-        for k, v in inp.items():
-            new_inp[v] = k
-        self._layer_one2one.update(new_inp)
-        self._layer_ignore_sublayer.update(set(inp.keys()))
-        self._layer_ignore_sublayer.update(set(inp.values()))
+    def map(self, inputs):
+        assert isinstance(inputs, dict), "LayerMap.map wants `dict` obj as input"
+        # user should give {src_model: base_model} as input, (because src_model is the first param)
+        # but we want {base_model: src_model}, so swap the kv pairs
+        new_inputs = {}
+        for k, v in inputs.items():
+            new_inputs[v] = k
+        self._layer_map.update(new_inputs)
+        self._sublayer_ignored_layers.update(set(inputs.keys()))
+        self._sublayer_ignored_layers.update(set(inputs.values()))
 
-    def ignore(self, inp):
-        if isinstance(inp, (list, tuple)):
-            self._layer_ignore.update(set(inp))
-        elif isinstance(inp, (paddle.nn.Layer, torch.nn.Module)):
-            self._layer_ignore.add(inp)
+    def ignore(self, inputs):
+        if isinstance(inputs, (list, tuple)):
+            self._ignored_layers.update(set(inputs))
+        elif isinstance(inputs, (paddle.nn.Layer, torch.nn.Module)):
+            self._ignored_layers.add(inputs)
         else:
-            raise RuntimeError("Unexpect input type for LayerMap.ignore: {}".format(type(inp)))
+            raise RuntimeError("Unexpected input type for LayerMap.ignore: {}".format(type(inputs)))
 
     def ignore_recursively(self, layers):
         if isinstance(layers, (paddle.nn.Layer, torch.nn.Module)):
             layers = [layers]
-        self._layer_ignore_sublayer.update(set(layers))
-        self._layer_ignore.update(set(layers))
+        self._sublayer_ignored_layers.update(set(layers))
+        self._ignored_layers.update(set(layers))
 
     def ignore_class(self, layer, ign_cls):
         ignored = set()
         for sublayer in self.layers_skip_ignore(layer):
             if isinstance(sublayer, ign_cls):
                 ignored.add(sublayer)
-        self._layer_ignore.update(ignored)
-
-    def _traversal_layers_with_ignore(self, model):
-        for child_padiff_model in model.children():
-            child = child_padiff_model.model
-            if (child not in self._layer_ignore and not is_wrap_layer(child_padiff_model)) or (
-                child in self.map.keys() or child in self.map.values()
-            ):
-                if not hasattr(child, "no_skip"):
-                    setattr(child, "no_skip", True)
-                yield child_padiff_model
-            if child not in self._layer_ignore_sublayer:
-                for sublayer in self._traversal_layers_with_ignore(child_padiff_model):
-                    yield sublayer
-
-    def _traversal_layers_for_model_struct(self, model):
-        # any in self._layer_ignore_sublayer should be returned
-        # to check whether an api should be record
-        for child_padiff_model in model.children():
-            child = child_padiff_model.model
-            if (child not in self._layer_ignore and not is_wrap_layer(child_padiff_model)) or (
-                child in self._layer_ignore_sublayer
-            ):
-                if not hasattr(child, "no_skip"):
-                    setattr(child, "no_skip", True)
-                yield child_padiff_model
-            if child not in self._layer_ignore_sublayer:
-                for sublayer in self._traversal_layers_for_model_struct(child_padiff_model):
-                    yield sublayer
+        self._ignored_layers.update(ignored)
 
     def special_init_layers(self):
-        # TODO: return padiff model
+        # TODO: return proxy_model
         return self.map.items()
 
     def layers_in_map(self):
         return chain(self.map.keys(), self.map.values())
-
-    def weight_init_layers(self, layer):
-        # layers in layer_map should be inited in `special_init`, so they will be skipped here
-        layers = [layer]
-        layers.extend(filter(lambda x: x.model not in self.layers_in_map(), self._traversal_layers_with_ignore(layer)))
-        return layers
 
     def layers_skip_ignore(self, layer):
         layers = [layer]
         layers.extend(self._traversal_layers_with_ignore(layer))
         return layers
 
+    def weight_init_layers(self, layer):
+        # layers in layer_map should be inited in `special_init`, so they will be skipped here
+        layers = filter(lambda x: x.model not in self.layers_in_map(), self.layers_skip_ignore(layer))
+        return layers
+
     def struct_hook_layers(self, layer):
         layers = [layer]
         layers.extend(self._traversal_layers_for_model_struct(layer))
         return layers
+
+    def _traversal_layers_with_ignore(self, model):
+        for child_model in model.children():
+            child = child_model.model
+            if (child not in self._ignored_layers and not is_wrap_layer(child_model)) or child in self.layers_in_map():
+                if not hasattr(child, "no_skip"):
+                    setattr(child, "no_skip", True)
+                yield child_model
+            if child not in self._sublayer_ignored_layers:
+                for sublayer in self._traversal_layers_with_ignore(child_model):
+                    yield sublayer
+
+    def _traversal_layers_for_model_struct(self, model):
+        # any in self._sublayer_ignored_layers should be returned
+        # for checking whether an api should be record (is under a layer in _sublayer_ignored_layers)
+        for child_model in model.children():
+            child = child_model.model
+            if (
+                child not in self._ignored_layers and not is_wrap_layer(child_model)
+            ) or child in self._sublayer_ignored_layers:
+                if not hasattr(child, "no_skip"):
+                    setattr(child, "no_skip", True)
+                yield child_model
+            if child not in self._sublayer_ignored_layers:
+                for sublayer in self._traversal_layers_for_model_struct(child_model):
+                    yield sublayer
 
     def auto(self, layer, module):
         """
@@ -122,9 +121,9 @@ class LayerMap(object):
         def _traversal_layers(model, path, registered):
             for name, child in model.named_children():
                 path.append(name)
-                if child.__class__.__name__ in registered and child not in self._layer_ignore:
+                if child.__class__.__name__ in registered and child not in self._ignored_layers:
                     yield (child, ".".join(path))
-                if child.__class__.__name__ not in registered and child not in self._layer_ignore_sublayer:
+                if child.__class__.__name__ not in registered and child not in self._sublayer_ignored_layers:
                     for sublayer, ret_path in _traversal_layers(child, path, registered):
                         yield (sublayer, ret_path)
                 path.pop()
@@ -169,18 +168,18 @@ class LayerMap(object):
 
         self.map = _map
 
+    @staticmethod
+    def create_from(layer_map=None):
+        if layer_map is None:
+            layer_map = LayerMap()
+        elif isinstance(layer_map, dict):
+            new_map = LayerMap()
+            new_map.map = layer_map
+            layer_map = new_map
+        else:
+            assert isinstance(layer_map, LayerMap), "Invalid Argument."
+        return layer_map
+
 
 def is_wrap_layer(model):
     return len(list(model.parameters(recursively=False))) == 0
-
-
-def init_LayerMap(layer_map):
-    if layer_map is None:
-        layer_map = LayerMap()
-    elif isinstance(layer_map, dict):
-        new_map = LayerMap()
-        new_map.map = layer_map
-        layer_map = new_map
-    else:
-        assert isinstance(layer_map, LayerMap), "Invalid Argument."
-    return layer_map

@@ -21,7 +21,7 @@ import unittest
 from padiff.trainer.trainer_utils import Report
 from padiff.trainer import Trainer
 from padiff.utils import init_options
-from padiff.padiff_abstracts import padiff_model
+from padiff.abstracts import create_proxy_model
 from padiff import LayerMap
 import paddle
 import torch
@@ -66,7 +66,7 @@ class TestCaseName(unittest.TestCase):
 
         paddle_report = Report("paddle")
         torch_report = Report("torch")
-        trainer = Trainer((padiff_model(layer), padiff_model(module)), None, None, LayerMap(), options)
+        trainer = Trainer((create_proxy_model(layer), create_proxy_model(module)), None, None, LayerMap(), options)
 
         trainer.do_run((paddle_report, torch_report), inp)
 

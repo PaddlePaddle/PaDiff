@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .padiff_model import padiff_model, PadiffModel
+from .proxy_model import create_proxy_model, ProxyModel
 
 __all__ = [
-    "padiff_model",
-    "PadiffModel",
+    "create_proxy_model",
+    "ProxyModel",
 ]

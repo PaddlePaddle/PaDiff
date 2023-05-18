@@ -16,7 +16,7 @@ import paddle
 import torch
 
 
-class PadiffParam:
+class ProxyParam:
     def __init__(self, param, param_type):
         self.param = param
         self.param_type = param_type
@@ -34,7 +34,7 @@ class PadiffParam:
         raise NotImplementedError()
 
 
-class PaddleParam(PadiffParam):
+class PaddleParam(ProxyParam):
     def __init__(self, param):
         super(PaddleParam, self).__init__(param, "paddle")
 
@@ -54,7 +54,7 @@ class PaddleParam(PadiffParam):
             return None
 
 
-class TorchParam(PadiffParam):
+class TorchParam(ProxyParam):
     def __init__(self, param):
         super(TorchParam, self).__init__(param, "torch")
 
@@ -74,7 +74,7 @@ class TorchParam(PadiffParam):
             return None
 
 
-def padiff_param(param):
+def create_proxy_param(param):
     if isinstance(param, paddle.fluid.framework.EagerParamBase):
         return PaddleParam(param)
     elif isinstance(param, torch.nn.parameter.Parameter):

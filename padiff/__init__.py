@@ -26,6 +26,7 @@ from importlib.abc import MetaPathFinder, Loader
 from importlib.machinery import SourceFileLoader, ExtensionFileLoader, PathFinder
 
 from .file_loader import global_json_loader as jsons
+from .trainer.trainer_utils import info_hook
 
 
 def module_filter(name):
@@ -69,7 +70,6 @@ class PaDiffFinder(MetaPathFinder):
 
 def wrap_func(fullname, func):
     def wrapped(*args, **kwargs):
-        from .trainer.trainer_utils import info_hook
 
         if fullname.startswith("paddle"):
 
@@ -109,7 +109,7 @@ def wrap_func(fullname, func):
             handle = layer.register_forward_hook(partial(info_hook, net_id=-1))
 
         else:
-            raise RuntimeError("Import Err: module_type not in (paddle, torch)")
+            raise RuntimeError("Required module_type is in [paddle, torch], but received {}".format(full_name))
 
         out = layer(*args, **kwargs)
 
@@ -122,7 +122,6 @@ def wrap_func(fullname, func):
 
 def wrap_method(method_fullname, method):
     def wrapped(tensor_obj, *args, **kwargs):
-        from .trainer.trainer_utils import info_hook
 
         if method_fullname.startswith("paddle"):
 
@@ -161,7 +160,7 @@ def wrap_method(method_fullname, method):
             handle = layer.register_forward_hook(partial(info_hook, net_id=-1))
 
         else:
-            raise RuntimeError("Import Err: module_type not in (paddle, torch)")
+            raise RuntimeError("Required module_type is in [paddle, torch], but received {}".format(method_fullname))
 
         out = layer(*args, **kwargs)
 

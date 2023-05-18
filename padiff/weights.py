@@ -23,8 +23,8 @@ from .utils import (
     weight_struct_info,
     assert_tensor_equal,
 )
-from .layer_map import init_LayerMap
-from .padiff_abstracts import padiff_model, PadiffModel
+from .layer_map import LayerMap
+from .abstracts import create_proxy_model, ProxyModel
 from .file_loader import global_yaml_loader as yamls
 from .special_init import global_special_init_pool as init_pool
 from .special_init import build_name
@@ -55,9 +55,9 @@ def process_each_weight(process, models, layer_map):
             except Exception as e:
                 err_str = f"Error occured between:\n"
                 err_str += f"    Model[0] {submodel_0.fullname}: {submodel_0.model_repr_info()}\n"
-                err_str += f"            {submodel_0.padiff_path + '.' + param_name_0}\n"
+                err_str += f"            {submodel_0.path_info + '.' + param_name_0}\n"
                 err_str += f"    Model[1] {submodel_1.fullname}: {submodel_1.model_repr_info()}\n"
-                err_str += f"            {submodel_1.padiff_path + '.' + param_name_1}\n"
+                err_str += f"            {submodel_1.path_info + '.' + param_name_1}\n"
                 err_str += f"{type(e).__name__ + ':  ' + str(e)}\n"
                 err_str += weight_struct_info(models, (submodel_0, submodel_1))
                 raise RuntimeError(err_str)
@@ -73,12 +73,12 @@ def assign_weight(target_model, source_model, layer_map={}):
         module (torch.nn.Module): input torch module
     """
 
-    if not isinstance(target_model, PadiffModel):
-        target_model = padiff_model(target_model)
-    if not isinstance(source_model, PadiffModel):
-        source_model = padiff_model(source_model)
+    if not isinstance(target_model, ProxyModel):
+        target_model = create_proxy_model(target_model)
+    if not isinstance(source_model, ProxyModel):
+        source_model = create_proxy_model(source_model)
 
-    layer_map = init_LayerMap(layer_map)
+    layer_map = LayerMap.create_from(layer_map)
     models = (target_model, source_model)
 
     # TODO: special init is not nessesary for current requirement, so just skip here
@@ -161,8 +161,8 @@ def check_weight(models, options, layer_map):
                 "{}\n\n".format(
                     models[0].model_repr_info(),
                     models[1].model_repr_info(),
-                    submodels[0].padiff_path + "." + param_names[0],
-                    submodels[1].padiff_path + "." + param_names[1],
+                    submodels[0].path_info + "." + param_names[0],
+                    submodels[1].path_info + "." + param_names[1],
                     type(e).__name__ + ":  " + str(e),
                 )
             )
@@ -221,8 +221,8 @@ def check_grad(models, options, layer_map):
                 "{}\n\n".format(
                     models[0].model_repr_info(),
                     models[1].model_repr_info(),
-                    submodels[0].padiff_path + "." + param_names[0],
-                    submodels[1].padiff_path + "." + param_names[1],
+                    submodels[0].path_info + "." + param_names[0],
+                    submodels[1].path_info + "." + param_names[1],
                     type(e).__name__ + ":  " + str(e),
                 )
             )

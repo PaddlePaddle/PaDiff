@@ -216,17 +216,17 @@ def init_options(options):
     yamls.options = options
 
 
-def init_padiff_path(models):
-    def _set_padiff_path(model, path):
+def init_path_info(models):
+    def _set_path_info(model, path):
         for name, child in model.named_children():
             path.append(name)
-            setattr(child.model, "padiff_path", ".".join(path))
-            _set_padiff_path(child, path)
+            setattr(child.model, "path_info", ".".join(path))
+            _set_path_info(child, path)
             path.pop()
 
     for model in models:
-        setattr(model.model, "padiff_path", model.name)
-        _set_padiff_path(model, [model.name])
+        setattr(model.model, "path_info", model.name)
+        _set_path_info(model, [model.name])
 
 
 def remove_inplace(models):
@@ -334,8 +334,8 @@ def weight_struct_string(model, mark=None, prefix=[]):
     if not hasattr(model.model, "no_skip"):
         cur_str += "  (skip)"
 
-    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(model.model, "padiff_path"):
-        cur_str += "  (" + model.padiff_path + ")"
+    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(model.model, "path_info"):
+        cur_str += "  (" + model.path_info + ")"
 
     if mark.model is model.model:
         cur_str += "    <---  *** HERE ***"

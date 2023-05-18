@@ -311,8 +311,8 @@ def tree_print(root, mark=None, prefix=[]):
 
     cur_str += str(root)
 
-    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(root.net, "padiff_path"):
-        cur_str += "  (" + root.net.padiff_path + ")"
+    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(root.net, "path_info"):
+        cur_str += "  (" + root.net.path_info + ")"
 
     if mark is root:
         cur_str += "    <---  *** HERE ***"

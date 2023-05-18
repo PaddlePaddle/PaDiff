@@ -17,7 +17,7 @@ import paddle
 from .special_init_pool import global_special_init_pool as init_pool
 
 
-@init_pool.register(paddle_name="BatchNorm2D", torch_name="BatchNorm2d")  # 此处填写模型的类名
+@init_pool.register("paddle", "BatchNorm2D", "torch", "BatchNorm2D")
 def init_BatchNorm2D(layer, module):
     param_dict = {}
     for name, param in module.state_dict().items():

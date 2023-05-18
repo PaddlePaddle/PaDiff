@@ -13,24 +13,25 @@
 # limitations under the License.
 
 
-# NOTICE: make sure torch params is in the same device after init
+# NOTICE: make sure params is in the same device after init
 
 
-def build_name(paddle_name, torch_name):
-    name = paddle_name + "###" + torch_name
+def build_name(src_model_type, src_model_name, base_model_type, base_model_name):
+    name = src_model_type + "::" + src_model_name + "###" + base_model_type + "::" + base_model_name
     return name
 
 
 class SpecialInitPool(object):
     def __init__(self):
         self.funcs = {}
-        self.registered_paddle_layers = set()
-        self.registered_torch_modules = set()
+        # used for LayerMap.auto
+        self.registered_src_models = set()
+        self.registered_base_models = set()
 
-    def register(self, paddle_name, torch_name):
-        name = build_name(paddle_name, torch_name)
-        self.registered_paddle_layers.add(paddle_name)
-        self.registered_torch_modules.add(torch_name)
+    def register(self, src_model_type, src_model_name, base_model_type, base_model_name):
+        name = build_name(src_model_type, src_model_name, base_model_type, base_model_name)
+        self.registered_src_models.add((src_model_type, src_model_name))
+        self.registered_base_models.add((base_model_type, base_model_name))
 
         def do_reg(func):
             self.funcs[name] = func
@@ -42,8 +43,8 @@ class SpecialInitPool(object):
 global_special_init_pool = SpecialInitPool()
 
 
-def add_special_init(paddle_name, torch_name, func):
-    name = build_name(paddle_name, torch_name)
-    global_special_init_pool.registered_paddle_layers.add(paddle_name)
-    global_special_init_pool.registered_torch_modules.add(torch_name)
+def add_special_init(src_model_type, src_model_name, base_model_type, base_model_name, func):
+    name = build_name(src_model_type, src_model_name, base_model_type, base_model_name)
+    global_special_init_pool.registered_src_models.add((src_model_type, src_model_name))
+    global_special_init_pool.registered_base_models.add((base_model_type, base_model_name))
     global_special_init_pool.funcs[name] = func

@@ -43,15 +43,15 @@ def register_hooker(runner, model_idx):
 
     remove_handles = []
     idx = 0
+    # struct_hook_layers includes all layer marked by ignore_recursively, which might also in ignored layers
+    # for these layers, we need add pre and post hook for model structure, but not info hook
     models = layer_map.struct_hook_layers(model)
     for mod in models:
-        pre_handle = mod.register_forward_pre_hook(partial(pre_layer_hook, model_idx=model_idx))
-        # layer includes layer marked by ignore_recursively
-        # if ignore_recursively, do not add report hook; if one2one, add report hook
-        if mod not in layer_map._layer_ignore:
+        pre_handle = mod.register_forward_pre_hook(partial(pre_structure_hook, model_idx=model_idx))
+        if mod not in layer_map._ignored_layers:
             handle = mod.register_forward_post_hook(partial(info_hook, net_id=idx))
             remove_handles.append(handle)
-        post_handle = mod.register_forward_post_hook(partial(post_layer_hook, model_idx=model_idx))
+        post_handle = mod.register_forward_post_hook(partial(post_structure_hook, model_idx=model_idx))
         remove_handles.extend([pre_handle, post_handle])
         idx += 1
     yield
@@ -68,7 +68,7 @@ def register_hooker(runner, model_idx):
 """
 
 
-def pre_layer_hook(layer, input, model_idx):
+def pre_structure_hook(layer, input, model_idx):
     rep = current_reports()[model_idx]
     rep.stack.push_layer(layer)
     if layer in rep.layer_map.layers_in_map():
@@ -77,7 +77,7 @@ def pre_layer_hook(layer, input, model_idx):
     return None
 
 
-def post_layer_hook(layer, input, output, model_idx):
+def post_structure_hook(layer, input, output, model_idx):
     rep = current_reports()[model_idx]
     rep.stack.pop_layer(layer)
     return None
@@ -93,7 +93,7 @@ __in_info_hook__ = False
 
 def info_hook(model, input, output, net_id):
     """
-    Notice: the model is a origin layer/module, not PadiffModel
+    Notice: the model is a origin layer/module, not ProxyModel
     """
     options = yamls.options
 
@@ -117,10 +117,10 @@ def info_hook(model, input, output, net_id):
     if output is None or all([not isinstance(x, (paddle.Tensor, torch.Tensor)) for x in flatten(output)]):
         return None
 
-    # if an api under _layer_ignore_sublayer, do not create report
-    # a layer under _layer_ignore_sublayer will not register this hook except it is a mapped one2one layer
+    # if an api under _ignore_sublayer, do not create report
+    # a layer under _ignore_sublayer will not register this hook except it is a mapped one2one layer
     # report.stack._top().net can not be an api layer !!!
-    if report.stack._top().net in report.layer_map._layer_ignore_sublayer and hasattr(model, "__api__"):
+    if report.stack._top().net in report.layer_map._sublayer_ignored_layers and hasattr(model, "__api__"):
         return None
 
     __in_info_hook__ = True

@@ -16,10 +16,10 @@ import paddle
 import torch
 
 from .utils import deco_iter
-from .padiff_parameter import padiff_param
+from .proxy_parameter import create_proxy_param
 
 
-def padiff_model(model, name=None):
+def create_proxy_model(model, name=None):
     if name is None:
         name = model.__class__.__name__
     if isinstance(model, paddle.nn.Layer):
@@ -30,7 +30,7 @@ def padiff_model(model, name=None):
         return model
 
 
-class PadiffModel:
+class ProxyModel:
     def __init__(self, model, name, model_type):
         self.model = model
         self.model_type = model_type
@@ -54,8 +54,8 @@ class PadiffModel:
         return retstr
 
     @property
-    def padiff_path(self):
-        return self.model.padiff_path
+    def path_info(self):
+        return self.model.path_info
 
     @property
     def class_name(self):
@@ -107,33 +107,33 @@ class PadiffModel:
         raise NotImplementedError()
 
 
-class PaddleModel(PadiffModel):
+class PaddleModel(ProxyModel):
     def __init__(self, model, name):
         super(PaddleModel, self).__init__(model, name, "paddle")
 
     def parameters(self, recursively):
         origin_iter = self.model.parameters(include_sublayers=recursively)
-        return deco_iter(origin_iter, padiff_param)
+        return deco_iter(origin_iter, create_proxy_param)
 
     def named_parameters(self, recursively):
         origin_iter = self.model.named_parameters(include_sublayers=recursively)
-        return deco_iter(origin_iter, padiff_param)
+        return deco_iter(origin_iter, create_proxy_param)
 
     def children(self):
         origin_iter = self.model.children()
-        return deco_iter(origin_iter, padiff_model)
+        return deco_iter(origin_iter, create_proxy_model)
 
     def named_children(self):
         origin_iter = self.model.named_children()
-        return deco_iter(origin_iter, padiff_model)
+        return deco_iter(origin_iter, create_proxy_model)
 
     def submodels(self):
         origin_iter = self.model.sublayers(True)
-        return deco_iter(origin_iter, padiff_model)
+        return deco_iter(origin_iter, create_proxy_model)
 
     def named_submodels(self):
         origin_iter = self.model.named_sublayers(include_self=True)
-        return deco_iter(origin_iter, padiff_model)
+        return deco_iter(origin_iter, create_proxy_model)
 
     def get_device(self):
         return paddle.get_device()
@@ -152,33 +152,33 @@ class PaddleModel(PadiffModel):
         return self.model.register_forward_post_hook(hook)
 
 
-class TorchModel(PadiffModel):
+class TorchModel(ProxyModel):
     def __init__(self, model, name):
         super(TorchModel, self).__init__(model, name, "torch")
 
     def parameters(self, recursively):
         origin_iter = self.model.parameters(recurse=recursively)
-        return deco_iter(origin_iter, padiff_param)
+        return deco_iter(origin_iter, create_proxy_param)
 
     def named_parameters(self, recursively):
         origin_iter = self.model.named_parameters(recurse=recursively)
-        return deco_iter(origin_iter, padiff_param)
+        return deco_iter(origin_iter, create_proxy_param)
 
     def children(self):
         origin_iter = self.model.children()
-        return deco_iter(origin_iter, padiff_model)
+        return deco_iter(origin_iter, create_proxy_model)
 
     def named_children(self):
         origin_iter = self.model.named_children()
-        return deco_iter(origin_iter, padiff_model)
+        return deco_iter(origin_iter, create_proxy_model)
 
     def submodels(self):
         origin_iter = self.model.modules()
-        return deco_iter(origin_iter, padiff_model)
+        return deco_iter(origin_iter, create_proxy_model)
 
     def named_submodels(self):
         origin_iter = self.model.named_modules(remove_duplicate=True)
-        return deco_iter(origin_iter, padiff_model)
+        return deco_iter(origin_iter, create_proxy_model)
 
     def get_device(self):
         return next(self.model.parameters()).device

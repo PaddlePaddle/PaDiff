@@ -15,9 +15,9 @@
 
 import paddle
 import torch
-from .utils import log, init_options, init_padiff_path
-from .padiff_abstracts import padiff_model
-from .layer_map import init_LayerMap
+from .utils import log, init_options, init_path_info
+from .abstracts import create_proxy_model
+from .layer_map import LayerMap
 from .weights import assign_weight
 from .trainer import Trainer
 
@@ -27,37 +27,45 @@ torch.set_printoptions(precision=10)
 
 
 def auto_diff(
-    model_0, model_1, example_inp, auto_weights=True, options={}, layer_map=None, loss_fn=None, optimizer=None, steps=1
+    src_model,
+    base_model,
+    example_inp,
+    auto_weights=True,
+    options={},
+    layer_map=None,
+    loss_fn=None,
+    optimizer=None,
+    steps=1,
 ):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
     Args:
-        TODO update annotations
-        example_inp (paddle_input, torch_input): input data for paddle layer and torch module.
-            paddle_input and torch_input should be dict and send into model like `module(**input)`.
+        src_model: paddle.nn.Layer or torch.nn.Module, which need to compare with base_model.
+        base_model: paddle.nn.Layer or torch.nn.Module, provides the baseline of data precision。
+        example_inp: input data for models, it should be a list of dict.
         auto_weights (boolean, optional): uniformly init the parameters of models
         options (dict, optional):
             atol, compare_mode
         layer_map (class LayerMap, optional): manually map paddle layer and torch module.
+        loss_fn (list, optional): list of loss function for models.
+        optimizer (list, optional): list of optimizer for models.
+        steps (int, optional): let auto_diff run multi steps.
     Returns:
         True for success, False for failed.
     """
-    assert isinstance(model_0, (paddle.nn.Layer, torch.nn.Module))
-    assert isinstance(model_1, (paddle.nn.Layer, torch.nn.Module))
+    assert isinstance(src_model, (paddle.nn.Layer, torch.nn.Module))
+    assert isinstance(base_model, (paddle.nn.Layer, torch.nn.Module))
 
-    models = (model_0, model_1)
+    models = (src_model, base_model)
     if "model_names" in options:
         assert len(options["model_names"]) == 2
         assert options["model_names"][0] != options["model_names"][1], "Can not use same name for two model."
-        models = [padiff_model(x, name) for x, name in zip(models, options["model_names"])]
+        models = [create_proxy_model(x, name) for x, name in zip(models, options["model_names"])]
     else:
-        if model_0.__class__.__name__ != model_1.__class__.__name__:
-            names = [x.__class__.__name__ for x in models]
-        else:
-            names = [x.__class__.__name__ + f"_{idx}" for x, idx in enumerate(models)]
+        names = ["src_model: " + src_model.__class__.__name__, "base_model: " + base_model.__class__.__name__]
         log(f"*** model_names not provided, use `{names[0]}` and `{names[1]}` as default ***")
-        models = [padiff_model(x, name) for x, name in zip(models, names)]
+        models = [create_proxy_model(x, name) for x, name in zip(models, names)]
 
     assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
 
@@ -81,8 +89,8 @@ def auto_diff(
     # prepare models and options
     options["steps"] = steps
     init_options(options)
-    layer_map = init_LayerMap(layer_map)
-    init_padiff_path(models)
+    layer_map = LayerMap.create_from(layer_map)
+    init_path_info(models)
     trainer = Trainer(models, loss_fn, optimizer, layer_map, options)
     if auto_weights and not assign_weight(models[0], models[1], layer_map):
         return False
