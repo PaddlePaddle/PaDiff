@@ -16,10 +16,6 @@
 import paddle
 import torch
 
-__all__ = [
-    "OptimizerHelper",
-]
-
 
 class OptimizerHelper:
     def __init__(self, optimizers, options):

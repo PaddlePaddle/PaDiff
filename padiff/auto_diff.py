@@ -54,16 +54,16 @@ def auto_diff(
     Returns:
         True for success, False for failed.
     """
-    assert isinstance(src_model, (paddle.nn.Layer, torch.nn.Module))
-    assert isinstance(base_model, (paddle.nn.Layer, torch.nn.Module))
 
     models = (src_model, base_model)
+
+    # ProxyModel.create_from will do assert check for models
     if "model_names" in options:
         assert len(options["model_names"]) == 2
         assert options["model_names"][0] != options["model_names"][1], "Can not use same name for two model."
         models = [ProxyModel.create_from(x, name) for x, name in zip(models, options["model_names"])]
     else:
-        names = ["src_model: " + src_model.__class__.__name__, "base_model: " + base_model.__class__.__name__]
+        names = [src_model.__class__.__name__ + "(src_model)", base_model.__class__.__name__ + "(base_model)"]
         log(f"*** model_names not provided, use `{names[0]}` and `{names[1]}` as default ***")
         models = [ProxyModel.create_from(x, name) for x, name in zip(models, names)]
 

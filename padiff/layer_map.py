@@ -134,8 +134,7 @@ class LayerMap(object):
                         yield (sublayer, ret_path)
                 path.pop()
 
-        assert isinstance(src_model, (paddle.nn.Layer, torch.nn.Module))
-        assert isinstance(base_model, (paddle.nn.Layer, torch.nn.Module))
+        # ProxyModel.create_from will do assert check for models
         src_model = ProxyModel.create_from(src_model)
         base_model = ProxyModel.create_from(base_model)
 
@@ -164,8 +163,8 @@ class LayerMap(object):
                 )
             else:
                 print("\nError: When generating LayerMap in order, find that src_model can not matchs base_model.")
-                print(f"    src_model: `{src_model.class_name}` at `{src_path}`")
-                print(f"    base_model:  `{base_model.class_name}` at `{base_path}`")
+                print(f"    src_model: `{src_model.fullname}` at `{src_path}`")
+                print(f"    base_model:  `{base_model.fullname}` at `{base_path}`")
                 log("auto update LayerMap FAILED!!!\n")
                 return False
         print()

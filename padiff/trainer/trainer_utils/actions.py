@@ -116,7 +116,7 @@ class PPAction(Action):
         tensors_1 = item_1.tensors_for_compare()
         for (t0,), (t1,) in zip(tensors_0, tensors_1):
             if t0.numel() == 0 or t1.numel() == 0:
-                warnings.warn("Found Tensor shape is [0], compare skipped!")
+                warnings.warn("Found Tensor.numel() is 0, compare skipped!")
                 continue
             try:
                 assert_tensor_equal(t0.detach().cpu().numpy(), t1.detach().cpu().numpy(), cfg)

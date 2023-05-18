@@ -28,7 +28,9 @@ class ProxyModel:
     def create_from(model, name=None):
         if name is None:
             name = model.__class__.__name__
-        if isinstance(model, paddle.nn.Layer):
+        if isinstance(model, ProxyModel):
+            return model
+        elif isinstance(model, paddle.nn.Layer):
             return PaddleModel(model, name)
         elif isinstance(model, torch.nn.Module):
             return TorchModel(model, name)
@@ -65,10 +67,10 @@ class ProxyModel:
         return f"{self.model_type}::{self.class_name}"
 
     def __str__(self, *args, **kwargs):
-        return f"Model({self.model_type}::{self.name})"
+        return f"Model({self.fullname})"
 
     def __repr__(self, *args, **kwargs):
-        return f"Model({self.model_type}::{self.name})"
+        return f"Model({self.fullname})"
 
     def parameters(self):
         raise NotImplementedError()

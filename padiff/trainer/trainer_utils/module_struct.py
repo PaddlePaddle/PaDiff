@@ -118,7 +118,7 @@ class NetWrap(object):
         self.father = None
 
         self.is_api = False
-        self.is_one2one_layer = False
+        self.in_layer_map = False
 
         self.is_leaf = False
         self.fwd_report = None
@@ -131,7 +131,7 @@ class NetWrap(object):
     def __str__(self):
         if self.is_api:
             return "(api) " + self.net_str
-        elif self.is_one2one_layer:
+        elif self.in_layer_map:
             return "(net in map) " + self.net_str
         else:
             return "(net) " + self.net_str
@@ -163,7 +163,7 @@ def copy_module_struct(root):
 
     def copy_node_attrs(root):
         retval = NetWrap(root.net, root.type)
-        for attr in ("is_api", "is_one2one_layer", "is_leaf", "fwd_report", "bwd_report"):
+        for attr in ("is_api", "in_layer_map", "is_leaf", "fwd_report", "bwd_report"):
             val = getattr(root, attr)
             setattr(retval, attr, val)
         if hasattr(root, "model_name"):
@@ -202,21 +202,21 @@ def reorder_and_match_reports(roots, reports):
 
     # split children to 3 parts
     apis_0 = list(filter(lambda x: x.is_api, roots[0].children))
-    one2one_0 = list(filter(lambda x: x.is_one2one_layer, roots[0].children))
+    opaque_layers_0 = list(filter(lambda x: x.in_layer_map, roots[0].children))
     layers_0 = list(filter(lambda x: not x.is_leaf, roots[0].children))
 
     apis_1 = list(filter(lambda x: x.is_api, roots[1].children))
-    one2one_1 = list(filter(lambda x: x.is_one2one_layer, roots[1].children))
+    opaque_layers_1 = list(filter(lambda x: x.in_layer_map, roots[1].children))
     layers_1 = list(filter(lambda x: not x.is_leaf, roots[1].children))
 
     try:
         assert len(apis_0) == len(apis_1), "number of api is different"
-        assert len(one2one_0) == len(one2one_1), "number of one2one is different"
+        assert len(opaque_layers_0) == len(opaque_layers_1), "number of opaque_layers is different"
         assert len(layers_0) == len(layers_1), "number of layer is different"
 
         # reset orders
         reorder_api(apis_0, apis_1)
-        reorder_one2one(one2one_0, one2one_1, layer_map)
+        reorder_opaque_layers(opaque_layers_0, opaque_layers_1, layer_map)
 
         # for every child in roots[1], find correspond child in roots[0]
         new_children = []
@@ -224,9 +224,9 @@ def reorder_and_match_reports(roots, reports):
             if child.is_api:
                 new_children.append(apis_0[0])
                 apis_0.pop(0)
-            elif child.is_one2one_layer:
-                new_children.append(one2one_0[0])
-                one2one_0.pop(0)
+            elif child.in_layer_map:
+                new_children.append(opaque_layers_0[0])
+                opaque_layers_0.pop(0)
             else:
                 # use table_view to find correspond layer with init order
                 report_item = table_view_0[child.fwd_report.net_id]
@@ -252,7 +252,7 @@ def reorder_api(apis, targets):
     return
 
 
-def reorder_one2one(items, targets, layer_map):
+def reorder_opaque_layers(items, targets, layer_map):
     def swap(seq, l, r):
         temp = seq[l]
         seq[l] = seq[r]
@@ -260,7 +260,7 @@ def reorder_one2one(items, targets, layer_map):
         return
 
     for target_idx, target_node in enumerate(targets):
-        # an api layer can not have one2one mark, so node.net is save
+        # an api layer can not have in_layer_map mark, so node.net is save
         mapped_net = layer_map.map[target_node.net]
         correspond_node = next(node for node in items if node.net is mapped_net)
         item_idx = items.index(correspond_node)
@@ -280,7 +280,7 @@ def reorder_and_match_reports_recursively(roots, reports):
     based on torch module and reorder paddle module
 
     Notice:
-        for one2one layers, they may not in order too (though they are leaves)
+        for opaque_layers layers, they may not in order too (though they are leaves)
     """
     reorder_and_match_reports(roots, reports)
 

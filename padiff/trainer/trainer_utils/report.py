@@ -19,10 +19,6 @@ from .module_struct import (
     LayerStack,
 )
 
-"""
-    Report definition
-"""
-
 
 class Counter:
     def __init__(self):
@@ -159,10 +155,6 @@ class Report:
             strings.append("    " + str(item.step) + ": [{}]".format(item.net_str))
         return "\n".join(strings)
 
-
-"""
-    report_guard
-"""
 
 global_reports = [None, None]
 global_torch_counter = Counter()

@@ -72,7 +72,7 @@ def pre_structure_hook(layer, input, model_idx):
     rep = current_reports()[model_idx]
     rep.stack.push_layer(layer)
     if layer in rep.layer_map.layers_in_map():
-        rep.stack._top().is_one2one_layer = True
+        rep.stack._top().in_layer_map = True
         rep.stack._top().is_leaf = True
     return None
 
@@ -118,7 +118,7 @@ def info_hook(model, input, output, net_id):
         return None
 
     # if an api under _ignore_sublayer, do not create report
-    # a layer under _ignore_sublayer will not register this hook except it is a mapped one2one layer
+    # a layer under _ignore_sublayer will not register this hook, except it is a mapped layer
     # report.stack._top().net can not be an api layer !!!
     if report.stack._top().net in report.layer_map._sublayer_ignored_layers and hasattr(model, "__api__"):
         return None
