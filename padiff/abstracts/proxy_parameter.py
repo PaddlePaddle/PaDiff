@@ -21,6 +21,15 @@ class ProxyParam:
         self.param = param
         self.param_type = param_type
 
+    @staticmethod
+    def create_from(param):
+        if isinstance(param, paddle.fluid.framework.EagerParamBase):
+            return PaddleParam(param)
+        elif isinstance(param, torch.nn.parameter.Parameter):
+            return TorchParam(param)
+        else:
+            raise RuntimeError(f"Can not create ProxyParam from {type(param)}")
+
     def numpy(self):
         raise NotImplementedError()
 
@@ -72,12 +81,3 @@ class TorchParam(ProxyParam):
             return self.param.grad.detach().cpu().numpy()
         else:
             return None
-
-
-def create_proxy_param(param):
-    if isinstance(param, paddle.fluid.framework.EagerParamBase):
-        return PaddleParam(param)
-    elif isinstance(param, torch.nn.parameter.Parameter):
-        return TorchParam(param)
-    else:
-        return param

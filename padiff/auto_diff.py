@@ -16,7 +16,7 @@
 import paddle
 import torch
 from .utils import log, init_options, init_path_info
-from .abstracts import create_proxy_model
+from .abstracts import ProxyModel
 from .layer_map import LayerMap
 from .weights import assign_weight
 from .trainer import Trainer
@@ -61,11 +61,11 @@ def auto_diff(
     if "model_names" in options:
         assert len(options["model_names"]) == 2
         assert options["model_names"][0] != options["model_names"][1], "Can not use same name for two model."
-        models = [create_proxy_model(x, name) for x, name in zip(models, options["model_names"])]
+        models = [ProxyModel.create_from(x, name) for x, name in zip(models, options["model_names"])]
     else:
         names = ["src_model: " + src_model.__class__.__name__, "base_model: " + base_model.__class__.__name__]
         log(f"*** model_names not provided, use `{names[0]}` and `{names[1]}` as default ***")
-        models = [create_proxy_model(x, name) for x, name in zip(models, names)]
+        models = [ProxyModel.create_from(x, name) for x, name in zip(models, names)]
 
     assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
 

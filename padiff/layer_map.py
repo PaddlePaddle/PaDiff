@@ -18,7 +18,7 @@ from itertools import zip_longest, chain
 
 from .utils import log
 from .special_init import build_name, global_special_init_pool as init_pool
-from .abstracts import create_proxy_model
+from .abstracts import ProxyModel
 
 
 class LayerMap(object):
@@ -70,7 +70,7 @@ class LayerMap(object):
 
         def new_generator():
             for k, v in map_items:
-                yield create_proxy_model(v), create_proxy_model(k)
+                yield ProxyModel.create_from(v), ProxyModel.create_from(k)
 
         return new_generator()
 
@@ -136,8 +136,8 @@ class LayerMap(object):
 
         assert isinstance(src_model, (paddle.nn.Layer, torch.nn.Module))
         assert isinstance(base_model, (paddle.nn.Layer, torch.nn.Module))
-        src_model = create_proxy_model(src_model)
-        base_model = create_proxy_model(base_model)
+        src_model = ProxyModel.create_from(src_model)
+        base_model = ProxyModel.create_from(base_model)
 
         src_submodels = list(_traversal_layers(src_model, [src_model.class_name], init_pool.registered_src_models))
         base_submodels = list(_traversal_layers(base_model, [base_model.class_name], init_pool.registered_base_models))
@@ -152,7 +152,7 @@ class LayerMap(object):
                     "\nError: The number of submodels which need special init is not the same! Check your model struct first!"
                 )
                 log("auto update LayerMap FAILED!!!\n")
-                return
+                return False
 
             src_model, src_path = src_info
             base_model, base_path = base_info
@@ -163,17 +163,16 @@ class LayerMap(object):
                     f"++++    src_model `{src_model.fullname}` at `{src_path}` <==> base_model `{base_model.fullname}` at `{base_path}`    ++++"
                 )
             else:
-                print(
-                    "\nError: When generating LayerMap in order, find that paddle sublayer can not matchs torch submodule."
-                )
+                print("\nError: When generating LayerMap in order, find that src_model can not matchs base_model.")
                 print(f"    src_model: `{src_model.class_name}` at `{src_path}`")
                 print(f"    base_model:  `{base_model.class_name}` at `{base_path}`")
                 log("auto update LayerMap FAILED!!!\n")
-                return
+                return False
         print()
         log("auto update LayerMap SUCCESS!!!\n")
 
         self.map = _map
+        return True
 
     @staticmethod
     def create_from(layer_map=None):

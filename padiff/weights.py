@@ -24,7 +24,7 @@ from .utils import (
     assert_tensor_equal,
 )
 from .layer_map import LayerMap
-from .abstracts import create_proxy_model, ProxyModel
+from .abstracts import ProxyModel
 from .file_loader import global_yaml_loader as yamls
 from .special_init import global_special_init_pool as init_pool
 from .special_init import build_name
@@ -74,9 +74,9 @@ def assign_weight(target_model, source_model, layer_map={}):
     """
 
     if not isinstance(target_model, ProxyModel):
-        target_model = create_proxy_model(target_model)
+        target_model = ProxyModel.create_from(target_model)
     if not isinstance(source_model, ProxyModel):
-        source_model = create_proxy_model(source_model)
+        source_model = ProxyModel.create_from(source_model)
 
     layer_map = LayerMap.create_from(layer_map)
     models = (target_model, source_model)

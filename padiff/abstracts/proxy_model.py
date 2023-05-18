@@ -15,19 +15,7 @@
 import paddle
 import torch
 
-from .utils import deco_iter
-from .proxy_parameter import create_proxy_param
-
-
-def create_proxy_model(model, name=None):
-    if name is None:
-        name = model.__class__.__name__
-    if isinstance(model, paddle.nn.Layer):
-        return PaddleModel(model, name)
-    elif isinstance(model, torch.nn.Module):
-        return TorchModel(model, name)
-    else:
-        return model
+from .proxy_parameter import ProxyParam
 
 
 class ProxyModel:
@@ -35,6 +23,17 @@ class ProxyModel:
         self.model = model
         self.model_type = model_type
         self.name = name
+
+    @staticmethod
+    def create_from(model, name=None):
+        if name is None:
+            name = model.__class__.__name__
+        if isinstance(model, paddle.nn.Layer):
+            return PaddleModel(model, name)
+        elif isinstance(model, torch.nn.Module):
+            return TorchModel(model, name)
+        else:
+            raise RuntimeError(f"Can not create ProxyModel from {type(model)}")
 
     def __call__(self, *args, **kwargs):
         return self.model(*args, **kwargs)
@@ -113,27 +112,27 @@ class PaddleModel(ProxyModel):
 
     def parameters(self, recursively):
         origin_iter = self.model.parameters(include_sublayers=recursively)
-        return deco_iter(origin_iter, create_proxy_param)
+        return deco_iter(origin_iter, ProxyParam.create_from)
 
     def named_parameters(self, recursively):
         origin_iter = self.model.named_parameters(include_sublayers=recursively)
-        return deco_iter(origin_iter, create_proxy_param)
+        return deco_iter(origin_iter, ProxyParam.create_from)
 
     def children(self):
         origin_iter = self.model.children()
-        return deco_iter(origin_iter, create_proxy_model)
+        return deco_iter(origin_iter, ProxyModel.create_from)
 
     def named_children(self):
         origin_iter = self.model.named_children()
-        return deco_iter(origin_iter, create_proxy_model)
+        return deco_iter(origin_iter, ProxyModel.create_from)
 
     def submodels(self):
         origin_iter = self.model.sublayers(True)
-        return deco_iter(origin_iter, create_proxy_model)
+        return deco_iter(origin_iter, ProxyModel.create_from)
 
     def named_submodels(self):
         origin_iter = self.model.named_sublayers(include_self=True)
-        return deco_iter(origin_iter, create_proxy_model)
+        return deco_iter(origin_iter, ProxyModel.create_from)
 
     def get_device(self):
         return paddle.get_device()
@@ -158,27 +157,27 @@ class TorchModel(ProxyModel):
 
     def parameters(self, recursively):
         origin_iter = self.model.parameters(recurse=recursively)
-        return deco_iter(origin_iter, create_proxy_param)
+        return deco_iter(origin_iter, ProxyParam.create_from)
 
     def named_parameters(self, recursively):
         origin_iter = self.model.named_parameters(recurse=recursively)
-        return deco_iter(origin_iter, create_proxy_param)
+        return deco_iter(origin_iter, ProxyParam.create_from)
 
     def children(self):
         origin_iter = self.model.children()
-        return deco_iter(origin_iter, create_proxy_model)
+        return deco_iter(origin_iter, ProxyModel.create_from)
 
     def named_children(self):
         origin_iter = self.model.named_children()
-        return deco_iter(origin_iter, create_proxy_model)
+        return deco_iter(origin_iter, ProxyModel.create_from)
 
     def submodels(self):
         origin_iter = self.model.modules()
-        return deco_iter(origin_iter, create_proxy_model)
+        return deco_iter(origin_iter, ProxyModel.create_from)
 
     def named_submodels(self):
         origin_iter = self.model.named_modules(remove_duplicate=True)
-        return deco_iter(origin_iter, create_proxy_model)
+        return deco_iter(origin_iter, ProxyModel.create_from)
 
     def get_device(self):
         return next(self.model.parameters()).device
@@ -195,3 +194,20 @@ class TorchModel(ProxyModel):
 
     def register_forward_post_hook(self, hook):
         return self.model.register_forward_hook(hook)
+
+
+def deco_iter(iterator, fn):
+    def new_fn(obj):
+        try:
+            return fn(obj)
+        except:
+            return obj
+
+    def new_generator():
+        for obj in iterator:
+            if isinstance(obj, (tuple, list)):
+                yield tuple(map(new_fn, obj))
+            else:
+                yield new_fn(obj)
+
+    return new_generator()
