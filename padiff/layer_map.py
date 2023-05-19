@@ -130,17 +130,17 @@ class LayerMap(object):
                 path.pop()
 
         # ProxyModel.create_from will do assert check for models
-        raw_model = ProxyModel.create_from(raw_model)
         base_model = ProxyModel.create_from(base_model)
+        raw_model = ProxyModel.create_from(raw_model)
 
-        raw_submodels = list(_traversal_layers(raw_model, [raw_model.class_name], init_pool.registered_raw_models))
         base_submodels = list(_traversal_layers(base_model, [base_model.class_name], init_pool.registered_base_models))
+        raw_submodels = list(_traversal_layers(raw_model, [raw_model.class_name], init_pool.registered_raw_models))
 
         _map = {}
 
         log("auto update LayerMap start searching...\n")
 
-        for raw_info, base_info in zip_longest(raw_submodels, base_submodels, fillvalue=None):
+        for base_info, raw_info in zip_longest(base_submodels, raw_submodels, fillvalue=None):
             if raw_info is None or base_info is None:
                 print(
                     "\nError: The number of submodels which need special init is not the same! Check your model struct first!"
@@ -148,18 +148,18 @@ class LayerMap(object):
                 log("auto update LayerMap FAILED!!!\n")
                 return False
 
-            raw_model, raw_path = raw_info
             base_model, base_path = base_info
-            name = build_name(raw_model.model_type, raw_model.class_name, base_model.model_type, base_model.class_name)
+            raw_model, raw_path = raw_info
+            name = build_name(base_model.model_type, base_model.class_name, raw_model.model_type, raw_model.class_name)
             if name in init_pool.funcs.keys():
-                _map.update({raw_model.model: base_model.model})
+                _map.update({base_model.model: raw_model.model})
                 print(
-                    f"++++    raw_model `{raw_model.fullname}` at `{raw_path}` <==> base_model `{base_model.fullname}` at `{base_path}`    ++++"
+                    f"++++    base_model `{base_model.fullname}` at `{base_path}` <==>  raw_model `{raw_model.fullname}` at `{raw_path}`   ++++"
                 )
             else:
                 print("\nError: When generating LayerMap in order, find that raw_model can not matchs base_model.")
-                print(f"    raw_model: `{raw_model.fullname}` at `{raw_path}`")
                 print(f"    base_model:  `{base_model.fullname}` at `{base_path}`")
+                print(f"    raw_model: `{raw_model.fullname}` at `{raw_path}`")
                 log("auto update LayerMap FAILED!!!\n")
                 return False
         print()

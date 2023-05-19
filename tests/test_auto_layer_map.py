@@ -64,7 +64,7 @@ class TestCaseName(unittest.TestCase):
         module = SimpleModule2()
 
         layer_map = LayerMap()
-        result = layer_map.auto(layer, module)
+        result = layer_map.auto(module, layer)
         assert result == True
 
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
