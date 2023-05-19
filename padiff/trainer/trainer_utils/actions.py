@@ -47,7 +47,7 @@ class Action:
     def match(self, base_model, raw_model):
         raise NotImplementedError("")
 
-    def __call__(self, item_0, item_1, cfg):
+    def __call__(self, base_item, raw_item, cfg):
         raise NotImplementedError("")
 
     @property
@@ -71,9 +71,9 @@ class EqualAction(Action):
     def priority(self):
         return 0
 
-    def __call__(self, item_0, item_1, cfg):
-        tensors_0 = item_0.tensors_for_compare()
-        tensors_1 = item_1.tensors_for_compare()
+    def __call__(self, base_item, raw_item, cfg):
+        tensors_0 = base_item.tensors_for_compare()
+        tensors_1 = raw_item.tensors_for_compare()
         for (t0,), (t1,) in zip(tensors_0, tensors_1):
             if t0.numel() == 0 or t1.numel() == 0:
                 warnings.warn("Found Tensor.numel() is 0, compare skipped!")
@@ -95,9 +95,9 @@ class PPAction(Action):
     def priority(self):
         return 1
 
-    def __call__(self, item_0, item_1, cfg):
-        tensors_0 = item_0.tensors_for_compare()
-        tensors_1 = item_1.tensors_for_compare()
+    def __call__(self, base_item, raw_item, cfg):
+        tensors_0 = base_item.tensors_for_compare()
+        tensors_1 = raw_item.tensors_for_compare()
         for (t0,), (t1,) in zip(tensors_0, tensors_1):
             if t0.numel() == 0 or t1.numel() == 0:
                 warnings.warn("Found Tensor.numel() is 0, compare skipped!")

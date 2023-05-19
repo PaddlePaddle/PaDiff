@@ -30,9 +30,9 @@ class Trainer:
         self.steps = options["steps"]
         self.layer_map = layer_map
 
-    def do_run(self, reports, example_inp):
+    def do_run(self, reports, inputs):
         self.runner.set_report(reports)
-        self.runner.forward_step(example_inp)
+        self.runner.run_step(inputs)
         setattr(reports[0].stack.root, "model_name", self.models[0].name)
         setattr(reports[1].stack.root, "model_name", self.models[1].name)
 
@@ -51,17 +51,17 @@ class Trainer:
     def do_optimizer(self):
         self.optimizer_helper.step()
 
-    def train(self, example_inp):
+    def train(self, inputs):
         if self.options["single_step"]:
-            return self.run_single_step(example_inp)
+            return self.run_single_step(inputs)
         else:
-            return self.run_normal(example_inp)
+            return self.run_normal(inputs)
 
-    def run_normal(self, example_inp):
+    def run_normal(self, inputs):
         for step_id in range(self.options["steps"]):
             log(f"=================Train Step {step_id}=================")
             reports = [Report(self.model_types[x]) for x in range(2)]
-            self.do_run(reports, example_inp)
+            self.do_run(reports, inputs)
 
             ret = self.do_check_fwd_bwd(reports)
             if ret == False:
@@ -80,7 +80,7 @@ class Trainer:
                     return False
         return True
 
-    def run_single_step(self, example_inp):
+    def run_single_step(self, inputs):
         diff_phase = self.options["diff_phase"]
         for step_id in range(self.options["steps"]):
             log(f"=================Train Step {step_id}=================")
@@ -90,7 +90,7 @@ class Trainer:
                 self.options["diff_phase"] = "forward"
 
                 reports = [Report(self.model_types[x]) for x in range(2)]
-                self.do_run(reports, example_inp)
+                self.do_run(reports, inputs)
 
                 ret = self.do_check_fwd_bwd(reports)
                 if ret == False:
@@ -102,7 +102,7 @@ class Trainer:
                 self.options["diff_phase"] = "backward"
 
                 reports = [Report(self.model_types[x]) for x in range(2)]
-                self.do_run(reports, example_inp)
+                self.do_run(reports, inputs)
 
                 ret = self.do_check_fwd_bwd(reports)
                 if ret == False:

@@ -54,9 +54,9 @@ def process_each_weight(process, models, layer_map):
                 )
             except Exception as e:
                 err_str = f"Error occured between:\n"
-                err_str += f"    raw_model {submodel_0.class_name}: {submodel_0.model_repr_info()}\n"
+                err_str += f"    base_model {submodel_0.class_name}: {submodel_0.model_repr_info()}\n"
                 err_str += f"            {submodel_0.path_info + '.' + param_name_0}\n"
-                err_str += f"    base_model {submodel_1.class_name}: {submodel_1.model_repr_info()}\n"
+                err_str += f"    raw_model {submodel_1.class_name}: {submodel_1.model_repr_info()}\n"
                 err_str += f"            {submodel_1.path_info + '.' + param_name_1}\n"
                 err_str += f"{type(e).__name__ + ':  ' + str(e)}\n"
                 err_str += weight_struct_info(models, (submodel_0, submodel_1))
@@ -103,7 +103,7 @@ def assign_weight(base_model, raw_model, layer_map={}):
                 return False
 
     def _assign_weight(submodels, param_names, params, settings):
-        check_shape(models, param_names, params, settings)
+        check_shape(submodels, param_names, params, settings)
         np_value = params[0].numpy()
         if settings["transpose"]:
             np_value = numpy.transpose(np_value)
@@ -120,21 +120,21 @@ def assign_weight(base_model, raw_model, layer_map={}):
         return False
 
 
-def check_shape(models, param_names, params, settings):
+def check_shape(submodels, param_names, params, settings):
     shape_0 = params[0].shape()
     shape_1 = params[1].shape()
     if settings["transpose"]:
         shape_1.reverse()
     assert (
         shape_0 == shape_1
-    ), f"Shape of param `{param_names[0]}` in {models[0].name} and param `{param_names[1]}` in {models[1].name} is not the same. {shape_0} vs {shape_1}\n"
+    ), f"Shape of param `{param_names[0]}` in {submodels[0].fullname} (from base_model) and param `{param_names[1]}` in {submodels[1].fullname} (from raw_model) is not the same. {shape_0} vs {shape_1}\n"
 
 
 def check_weight(models, options, layer_map):
     _weight_check = True
 
     def _check_weight(submodels, param_names, params, settings):
-        check_shape(models, param_names, params, settings)
+        check_shape(submodels, param_names, params, settings)
 
         np_value_0 = params[0].numpy()
         np_value_1 = params[1].numpy()
@@ -184,7 +184,7 @@ def check_grad(models, options, layer_map):
     _grad_check = True
 
     def _check_grad(submodels, param_names, params, settings):
-        check_shape(models, param_names, params, settings)
+        check_shape(submodels, param_names, params, settings)
 
         # grad() returns numpy value here
         grad_0 = params[0].grad()

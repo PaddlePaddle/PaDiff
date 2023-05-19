@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .trainer_utils import report_guard, debug_print_struct, register_hooker
+from .trainer_utils import register_hooker, report_guard
 from ..utils import (
     log,
     max_diff,
     tensors_mean,
-    log_file,
     remove_inplace,
 )
 
@@ -44,51 +43,29 @@ class Runner(object):
         reports[1].layer_map = self.layer_map
         self.reports = reports
 
-    def forward_step(self, example_inp):
-        with report_guard(self.reports):
-            model_idx = 0
+    def run_step(self, inputs):
+        def run_model(model_idx):
             with register_hooker(self, model_idx):
                 try:
-                    torch_output = self.models[model_idx](**(example_inp[model_idx]))
+                    output = self.models[model_idx](**(inputs[model_idx]))
                     if self.options["use_loss"]:
-                        loss = self.loss_fn[model_idx](torch_output)
+                        loss = self.loss_fn[model_idx](output)
                         self.reports[model_idx].set_loss(loss)
                     else:
-                        loss = tensors_mean(torch_output, self.models[model_idx].model_type)
+                        loss = tensors_mean(output, self.models[model_idx].model_type)
                     if self.options["diff_phase"] == "both" or self.options["diff_phase"] == "backward":
                         loss.backward()
+                    return output
                 except Exception as e:
                     raise RuntimeError(
-                        "Exception is thrown while running forward of first model, please check the legality of module.\n{}".format(
-                            type(e).__name__ + ":  " + str(e)
+                        "Exception is thrown while running forward of {}, please check the legality of module.\n{}".format(
+                            self.models[model_idx].name, type(e).__name__ + ":  " + str(e)
                         )
                     )
 
-            model_idx = 1
-            with register_hooker(self, model_idx):
-                try:
-                    paddle_output = self.models[model_idx](**(example_inp[model_idx]))
-                    if self.options["use_loss"]:
-                        loss = self.loss_fn[model_idx](paddle_output)
-                        self.reports[model_idx].set_loss(loss)
-                    else:
-                        loss = tensors_mean(paddle_output, self.models[model_idx].model_type)
-                    if self.options["diff_phase"] == "both" or self.options["diff_phase"] == "backward":
-                        loss.backward()
-                except Exception as e:
-                    raise RuntimeError(
-                        "Exception is thrown while running forward of second model, please check the legality of module.\n{}".format(
-                            type(e).__name__ + ":  " + str(e)
-                        )
-                    )
+        with report_guard(self.reports):
+            base_output = run_model(model_idx=0)
+            raw_output = run_model(model_idx=1)
 
         if not self.options["single_step"]:
-            log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
-
-    def debug_print(self, idx, mode=None):
-        strs = debug_print_struct(self.reports[idx].stack.root)
-        if mode is None:
-            print(strs)
-        else:
-            path = log_file("debug_report", "w", strs)
-            print(f"debug log path: {path}")
+            log("Max elementwise output diff is {}".format(max_diff(base_output, raw_output)))

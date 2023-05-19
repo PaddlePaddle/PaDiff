@@ -163,7 +163,7 @@ def check_backward(roots, reports, options):
 
 def print_info(items, nodes, exc, step_idx, grad=False):
     if step_idx == -1:
-        step_idx = items[1].step
+        step_idx = items[0].step
     log("FAILED !!!")
     log(
         "    Diff found in {} in step: {}, net_id is {} vs {}".format(

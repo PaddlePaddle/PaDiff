@@ -35,6 +35,9 @@ if len(failed_tests) != 0:
         fpath, output = ft
         err_info += f"*** ===================== [{idx}] {fpath} ========================= ***\n"
         err_info += f"{output}\n"
+    for idx, ft in enumerate(failed_tests):
+        fpath, output = ft
+        err_info += f"*** ===================== {fpath} ========================= ***\n"
     raise RuntimeError(err_info)
 else:
     print("TEST SUCCESS!!!")
