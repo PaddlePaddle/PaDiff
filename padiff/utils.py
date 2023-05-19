@@ -177,7 +177,6 @@ def init_options(options):
         "diff_phase": "both",
         "compare_mode": "mean",
         "single_step": False,
-        "debug": False,
         "use_loss": False,
         "use_opt": False,
         "steps": 1,

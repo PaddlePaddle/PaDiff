@@ -85,7 +85,7 @@ class Runner(object):
         if not self.options["single_step"]:
             log("Max elementwise output diff is {}".format(max_diff(paddle_output, torch_output)))
 
-    def property_print(self, idx, mode=None):
+    def debug_print(self, idx, mode=None):
         strs = debug_print_struct(self.reports[idx].stack.root)
         if mode is None:
             print(strs)
