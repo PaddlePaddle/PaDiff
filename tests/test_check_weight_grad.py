@@ -18,7 +18,8 @@ import unittest
 import paddle
 import torch
 
-from padiff import auto_diff
+from padiff import auto_diff, LayerMap
+from padiff.abstracts import ProxyModel
 from padiff.utils import reset_log_dir, init_options
 from padiff.trainer.Checker import check_grad, check_weight
 
@@ -74,24 +75,29 @@ class TestCaseName(unittest.TestCase):
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert auto_diff(layer, module, inp, auto_weights=True, options=options) is True, "Failed. expected success."
+        assert auto_diff(layer, module, inp, **options) is True, "Failed. expected success."
 
         module.zero_grad()
         reset_log_dir()
-        weight_check = check_weight(layer, module, options)
-        grad_check = check_grad(layer, module, options)
+
+        weight_check = check_weight(
+            (ProxyModel.create_from(layer), ProxyModel.create_from(module)), options, LayerMap()
+        )
+        grad_check = check_grad((ProxyModel.create_from(layer), ProxyModel.create_from(module)), options, LayerMap())
         assert weight_check is True, "Weight params should be same"
         assert grad_check is False, "Grad should be different"
 
         layer = SimpleLayer()
         module = SimpleModule()
-        assert auto_diff(layer, module, inp, auto_weights=True, options=options) is True, "Failed. expected success."
+        assert auto_diff(layer, module, inp, **options) is True, "Failed. expected success."
 
         for param in module.parameters():
             param.data = param * 2
         reset_log_dir()
-        weight_check = check_weight(layer, module, options)
-        grad_check = check_grad(layer, module, options)
+        weight_check = check_weight(
+            (ProxyModel.create_from(layer), ProxyModel.create_from(module)), options, LayerMap()
+        )
+        grad_check = check_grad((ProxyModel.create_from(layer), ProxyModel.create_from(module)), options, LayerMap())
         assert weight_check is False, "Weight params should be different"
         assert grad_check is True, "Grad should be same"
 

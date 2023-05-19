@@ -19,8 +19,8 @@ import torch
 import paddle
 
 
-@init_pool.register(paddle_name="MultiHeadAttention", torch_name="MultiheadAttention")
-def init_MultiHeadAttention(layer, module):
+@init_pool.register("torch", "MultiheadAttention", "paddle", "MultiHeadAttention")
+def init_MultiHeadAttention(module, layer):
     name_param_dict = {}
     for param in module.named_parameters():
         pname = param[0]

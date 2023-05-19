@@ -15,12 +15,9 @@
 
 import paddle
 import torch
-from .utils import (
-    log,
-    init_options,
-    init_LayerMap,
-    init_padiff_path,
-)
+from .utils import log, init_options, init_path_info
+from .abstracts import ProxyModel
+from .layer_map import LayerMap
 from .weights import assign_weight
 from .trainer import Trainer
 
@@ -29,64 +26,69 @@ paddle.set_printoptions(precision=10)
 torch.set_printoptions(precision=10)
 
 
-def auto_diff(
-    layer, module, example_inp, auto_weights=True, options={}, layer_map=None, loss_fn=None, optimizer=None, steps=1
-):
+def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, layer_map=None, **kwargs):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
     Args:
-        layer (paddle.nn.Layer): paddle layer that needs compare
-        module (torch.nn.Module): torch module that needs compare
-        example_inp (paddle_input, torch_input): input data for paddle layer and torch module.
-            paddle_input and torch_input should be dict and send into net like `module(**input)`.
-        auto_weights (boolean, optional): uniformly init the parameters of models
-        options (dict, optional):
-            atol, compare_mode
+        base_model: paddle.nn.Layer or torch.nn.Module, provides the baseline of data precision。
+        raw_model: paddle.nn.Layer or torch.nn.Module, which need to compare with base_model.
+        inputs: input data for models, it should be a list of dict.
+        loss_fns (list, optional): list of loss function for models.
+        optimizers (list, optional): list of optimizers for models.
         layer_map (class LayerMap, optional): manually map paddle layer and torch module.
+        kwargs: other options, view `https://github.com/PaddlePaddle/PaDiff` to learn more infomations
     Returns:
         True for success, False for failed.
     """
 
-    # checkout inputs
-    assert isinstance(layer, paddle.nn.Layer), "Invalid Argument."
-    assert isinstance(module, torch.nn.Module), "Invalid Argument."
-    assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
-
-    paddle_input, torch_input = example_inp
-    assert isinstance(paddle_input, dict), "Invalid Argument."
-    assert isinstance(torch_input, dict), "Invalid Argument."
-
-    if loss_fn is not None:
-        paddle_loss, torch_loss = loss_fn
-        assert callable(paddle_loss), "Invalid loss function"
-        assert callable(torch_loss), "Invalid loss function"
-        options["use_loss"] = True
-
-    if optimizer is not None:
-        paddle_opt, torch_opt = optimizer
-        options["use_opt"] = True
-        if isinstance(paddle_opt, paddle.optimizer.Optimizer) and isinstance(torch_opt, torch.optim.Optimizer):
-            options["opt_type"] = "Opt"
-        else:
-            options["opt_type"] = "Lambda"
-
-    # prepare models and options
-    options["steps"] = steps
+    options = kwargs
     init_options(options)
-    layer_map = init_LayerMap(layer, module, layer_map)
-    init_padiff_path(layer, module)
-    trainer = Trainer(layer, module, loss_fn, optimizer, layer_map, options)
-    if auto_weights and not assign_weight(layer, module, layer_map):
+
+    models = (base_model, raw_model)
+
+    # ProxyModel.create_from will do assert check for models
+    if "model_names" in options:
+        assert len(options["model_names"]) == 2
+        assert options["model_names"][0] != options["model_names"][1], "Can not use same name for two model."
+        models = [ProxyModel.create_from(x, name) for x, name in zip(models, options["model_names"])]
+    else:
+        names = [base_model.__class__.__name__ + "(base_model)", raw_model.__class__.__name__ + "(raw_model)"]
+        log(f"Model_names not found, use default names instead:")
+        print(f"             `{names[0]}`")
+        print(f"             `{names[1]}`")
+        models = [ProxyModel.create_from(x, name) for x, name in zip(models, names)]
+
+    assert isinstance(inputs, (tuple, list)), "Invalid Argument."
+
+    for input in inputs:
+        assert isinstance(input, dict), "Invalid Argument."
+
+    if loss_fns is not None:
+        options["use_loss"] = True
+        assert len(loss_fns) == 2
+        for loss in loss_fns:
+            assert callable(loss), "Invalid loss function"
+
+    if optimizers is not None:
+        options["use_opt"] = True
+        assert len(optimizers) == 2
+        for opt in optimizers:
+            assert isinstance(opt, (paddle.optimizer.Optimizer, torch.optim.Optimizer)) or callable(
+                opt
+            ), "Invalid optimizer"
+
+    layer_map = LayerMap.create_from(layer_map)
+    init_path_info(models)
+    trainer = Trainer(models, loss_fns, optimizers, layer_map, options)
+    if options["auto_init"] and not assign_weight(base_model, raw_model, layer_map):
         return False
 
-    ret = trainer.train(example_inp)
+    ret = trainer.train(inputs)
 
     if ret:
         log("SUCCESS !!!\n")
     else:
         log("FAILED !!!\n")
 
-    # TODO(linjieccc): pytest failed if log clean is enabled
-    # clean_log_dir()
     return ret

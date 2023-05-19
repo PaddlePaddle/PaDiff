@@ -20,7 +20,9 @@ import unittest
 
 from padiff.trainer.trainer_utils import Report
 from padiff.trainer import Trainer
-from padiff.utils import init_options, LayerMap
+from padiff.utils import init_options
+from padiff.abstracts import ProxyModel
+from padiff import LayerMap
 import paddle
 import torch
 
@@ -58,15 +60,17 @@ class TestCaseName(unittest.TestCase):
         layer = SimpleLayer()
         module = SimpleModule()
         inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
+        inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
         options = {}
         init_options(options)
 
         paddle_report = Report("paddle")
         torch_report = Report("torch")
-        trainer = Trainer(layer, module, None, None, LayerMap(), options)
+        trainer = Trainer(
+            (ProxyModel.create_from(module), ProxyModel.create_from(layer)), None, None, LayerMap(), options
+        )
 
-        trainer.do_run(paddle_report, torch_report, inp)
+        trainer.do_run((torch_report, paddle_report), inp)
 
         # [layer(SimpleLayer, Linear) + api(linear, relu) + method(mul, add)] * (fwd, bwd) = 12
         assert len(paddle_report.items) == 12

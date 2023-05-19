@@ -14,14 +14,10 @@
 
 import contextlib
 
-from .. import utils
+from ...utils import for_each_grad_tensor, for_each_tensor
 from .module_struct import (
     LayerStack,
 )
-
-"""
-    Report definition
-"""
 
 
 class Counter:
@@ -71,12 +67,11 @@ class ReportItem:
             return None
         assert self.input is not None, "Backward while input is None, not expected."
 
-        return [None for i in utils.for_each_grad_tensor(self.input)]
+        return [None for i in for_each_grad_tensor(self.input)]
 
     def set_input_grads(self, nth, value):
         assert nth < len(self.input_grads)
-        new_value = utils.clone_structure(value)
-        self.input_grads[nth] = new_value
+        self.input_grads[nth] = value
 
     def print_stacks(self):
         def print_frames(fs, indent=8):
@@ -91,11 +86,11 @@ class ReportItem:
     def stacks(self):
         return self.frames
 
-    def compare_tensors(self):
+    def tensors_for_compare(self):
         if self.type == "forward":
-            return utils.for_each_tensor(self.output)
+            return for_each_tensor(self.output)
         if self.type == "backward":
-            return utils.for_each_tensor(self.input_grads)
+            return for_each_tensor(self.input_grads)
 
     def __repr__(self):
         return self.__str__()
@@ -161,53 +156,35 @@ class Report:
         return "\n".join(strings)
 
 
-"""
-    report_guard
-"""
-
-global_torch_report = None
-global_paddle_report = None
+global_reports = [None, None]
 global_torch_counter = Counter()
 global_paddle_counter = Counter()
 
 
 @contextlib.contextmanager
-def report_guard(torch_report, paddle_report):
-    global global_torch_report, global_paddle_report
-    old_t = global_torch_report
-    old_p = global_paddle_report
+def report_guard(reports):
+    global global_reports
+    old_reports = global_reports
     try:
-        global_torch_report = torch_report
-        global_paddle_report = paddle_report
+        global_reports = reports
 
-        torch_report.counter = global_torch_counter
-        paddle_report.counter = global_paddle_counter
+        reports[0].counter = global_torch_counter
+        reports[1].counter = global_paddle_counter
 
-        torch_report.counter.clear()
-        paddle_report.counter.clear()
+        reports[0].counter.clear()
+        reports[1].counter.clear()
 
         yield
 
     finally:
-        global_torch_report = old_t
-        global_paddle_report = old_p
-        torch_report.counter = None
-        paddle_report.counter = None
+        global_reports = old_reports
+        reports[0].counter = None
+        reports[1].counter = None
 
 
-def current_paddle_report():
-    if global_paddle_report is None:
+def current_reports():
+    global global_reports
+    if global_reports is None:
         return None
-        raise RuntimeError(
-            "Please call `current_paddle_report()` within contextmanager `report_guard(Report(), Report())`."
-        )
-    return global_paddle_report
 
-
-def current_torch_report():
-    if global_torch_report is None:
-        return None
-        raise RuntimeError(
-            "Please call `current_torch_report()` within contextmanager `report_guard(Report(), Report())`."
-        )
-    return global_torch_report
+    return global_reports

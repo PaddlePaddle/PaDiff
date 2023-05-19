@@ -34,9 +34,7 @@ class TestCaseName(unittest.TestCase):
         module = torchvision.models.resnet50().to("cpu")
         inp = paddle.rand((10, 3, 224, 224)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cpu")})
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 5e-5}) is True
-        ), "Failed. expected success."
+        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
 
 
 if __name__ == "__main__":

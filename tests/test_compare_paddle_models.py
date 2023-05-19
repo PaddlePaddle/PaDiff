@@ -15,7 +15,6 @@
 import unittest
 
 import paddle
-import torch
 
 from padiff import auto_diff
 
@@ -39,25 +38,31 @@ class SimpleLayer(paddle.nn.Layer):
         return x1 + x2
 
 
-class SimpleModule(torch.nn.Module):
+class SimplleDIffLayer(paddle.nn.Layer):
     def __init__(self):
-        super(SimpleModule, self).__init__()
-        self.linear1 = torch.nn.Linear(100, 100)
-        self.linear2 = torch.nn.Linear(100, 100)
+        super(SimplleDIffLayer, self).__init__()
+        self.linear1 = paddle.nn.Linear(100, 100)
+        self.linear2 = paddle.nn.Linear(100, 100)
+        self.relu = paddle.nn.ReLU()
 
     def forward(self, x):
         x2 = self.linear2(x)
+        x2 = self.relu(x2)
         x1 = self.linear1(x)
         return x2 + x1
 
 
-class TestCase(unittest.TestCase):
-    def test_success(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
+class TestCaseName(unittest.TestCase):
+    def test_check_weight_grad(self):
+        model_0 = SimpleLayer()
+        model_1 = SimpleLayer()
+        model_2 = SimplleDIffLayer()
+
         inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed, expect success."
+        inp = ({"x": paddle.to_tensor(inp)}, {"x": paddle.to_tensor(inp)})
+        options = {"atol": 1e-4, "single_step": True, "model_names": ["paddle1", "paddle2"], "auto_init": True}
+        assert auto_diff(model_0, model_1, inp, **options) is True
+        assert auto_diff(model_0, model_2, inp, **options) is False
 
 
 if __name__ == "__main__":
