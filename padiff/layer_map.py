@@ -23,7 +23,7 @@ from .abstracts import ProxyModel
 
 class LayerMap(object):
     def __init__(self):
-        self._layer_map = {}  # key: component of base_model, value: component of src_model
+        self._layer_map = {}  # key: component of base_model, value: component of raw_model
         self._ignored_layers = set()  # ignore layer in this set
         self._sublayer_ignored_layers = set()  # ignore sublayer of layers in this set (do not include themselves)
 
@@ -34,12 +34,7 @@ class LayerMap(object):
     @map.setter
     def map(self, inputs):
         assert isinstance(inputs, dict), "LayerMap.map wants `dict` obj as input"
-        # user should give {src_model: base_model} as input, (because src_model is the first param)
-        # but we want {base_model: src_model}, so swap the kv pairs
-        new_inputs = {}
-        for k, v in inputs.items():
-            new_inputs[v] = k
-        self._layer_map.update(new_inputs)
+        self._layer_map.update(inputs)
         self._sublayer_ignored_layers.update(set(inputs.keys()))
         self._sublayer_ignored_layers.update(set(inputs.values()))
 
@@ -70,7 +65,7 @@ class LayerMap(object):
 
         def new_generator():
             for k, v in map_items:
-                yield ProxyModel.create_from(v), ProxyModel.create_from(k)
+                yield ProxyModel.create_from(k), ProxyModel.create_from(v)
 
         return new_generator()
 
@@ -118,7 +113,7 @@ class LayerMap(object):
                 for sublayer in self._traversal_layers_for_model_struct(child_model):
                     yield sublayer
 
-    def auto(self, src_model, base_model):
+    def auto(self, base_model, raw_model):
         """
         This method will try to find components which support special init, and add them to layer_map automatically.
         NOTICE: LayerMap.auto suppose that all sublayers/submodules are defined in same order, if not, this method may not work correctly.
@@ -135,35 +130,35 @@ class LayerMap(object):
                 path.pop()
 
         # ProxyModel.create_from will do assert check for models
-        src_model = ProxyModel.create_from(src_model)
+        raw_model = ProxyModel.create_from(raw_model)
         base_model = ProxyModel.create_from(base_model)
 
-        src_submodels = list(_traversal_layers(src_model, [src_model.class_name], init_pool.registered_src_models))
+        raw_submodels = list(_traversal_layers(raw_model, [raw_model.class_name], init_pool.registered_raw_models))
         base_submodels = list(_traversal_layers(base_model, [base_model.class_name], init_pool.registered_base_models))
 
         _map = {}
 
         log("auto update LayerMap start searching...\n")
 
-        for src_info, base_info in zip_longest(src_submodels, base_submodels, fillvalue=None):
-            if src_info is None or base_info is None:
+        for raw_info, base_info in zip_longest(raw_submodels, base_submodels, fillvalue=None):
+            if raw_info is None or base_info is None:
                 print(
                     "\nError: The number of submodels which need special init is not the same! Check your model struct first!"
                 )
                 log("auto update LayerMap FAILED!!!\n")
                 return False
 
-            src_model, src_path = src_info
+            raw_model, raw_path = raw_info
             base_model, base_path = base_info
-            name = build_name(src_model.model_type, src_model.class_name, base_model.model_type, base_model.class_name)
+            name = build_name(raw_model.model_type, raw_model.class_name, base_model.model_type, base_model.class_name)
             if name in init_pool.funcs.keys():
-                _map.update({src_model.model: base_model.model})
+                _map.update({raw_model.model: base_model.model})
                 print(
-                    f"++++    src_model `{src_model.fullname}` at `{src_path}` <==> base_model `{base_model.fullname}` at `{base_path}`    ++++"
+                    f"++++    raw_model `{raw_model.fullname}` at `{raw_path}` <==> base_model `{base_model.fullname}` at `{base_path}`    ++++"
                 )
             else:
-                print("\nError: When generating LayerMap in order, find that src_model can not matchs base_model.")
-                print(f"    src_model: `{src_model.fullname}` at `{src_path}`")
+                print("\nError: When generating LayerMap in order, find that raw_model can not matchs base_model.")
+                print(f"    raw_model: `{raw_model.fullname}` at `{raw_path}`")
                 print(f"    base_model:  `{base_model.fullname}` at `{base_path}`")
                 log("auto update LayerMap FAILED!!!\n")
                 return False

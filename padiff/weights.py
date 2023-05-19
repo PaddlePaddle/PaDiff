@@ -54,7 +54,7 @@ def process_each_weight(process, models, layer_map):
                 )
             except Exception as e:
                 err_str = f"Error occured between:\n"
-                err_str += f"    src_model {submodel_0.class_name}: {submodel_0.model_repr_info()}\n"
+                err_str += f"    raw_model {submodel_0.class_name}: {submodel_0.model_repr_info()}\n"
                 err_str += f"            {submodel_0.path_info + '.' + param_name_0}\n"
                 err_str += f"    base_model {submodel_1.class_name}: {submodel_1.model_repr_info()}\n"
                 err_str += f"            {submodel_1.path_info + '.' + param_name_1}\n"
@@ -64,7 +64,7 @@ def process_each_weight(process, models, layer_map):
 
 
 # this interface is exposed, so it takes two models as inputs
-def assign_weight(src_model, base_model, layer_map={}):
+def assign_weight(base_model, raw_model, layer_map={}):
     """
     Init weights of layer(paddle) and module(torch) with same value
 
@@ -73,42 +73,42 @@ def assign_weight(src_model, base_model, layer_map={}):
         module (torch.nn.Module): input torch module
     """
 
-    if not isinstance(src_model, ProxyModel):
-        src_model = ProxyModel.create_from(src_model)
+    if not isinstance(raw_model, ProxyModel):
+        raw_model = ProxyModel.create_from(raw_model)
     if not isinstance(base_model, ProxyModel):
         base_model = ProxyModel.create_from(base_model)
 
     layer_map = LayerMap.create_from(layer_map)
-    models = (src_model, base_model)
+    models = (base_model, raw_model)
 
-    for src_submodel, base_submodel in layer_map.special_init_layers():
+    for base_submodel, raw_submodel in layer_map.special_init_layers():
         key_name = build_name(
-            src_submodel.model_type, src_submodel.class_name, base_submodel.model_type, base_submodel.class_name
+            base_submodel.model_type, base_submodel.class_name, raw_submodel.model_type, raw_submodel.class_name
         )
         if key_name not in init_pool.funcs.keys():
             log(
                 "*** Special init `{}` and `{}` is not supported ***".format(
-                    src_submodel.fullname, base_submodel.fullname
+                    base_submodel.fullname, raw_submodel.fullname
                 )
             )
             log("    Checkout the parameters are inited by yourself")
             log("    ,or you can register your init method!")
         else:
             try:
-                init_pool.funcs[key_name](src_submodel.model, base_submodel.model)
+                init_pool.funcs[key_name](base_submodel.model, raw_submodel.model)
             except Exception as e:
-                print(f"Special init `{src_submodel.fullname}` and `{base_submodel.fullname}` failed.")
+                print(f"Special init `{base_submodel.fullname}` and `{raw_submodel.fullname}` failed.")
                 print(type(e).__name__ + ":  " + str(e))
                 log("Assign weight Failed !!!")
                 return False
 
     def _assign_weight(submodels, param_names, params, settings):
         check_shape(models, param_names, params, settings)
-        np_value = params[1].numpy()
+        np_value = params[0].numpy()
         if settings["transpose"]:
             np_value = numpy.transpose(np_value)
 
-        params[0].set_data(np_value)
+        params[1].set_data(np_value)
 
     try:
         process_each_weight(_assign_weight, models, layer_map)
@@ -150,7 +150,7 @@ def check_weight(models, options, layer_map):
             _weight_check = False
             info = (
                 "=" * 25 + "\n" + "After training, weight value is different.\n"
-                "between src_model part `{}`, base_model part `{}` \n"
+                "between base_model part `{}`, raw_model part `{}` \n"
                 "{} param path:\n    {}\n"
                 "{} param path:\n    {}\n"
                 "{}\n\n".format(
@@ -196,11 +196,11 @@ def check_grad(models, options, layer_map):
                 return
             elif grad_0 is None and grad_1 is not None:
                 raise RuntimeError(
-                    f"Found grad in src_model {submodels[0].class_name} is `None`, when grad in base_model {submodels[1].class_name} exists. Please check the grad value."
+                    f"Found grad in base_model {submodels[0].class_name} is `None`, when grad in raw_model {submodels[1].class_name} exists. Please check the grad value."
                 )
             elif grad_0 is not None and grad_1 is None:
                 raise RuntimeError(
-                    f"Found grad in base_model {submodels[1].class_name} is `None`, when grad in src_model {submodels[0].class_name} exists. Please check the grad value."
+                    f"Found grad in raw_model {submodels[1].class_name} is `None`, when grad in base_model {submodels[0].class_name} exists. Please check the grad value."
                 )
 
             if settings["transpose"]:
@@ -212,7 +212,7 @@ def check_grad(models, options, layer_map):
             _grad_check = False
             info = (
                 "=" * 25 + "\n" + "After training, grad value is different.\n"
-                "between src_model part `{}`, base_model part `{}` \n"
+                "between base_model part `{}`, raw_model part `{}` \n"
                 "{} param path:\n    {}\n"
                 "{} param path:\n    {}\n"
                 "{}\n\n".format(

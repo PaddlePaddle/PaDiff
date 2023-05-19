@@ -45,12 +45,11 @@ class Runner(object):
         self.reports = reports
 
     def forward_step(self, example_inp):
-        paddle_input, torch_input = example_inp
         with report_guard(self.reports):
-            model_idx = 1
+            model_idx = 0
             with register_hooker(self, model_idx):
                 try:
-                    torch_output = self.models[model_idx](**torch_input)
+                    torch_output = self.models[model_idx](**(example_inp[model_idx]))
                     if self.options["use_loss"]:
                         loss = self.loss_fn[model_idx](torch_output)
                         self.reports[model_idx].set_loss(loss)
@@ -65,10 +64,10 @@ class Runner(object):
                         )
                     )
 
-            model_idx = 0
+            model_idx = 1
             with register_hooker(self, model_idx):
                 try:
-                    paddle_output = self.models[model_idx](**paddle_input)
+                    paddle_output = self.models[model_idx](**(example_inp[model_idx]))
                     if self.options["use_loss"]:
                         loss = self.loss_fn[model_idx](paddle_output)
                         self.reports[model_idx].set_loss(loss)

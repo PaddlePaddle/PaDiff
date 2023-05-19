@@ -57,9 +57,7 @@ class TestCase(unittest.TestCase):
         module = SimpleModule()
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
-        ), "Failed, expect success."
+        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed, expect success."
 
 
 if __name__ == "__main__":

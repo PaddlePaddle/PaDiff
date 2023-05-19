@@ -16,8 +16,8 @@
 # NOTICE: make sure params is in the same device after init
 
 
-def build_name(src_model_type, src_model_name, base_model_type, base_model_name):
-    name = src_model_type + "::" + src_model_name + "###" + base_model_type + "::" + base_model_name
+def build_name(raw_model_type, raw_model_name, base_model_type, base_model_name):
+    name = raw_model_type + "::" + raw_model_name + "###" + base_model_type + "::" + base_model_name
     return name
 
 
@@ -25,12 +25,12 @@ class SpecialInitPool(object):
     def __init__(self):
         self.funcs = {}
         # used for LayerMap.auto
-        self.registered_src_models = set()
+        self.registered_raw_models = set()
         self.registered_base_models = set()
 
-    def register(self, src_model_type, src_model_name, base_model_type, base_model_name):
-        name = build_name(src_model_type, src_model_name, base_model_type, base_model_name)
-        self.registered_src_models.add(src_model_type + "::" + src_model_name)
+    def register(self, raw_model_type, raw_model_name, base_model_type, base_model_name):
+        name = build_name(raw_model_type, raw_model_name, base_model_type, base_model_name)
+        self.registered_raw_models.add(raw_model_type + "::" + raw_model_name)
         self.registered_base_models.add(base_model_type + "::" + base_model_name)
 
         def do_reg(func):
@@ -43,8 +43,8 @@ class SpecialInitPool(object):
 global_special_init_pool = SpecialInitPool()
 
 
-def add_special_init(src_model_type, src_model_name, base_model_type, base_model_name, func):
-    name = build_name(src_model_type, src_model_name, base_model_type, base_model_name)
-    global_special_init_pool.registered_src_models.add(src_model_type + "::" + src_model_name)
+def add_special_init(raw_model_type, raw_model_name, base_model_type, base_model_name, func):
+    name = build_name(raw_model_type, raw_model_name, base_model_type, base_model_name)
+    global_special_init_pool.registered_raw_models.add(raw_model_type + "::" + raw_model_name)
     global_special_init_pool.registered_base_models.add(base_model_type + "::" + base_model_name)
     global_special_init_pool.funcs[name] = func

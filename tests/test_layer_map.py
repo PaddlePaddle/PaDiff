@@ -159,72 +159,56 @@ class TestCaseName(unittest.TestCase):
         module = SimpleModule1(4, 8, 4)
 
         inp = paddle.to_tensor([[1, 2, 0, 1]]).numpy().astype("float32")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, layer_map={}, options={"atol": 1e-4}) is True
-        ), "Failed. expected success."
+        inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
+        assert auto_diff(module, layer, inp, layer_map={}, atol=1e-4) is True, "Failed. expected success."
 
     def test_layer_map_2(self):
         layer = SimpleLayer2()
         module = SimpleModule2()
 
-        layer_map = {layer.lstm: module.lstm}
+        layer_map = {module.lstm: layer.lstm}
 
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}) is True
-        ), "Failed. expected success."
+        inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
+        assert auto_diff(module, layer, inp, layer_map=layer_map, atol=1e-4) is True, "Failed. expected success."
 
     def test_layer_map_3(self):
         layer = SimpleLayer3()
         module = SimpleModule3()
 
-        layer_map = {layer.attn: module.attn}
+        layer_map = {module.attn: layer.attn}
 
         inp = paddle.rand((2, 4, 16)).numpy()
         inp = (
-            {"q": paddle.to_tensor(inp), "k": paddle.to_tensor(inp), "v": paddle.to_tensor(inp)},
             {"q": torch.as_tensor(inp), "k": torch.as_tensor(inp), "v": torch.as_tensor(inp)},
+            {"q": paddle.to_tensor(inp), "k": paddle.to_tensor(inp), "v": paddle.to_tensor(inp)},
         )
 
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}) is True
-        ), "Failed. expected success."
+        assert auto_diff(module, layer, inp, layer_map=layer_map, atol=1e-4) is True, "Failed. expected success."
 
     def test_layer_map_4(self):
         layer = SimpleLayer4()
         module = SimpleModule4()
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
+        inp = (
+            {"x": torch.as_tensor(inp)},
+            {"x": paddle.to_tensor(inp)},
+        )
 
-        # ignore wrap layers automatically now
-        assert auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
-
-        # layer_map = LayerMap()
-        # layer_map.ignore(layer.nop)
-
-        # assert auto_diff(
-        #     layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}
-        # ), "Failed. expected success."
-
-        # with self.assertRaises(Exception, msg="Sucess, expected exception."):
-        # auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4})
+        assert auto_diff(module, layer, inp, atol=1e-4)
 
     def test_layer_map_5(self):
         layer = SimpleLayer5()
         module = SimpleModule5()
         layer.eval()
         module.eval()
-        layer_map = {layer.bn: module.bn}
+        layer_map = {module.bn: layer.bn}
 
         inp = paddle.rand((1, 3, 32, 32)).numpy()
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
+        inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
 
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}) is True
-        ), "Failed. expected success."
+        assert auto_diff(module, layer, inp, layer_map=layer_map, atol=1e-4) is True, "Failed. expected success."
 
 
 if __name__ == "__main__":

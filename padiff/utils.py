@@ -118,12 +118,12 @@ def map_structure_and_replace_key(func, structure1, structure2):
 """
 
 
-def max_diff(paddle_output, torch_output):
+def max_diff(output1, output2):
     _max_diff = 0
-    for (pt,), (tt,) in zip(for_each_tensor(paddle_output), for_each_tensor(torch_output)):
-        if tt.numel() == 0 or pt.numel() == 0:
+    for (tensor1,), (tensor2,) in zip(for_each_tensor(output1), for_each_tensor(output2)):
+        if tensor2.numel() == 0 or tensor1.numel() == 0:
             continue
-        temp = np.abs(tt.detach().cpu().numpy() - pt.detach().numpy()).max()
+        temp = np.abs(tensor2.detach().cpu().numpy() - tensor1.detach().cpu().numpy()).max()
         if temp > _max_diff:
             _max_diff = temp
 
@@ -131,8 +131,8 @@ def max_diff(paddle_output, torch_output):
 
 
 def assert_tensor_equal(tensor1, tensor2, options):
-    """if equal: return None
-    else: raise Error and Error Message.
+    """
+    return None or raise Error.
     """
     atol = options["atol"]
     rtol = options["rtol"]
@@ -145,10 +145,6 @@ def assert_tensor_equal(tensor1, tensor2, options):
 
 
 def tensors_mean(inp, mode):
-    """
-    TODO(wuzhanfei): This function is used to calcu loss in same way for paddle layer and torch module
-    need to support real opt later
-    """
     if isinstance(inp, torch.Tensor) or isinstance(inp, paddle.Tensor):
         return inp.mean()
 
@@ -177,6 +173,7 @@ def init_options(options):
     default_options = {
         "atol": 0,
         "rtol": 1e-7,
+        "auto_init": True,
         "diff_phase": "both",
         "compare_mode": "mean",
         "single_step": False,

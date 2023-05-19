@@ -29,7 +29,6 @@ class TableView:
             if key(item) not in self.view:
                 self.view[key(item)] = [item]
             else:
-                # warnings.warn("Warning: duplicate key is found, use list + pop strategy.")
                 self.view[key(item)].append(item)
 
     def __getitem__(self, key):
@@ -196,70 +195,70 @@ def reorder_and_match_reports(roots, reports):
 
     layer_map = reports[0].layer_map
 
-    # skip api layers
-    fwd_0 = list(filter(lambda x: not hasattr(x.net, "__api__"), reports[0].get_fwd_items()))
-    table_view_0 = TableView(fwd_0, lambda x: x.net_id)
+    # skip api layers, get table_view to find layer in init order
+    fwd_items = list(filter(lambda x: not hasattr(x.net, "__api__"), reports[1].get_fwd_items()))
+    table_view = TableView(fwd_items, lambda x: x.net_id)
 
     # split children to 3 parts
-    apis_0 = list(filter(lambda x: x.is_api, roots[0].children))
-    opaque_layers_0 = list(filter(lambda x: x.in_layer_map, roots[0].children))
-    layers_0 = list(filter(lambda x: not x.is_leaf, roots[0].children))
+    base_apis = list(filter(lambda x: x.is_api, roots[0].children))
+    base_opaque_layers = list(filter(lambda x: x.in_layer_map, roots[0].children))
+    base_layers = list(filter(lambda x: not x.is_leaf, roots[0].children))
 
-    apis_1 = list(filter(lambda x: x.is_api, roots[1].children))
-    opaque_layers_1 = list(filter(lambda x: x.in_layer_map, roots[1].children))
-    layers_1 = list(filter(lambda x: not x.is_leaf, roots[1].children))
+    raw_apis = list(filter(lambda x: x.is_api, roots[1].children))
+    raw_opaque_layers = list(filter(lambda x: x.in_layer_map, roots[1].children))
+    raw_layers = list(filter(lambda x: not x.is_leaf, roots[1].children))
 
     try:
-        assert len(apis_0) == len(apis_1), "number of api is different"
-        assert len(opaque_layers_0) == len(opaque_layers_1), "number of opaque_layers is different"
-        assert len(layers_0) == len(layers_1), "number of layer is different"
+        assert len(base_apis) == len(raw_apis), "number of api is different"
+        assert len(base_opaque_layers) == len(raw_opaque_layers), "number of opaque_layers is different"
+        assert len(base_layers) == len(raw_layers), "number of layer is different"
 
         # reset orders
-        reorder_api(apis_0, apis_1)
-        reorder_opaque_layers(opaque_layers_0, opaque_layers_1, layer_map)
+        reorder_api(base_apis, raw_apis)
+        reorder_opaque_layers(base_opaque_layers, raw_opaque_layers, layer_map)
 
-        # for every child in roots[1], find correspond child in roots[0]
+        # for every child in roots[0], find correspond child in roots[1]
         new_children = []
-        for child in roots[1].children:
+        for child in roots[0].children:
             if child.is_api:
-                new_children.append(apis_0[0])
-                apis_0.pop(0)
+                new_children.append(raw_apis[0])
+                raw_apis.pop(0)
             elif child.in_layer_map:
-                new_children.append(opaque_layers_0[0])
-                opaque_layers_0.pop(0)
+                new_children.append(raw_opaque_layers[0])
+                raw_opaque_layers.pop(0)
             else:
                 # use table_view to find correspond layer with init order
-                report_item = table_view_0[child.fwd_report.net_id]
-                correspond_child = next(x for x in layers_0 if x.fwd_report is report_item)
+                report_item = table_view[child.fwd_report.net_id]
+                correspond_child = next(x for x in raw_layers if x.fwd_report is report_item)
                 if correspond_child is None:
                     raise RuntimeError("no match layer found")
                 new_children.append(correspond_child)
 
-        roots[0].children = new_children
+        roots[1].children = new_children
 
-        setattr(roots[0], "reordered", True)
+        setattr(roots[1], "reordered", True)
 
     except Exception as e:
         raise e
 
 
-def reorder_api(apis, targets):
+def reorder_api(apis, base):
     """
-    reorder apis based on targets
+    reorder apis based on base
     TODO(wuzhafnei): need better match logic there
     Temporarily, just keep in order
     """
     return
 
 
-def reorder_opaque_layers(items, targets, layer_map):
+def reorder_opaque_layers(base, items, layer_map):
     def swap(seq, l, r):
         temp = seq[l]
         seq[l] = seq[r]
         seq[r] = temp
         return
 
-    for target_idx, target_node in enumerate(targets):
+    for target_idx, target_node in enumerate(base):
         # an api layer can not have in_layer_map mark, so node.net is save
         mapped_net = layer_map.map[target_node.net]
         correspond_node = next(node for node in items if node.net is mapped_net)
@@ -270,22 +269,6 @@ def reorder_opaque_layers(items, targets, layer_map):
             swap(items, item_idx, target_idx)
         else:
             raise RuntimeError("Duplicate key or values, check your LayerMap")
-
-    return
-
-
-def reorder_and_match_reports_recursively(roots, reports):
-    """
-    recoder tree's nodes with init order in place
-    based on torch module and reorder paddle module
-
-    Notice:
-        for opaque_layers layers, they may not in order too (though they are leaves)
-    """
-    reorder_and_match_reports(roots, reports)
-
-    for child_0, child_1 in zip(roots[0].children, roots[1].children):
-        reorder_and_match_reports_recursively([child_0, child_1], reports)
 
     return
 

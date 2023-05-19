@@ -29,9 +29,9 @@ class ActionPool:
         sorted(self.pool, key=lambda x: x.priority, reverse=True)
         return cls
 
-    def find_actions(self, model_0, model_1):
+    def find_actions(self, base_model, raw_model):
         for act in self.pool:
-            if act.match(model_0, model_1):
+            if act.match(base_model, raw_model):
                 return act
         raise RuntimeError("No action is matched, not expected.")
 
@@ -44,7 +44,7 @@ def get_action(*args, **kargs):
 
 
 class Action:
-    def match(self, model_0, model_1):
+    def match(self, base_model, raw_model):
         raise NotImplementedError("")
 
     def __call__(self, item_0, item_1, cfg):
@@ -57,13 +57,15 @@ class Action:
 
 @global_actions.register
 class EqualAction(Action):
-    def match(self, model_0, model_1):
-        try:
-            assert isinstance(model_0, paddle.nn.Layer)
-            assert isinstance(model_1, torch.nn.Module)
-        except:
-            return False
-        return True
+    def match(self, base_model, raw_model):
+        if (
+            isinstance(base_model, torch.nn.Module)
+            and isinstance(raw_model, paddle.nn.Layer)
+            or isinstance(raw_model, torch.nn.Module)
+            and isinstance(base_model, paddle.nn.Layer)
+        ):
+            return True
+        return False
 
     @property
     def priority(self):
@@ -78,7 +80,7 @@ class EqualAction(Action):
         tensors_1 = item_1.tensors_for_compare()
         for (t0,), (t1,) in zip(tensors_0, tensors_1):
             if t0.numel() == 0 or t1.numel() == 0:
-                warnings.warn("Found Tensor shape is [0], compare skipped!")
+                warnings.warn("Found Tensor.numel() is 0, compare skipped!")
                 continue
             try:
                 assert_tensor_equal(t0.detach().cpu().numpy(), t1.detach().cpu().numpy(), cfg)
@@ -95,10 +97,10 @@ class EqualAction(Action):
 
 @global_actions.register
 class PPAction(Action):
-    def match(self, model_0, model_1):
+    def match(self, base_model, raw_model):
         try:
-            assert isinstance(model_0, paddle.nn.Layer)
-            assert isinstance(model_1, paddle.nn.Layer)
+            assert isinstance(base_model, paddle.nn.Layer)
+            assert isinstance(raw_model, paddle.nn.Layer)
         except:
             return False
         return True

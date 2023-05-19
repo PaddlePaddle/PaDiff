@@ -76,10 +76,7 @@ class TestSingleStep(unittest.TestCase):
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         atol = 1e-5
-        # want_False = auto_diff(layer, module, inp, auto_weights=True, options={"atol": atol})
-        want_True = auto_diff(layer, module, inp, auto_weights=True, options={"atol": atol, "single_step": True})
-        # if want_False is not False:
-        #     print("err atol too big")
+        want_True = auto_diff(layer, module, inp, atol=atol, single_step=True)
         if want_True is not True:
             print("err atol too small")
 
@@ -88,9 +85,7 @@ class TestSingleStep(unittest.TestCase):
         module = SimpleModuleDiff()
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4, "single_step": True}) is False
-        ), "Success. expected failed."
+        assert auto_diff(layer, module, inp, atol=1e-4, single_step=True) is False, "Success. expected failed."
 
 
 if __name__ == "__main__":

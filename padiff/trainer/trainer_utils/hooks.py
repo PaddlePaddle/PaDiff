@@ -97,7 +97,7 @@ def info_hook(model, input, output, net_id):
     """
     options = yamls.options
 
-    # this logic is for fix wrapped api layer, which can not give a model_idx param
+    # this logic is for fix wrapped api layer, which can not give a model_idx param because they are wrapped and register hook during import
     if not options or options["curent_model_idx"] is None:
         return None
     model_idx = options["curent_model_idx"]
@@ -143,14 +143,15 @@ def info_hook(model, input, output, net_id):
     for i, (t,) in enumerate(for_each_grad_tensor(input)):
         t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i, net_id=net_id, model_idx=model_idx))
 
-    # if single_step, models[0] should return the output of models[1]
-    if model_idx == 0 and net_id != -1 and options["single_step"] and options["diff_phase"] == "forward":
-        report_1 = current_reports()[1]
-        t_fwd_item = report_1.find_item(report, net_id, "forward")
+    # model_idx == 0: base_model
+    # model_idx == 1: raw_model
+    if model_idx == 1 and net_id != -1 and options["single_step"] and options["diff_phase"] == "forward":
+        base_report = current_reports()[0]
+        base_fwd_item = base_report.find_item(report, net_id, "forward")
 
         retval = map_structure_and_replace_key(
             partial(_transform_tensor, type="paddle" if isinstance(model, paddle.nn.Layer) else "torch"),
-            [t_fwd_item.output],
+            [base_fwd_item.output],
             output,
         )
         __in_info_hook__ = False
@@ -171,15 +172,14 @@ def tensor_hook(x_grad, bwd_item, nth_tensor, net_id, model_idx):
 
     options = yamls.options
 
-    # single_step and not an API
-    if model_idx == 0 and net_id != -1 and options["single_step"] and options["diff_phase"] == "backward":
-        report_0 = current_reports()[0]
-        report_1 = current_reports()[1]
-        t_fwd_item = report_1.find_item(report_0, net_id, "backward")
+    if model_idx == 1 and net_id != -1 and options["single_step"] and options["diff_phase"] == "backward":
+        base_report = current_reports()[0]
+        raw_report = current_reports()[1]
+        base_bwd_item = raw_report.find_item(base_report, net_id, "backward")
 
         return map_structure_and_replace_key(
             partial(_transform_tensor, type="paddle" if isinstance(x_grad, paddle.Tensor) else "torch"),
-            [t_fwd_item.output],
+            [base_bwd_item.input_grads],
             x_grad,
         )
     return x_grad

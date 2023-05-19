@@ -99,10 +99,10 @@ def check_forward(roots, reports, options):
 
     # reorder current level
     try:
-        if not hasattr(roots[0], "reordered"):
+        if not hasattr(roots[1], "reordered"):
             reorder_and_match_reports(roots, reports)
     except Exception as e:
-        log(f"While checking forward, diff found at src_model {roots[0].net_str} vs base_model {roots[1].net_str}")
+        log(f"While checking forward, diff found at base_model {roots[0].net_str} vs raw_model {roots[1].net_str}")
         log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again:")
         print(type(e).__name__ + ":  " + str(e))
         log("Compare detail:")
@@ -116,7 +116,7 @@ def check_forward(roots, reports, options):
 
     # sublayers is compared ok, but diff found at father layer
     log(
-        f"Sublayers of src_model {roots[0].net_str} and src_model {roots[1].net_str} are corresponded, but diff found at their output!"
+        f"Sublayers of base_model {roots[0].net_str} and raw_model {roots[1].net_str} are corresponded, but diff found at their output!"
     )
     print_info(items, roots, compare_info, -1, grad=False)
     return False
@@ -138,10 +138,10 @@ def check_backward(roots, reports, options):
 
     # reorder current level
     try:
-        if not hasattr(roots[0], "reordered"):
+        if not hasattr(roots[1], "reordered"):
             reorder_and_match_reports(roots, reports)
     except Exception as e:
-        log(f"While checking backward, diff found at src_model {roots[0].net_str} vs base_model {roots[1].net_str}")
+        log(f"While checking backward, diff found at base_model {roots[0].net_str} vs raw_model {roots[1].net_str}")
         log("Call `reorder_and_match_reports` for more detailed infos, but error occurs again:")
         print(type(e).__name__ + ":  " + str(e))
         log("Compare detail:")
@@ -155,7 +155,7 @@ def check_backward(roots, reports, options):
 
     # sublayers is compared ok, but diff found at father layer
     log(
-        f"Grad of sublayers of src_model {roots[0].net_str} and base_model {roots[1].net_str} are corresponded, but diff found at their output!"
+        f"Grad of sublayers of base {roots[0].net_str} and raw_model {roots[1].net_str} are corresponded, but diff found at their output!"
     )
     print_info(items, roots, compare_info, -1, grad=True)
     return False

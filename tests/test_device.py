@@ -63,9 +63,7 @@ class TestCaseName(unittest.TestCase):
         module = SimpleModule().to("cpu")
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cpu")})
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
-        ), "Failed. expected success."
+        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
 
     def test_cpu_gpu(self):
         if not paddle.device.is_compiled_with_cuda():
@@ -76,9 +74,7 @@ class TestCaseName(unittest.TestCase):
         module = module.to("cuda")
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cuda")})
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
-        ), "Failed. expected success."
+        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
 
     def test_gpu_cpu(self):
         if not paddle.device.is_compiled_with_cuda():
@@ -88,9 +84,7 @@ class TestCaseName(unittest.TestCase):
         module = SimpleModule().to("cpu")
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cpu")})
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
-        ), "Failed. expected success."
+        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
 
     def test_gpu_gpu(self):
         if not paddle.device.is_compiled_with_cuda():
@@ -100,9 +94,7 @@ class TestCaseName(unittest.TestCase):
         module = SimpleModule().to("cuda")
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cuda")})
-        assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}) is True
-        ), "Failed. expected success."
+        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
 
 
 if __name__ == "__main__":

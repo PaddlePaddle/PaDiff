@@ -26,36 +26,29 @@ paddle.set_printoptions(precision=10)
 torch.set_printoptions(precision=10)
 
 
-def auto_diff(
-    src_model,
-    base_model,
-    example_inp,
-    auto_weights=True,
-    options={},
-    layer_map=None,
-    loss_fn=None,
-    optimizer=None,
-    steps=1,
-):
+def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, layer_map=None, **kwargs):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
     Args:
-        src_model: paddle.nn.Layer or torch.nn.Module, which need to compare with base_model.
+        raw_model: paddle.nn.Layer or torch.nn.Module, which need to compare with base_model.
         base_model: paddle.nn.Layer or torch.nn.Module, provides the baseline of data precision。
-        example_inp: input data for models, it should be a list of dict.
-        auto_weights (boolean, optional): uniformly init the parameters of models
+        inputs: input data for models, it should be a list of dict.
+        auto_init (boolean, optional): uniformly init the parameters of models
         options (dict, optional):
             atol, compare_mode
         layer_map (class LayerMap, optional): manually map paddle layer and torch module.
-        loss_fn (list, optional): list of loss function for models.
-        optimizer (list, optional): list of optimizer for models.
+        loss_fns (list, optional): list of loss function for models.
+        optimizers (list, optional): list of optimizers for models.
         steps (int, optional): let auto_diff run multi steps.
     Returns:
         True for success, False for failed.
     """
 
-    models = (src_model, base_model)
+    options = kwargs
+    init_options(options)
+
+    models = (base_model, raw_model)
 
     # ProxyModel.create_from will do assert check for models
     if "model_names" in options:
@@ -63,39 +56,36 @@ def auto_diff(
         assert options["model_names"][0] != options["model_names"][1], "Can not use same name for two model."
         models = [ProxyModel.create_from(x, name) for x, name in zip(models, options["model_names"])]
     else:
-        names = [src_model.__class__.__name__ + "(src_model)", base_model.__class__.__name__ + "(base_model)"]
+        names = [base_model.__class__.__name__ + "(base_model)", raw_model.__class__.__name__ + "(raw_model)"]
         log(f"*** model_names not provided, use `{names[0]}` and `{names[1]}` as default ***")
         models = [ProxyModel.create_from(x, name) for x, name in zip(models, names)]
 
-    assert isinstance(example_inp, (tuple, list)), "Invalid Argument."
+    assert isinstance(inputs, (tuple, list)), "Invalid Argument."
 
-    for inputs in example_inp:
-        assert isinstance(inputs, dict), "Invalid Argument."
+    for input in inputs:
+        assert isinstance(input, dict), "Invalid Argument."
 
-    if loss_fn is not None:
+    if loss_fns is not None:
         options["use_loss"] = True
-        assert len(loss_fn) == 2
-        for loss in loss_fn:
+        assert len(loss_fns) == 2
+        for loss in loss_fns:
             assert callable(loss), "Invalid loss function"
 
-    if optimizer is not None:
+    if optimizers is not None:
         options["use_opt"] = True
-        assert len(optimizer) == 2
-        for opt in optimizer:
+        assert len(optimizers) == 2
+        for opt in optimizers:
             assert isinstance(opt, (paddle.optimizer.Optimizer, torch.optim.Optimizer)) or callable(
                 opt
             ), "Invalid optimizer"
 
-    # prepare models and options
-    options["steps"] = steps
-    init_options(options)
     layer_map = LayerMap.create_from(layer_map)
     init_path_info(models)
-    trainer = Trainer(models, loss_fn, optimizer, layer_map, options)
-    if auto_weights and not assign_weight(models[0], models[1], layer_map):
+    trainer = Trainer(models, loss_fns, optimizers, layer_map, options)
+    if options["auto_init"] and not assign_weight(models[0], models[1], layer_map):
         return False
 
-    ret = trainer.train(example_inp)
+    ret = trainer.train(inputs)
 
     if ret:
         log("SUCCESS !!!\n")

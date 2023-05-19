@@ -59,28 +59,10 @@ class TestCaseName(unittest.TestCase):
         model_2 = SimplleDIffLayer()
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
-
         inp = ({"x": paddle.to_tensor(inp)}, {"x": paddle.to_tensor(inp)})
-        assert (
-            auto_diff(
-                model_0,
-                model_1,
-                inp,
-                auto_weights=True,
-                options={"atol": 1e-4, "single_step": True, "model_names": ["paddle1", "paddle2"]},
-            )
-            is True
-        )
-        assert (
-            auto_diff(
-                model_0,
-                model_2,
-                inp,
-                auto_weights=True,
-                options={"atol": 1e-4, "single_step": True, "model_names": ["paddle1", "paddle2"]},
-            )
-            is False
-        )
+        options = {"atol": 1e-4, "single_step": True, "model_names": ["paddle1", "paddle2"], "auto_init": True}
+        assert auto_diff(model_0, model_1, inp, **options) is True
+        assert auto_diff(model_0, model_2, inp, **options) is False
 
 
 if __name__ == "__main__":

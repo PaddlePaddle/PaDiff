@@ -71,8 +71,7 @@ class TestCaseName(unittest.TestCase):
         paddle_opt = paddle.optimizer.Adam(learning_rate=0.001, parameters=layer.parameters())
         torch_opt = torch.optim.Adam(lr=0.001, params=module.parameters())
         assert (
-            auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, optimizer=[paddle_opt, torch_opt])
-            is True
+            auto_diff(layer, module, inp, optimizer=[paddle_opt, torch_opt], atol=1e-4) is True
         ), "Failed. expected success."
 
     def test_multi_step(self):
@@ -87,10 +86,9 @@ class TestCaseName(unittest.TestCase):
                 layer,
                 module,
                 inp,
-                auto_weights=True,
-                steps=10,
-                options={"atol": 1e-4},
                 optimizer=[paddle_opt, torch_opt],
+                atol=1e-4,
+                steps=10,
             )
             is True
         ), "Failed. expected success."

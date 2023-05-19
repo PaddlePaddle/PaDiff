@@ -85,9 +85,8 @@ class TestCaseName(unittest.TestCase):
                 layer,
                 module,
                 inp,
-                auto_weights=True,
-                options={"atol": 1e-4},
                 loss_fn=[partial(paddle_loss, label=label), partial(torch_loss, label=label)],
+                atol=1e-4,
             )
             is True
         ), "Failed. expected success."
@@ -100,12 +99,11 @@ class TestCaseName(unittest.TestCase):
                 layer,
                 module,
                 inp,
-                auto_weights=True,
-                options={"atol": 1e-4},
                 loss_fn=[
                     partial(paddle_mse, label=paddle.to_tensor(label)),
                     partial(torch_mse, target=torch.tensor(label)),
                 ],
+                atol=1e-4,
             )
             is True
         ), "Failed. expected success."

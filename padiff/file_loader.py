@@ -29,9 +29,9 @@ class yaml_loader:
             self._assign_yaml = yaml.safe_load(yaml_file)
         self._options = {}
 
-    def get_weight_settings(self, src_model, base_model, param_name):
+    def get_weight_settings(self, base_model, raw_model, param_name):
         # only when paddle model compare with torch model, need to update settings
-        if src_model.model_type == base_model.model_type:
+        if raw_model.model_type == base_model.model_type:
             settings = {"transpose": False}
             settings.update(self._options)
             return settings
@@ -39,12 +39,12 @@ class yaml_loader:
         # settings are used to fix the diff between paddle and torch, so keep `paddle`` and `torch` infos here
         # currently, assign_weight.yaml only recorded transpose setting
         # transpose paddle or torch is the same, so it's no need to change current yaml file temporarily
-        if src_model.model_type == "paddle":
-            paddle_model = src_model
+        if raw_model.model_type == "paddle":
+            paddle_model = raw_model
             torch_model = base_model
         else:
             paddle_model = base_model
-            torch_model = src_model
+            torch_model = raw_model
 
         assign_config = self._assign_yaml.get(paddle_model.class_name, None)
         settings = {
