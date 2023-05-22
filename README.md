@@ -7,6 +7,7 @@
 
 ## 最近更新
 
+-   支持 paddle 模型间的对齐，更新了 auto_diff 使用接口
 -   添加了api级别对齐检查，可以通过设置环境变量来关闭：`export PADIFF_API_CHECK=OFF`
 -   更新对齐策略：自顶向下对齐
 -   更新模型遍历策略：现在会尽可能滤过wrap layer，大部分情况无需手动调用LayerMap
@@ -20,7 +21,7 @@
 
 ## 简介
 
-PaDiff是基于PaddlePaddle与PyTorch的模型精度对齐工具。传入Paddle与Torch模型，对齐训练中间结果以及训练后的模型权重，并提示精度diff第一次出现的位置。
+PaDiff 是基于 PaddlePaddle 与 PyTorch 的模型精度对齐工具。传入 Paddle 或 Torch 模型，对齐训练中间结果以及训练后的模型权重，并提示精度 diff 第一次出现的位置。
 
 -   文档目录 [Guides](docs/README.md)
 -   使用教程 [Tutorial](docs/Tutorial.md)
@@ -33,7 +34,7 @@ PaDiff是基于PaddlePaddle与PyTorch的模型精度对齐工具。传入Paddle�
 
 ## 安装
 
-  PaDiff v0.1 版本已发布，可通过如下命令安装：
+  PaDiff v0.2 版本已发布，可通过如下命令安装：
 
   ```
 pip install padiff
@@ -54,14 +55,6 @@ from padiff import auto_diff
 import torch
 import paddle
 
-class SimpleLayer(paddle.nn.Layer):
-  def __init__(self):
-      super(SimpleLayer, self).__init__()
-      self.linear1 = paddle.nn.Linear(100, 10)
-  def forward(self, x):
-      x = self.linear1(x)
-      return x
-
 class SimpleModule(torch.nn.Module):
   def __init__(self):
       super(SimpleModule, self).__init__()
@@ -70,14 +63,22 @@ class SimpleModule(torch.nn.Module):
       x = self.linear1(x)
       return x
 
-layer = SimpleLayer()
+class SimpleLayer(paddle.nn.Layer):
+  def __init__(self):
+      super(SimpleLayer, self).__init__()
+      self.linear1 = paddle.nn.Linear(100, 10)
+  def forward(self, x):
+      x = self.linear1(x)
+      return x
+
 module = SimpleModule()
+layer = SimpleLayer()
 
 inp = paddle.rand((100, 100)).numpy().astype("float32")
-inp = ({'x': paddle.to_tensor(inp)},
-     {'x': torch.as_tensor(inp) })
+inp = ({'x': torch.as_tensor(inp) },
+     {'x': paddle.to_tensor(inp)})
 
-auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0, 'compare_mode': 'strict', 'single_step':False})
+auto_diff(module, layer, inp, atol=1e-4, auto_init=True)
 ```
 
 

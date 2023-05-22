@@ -19,6 +19,8 @@ import shutil
 import numpy as np
 import paddle
 import torch
+from itertools import zip_longest
+
 
 try:
     from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
@@ -174,12 +176,12 @@ def init_options(options):
         "atol": 0,
         "rtol": 1e-7,
         "auto_init": True,
-        "diff_phase": "both",
         "compare_mode": "mean",
+        "diff_phase": "both",
         "single_step": False,
+        "steps": 1,
         "use_loss": False,
         "use_opt": False,
-        "steps": 1,
         "curent_model_idx": None,
     }
 
@@ -205,7 +207,7 @@ def init_options(options):
     log("Your options:")
     print("{")
     for key in options.keys():
-        if key in ["atol", "rtol", "compare_mode", "single_step", "steps", "use_loss", "use_opt"]:
+        if key in ["atol", "rtol", "auto_init", "compare_mode", "single_step", "steps", "use_loss", "use_opt"]:
             print("  {}: `{}`".format(key, options[key]))
     print("}")
 
@@ -398,3 +400,33 @@ def extract_frame_summary():
             break
     assert last_user_fs is not None, "Error happend, can't return None."
     return last_user_fs, frame_summarys
+
+
+"""
+    check dataloader
+"""
+
+
+def check_dataloader(first_loader, second_loader, **kwargs):
+    def get_numpy(data):
+        if isinstance(data, (paddle.Tensor, torch.Tensor)):
+            return data.detach().cpu().numpy()
+        return data
+
+    options = {
+        "atol": 0,
+        "rtol": 1e-7,
+        "compare_mode": "mean",
+    }
+    options.update(kwargs)
+
+    for data_0, data_1 in zip_longest(first_loader, second_loader, fillvalue=None):
+        if data_0 is None or data_1 is None:
+            raise RuntimeError("Given dataloader return difference number of datas.")
+        try:
+            assert_tensor_equal(get_numpy(data_0), get_numpy(data_1), options)
+        except Exception as e:
+            log("check dataloader failed!!!")
+            print(f"{type(e).__name__ + ':  ' + str(e)}")
+            return False
+    return True

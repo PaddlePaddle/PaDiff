@@ -58,6 +58,7 @@ def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, lay
         print(f"             `{names[0]}`")
         print(f"             `{names[1]}`")
         models = [ProxyModel.create_from(x, name) for x, name in zip(models, names)]
+        options["model_names"] = names
 
     assert isinstance(inputs, (tuple, list)), "Invalid Argument."
 

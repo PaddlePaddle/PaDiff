@@ -1,45 +1,63 @@
 - [Interfaces](#interfaces)
   - [一、`auto_diff` 接口参数](#一auto_diff-接口参数)
+    - [接口函数签名](#接口函数签名)
+    - [必要参数](#必要参数)
+    - [可选参数](#可选参数)
+    - [kwargs 可选项](#kwargs-可选项)
   - [二、`assign_weight` 接口参数](#二assign_weight-接口参数)
+    - [函数接口签名](#函数接口签名)
+    - [参数说明](#参数说明)
+  - [三、`check_dataloader` 接口参数](#三check_dataloader-接口参数)
+    - [函数接口签名](#函数接口签名-1)
+    - [参数说明](#参数说明-1)
 
 # Interfaces
 ## 一、`auto_diff` 接口参数
 
-  **接口功能**：进行模型对齐检查
+### 接口函数签名
+`auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, layer_map=None, **kwargs)`
 
-  **接口函数签名**：`auto_diff(layer, module, example_inp, auto_weights=False, steps=1, options={}, layer_map={}, loss_fn=None, optimizer=None)`
+用于对齐模型
 
-  -   `layer` ：传入待对齐的 paddle 模型
+### 必要参数
 
-  -   `module` ：传入待对齐的 torch 模型
+  -   `base_model` ：作为对齐基准的 paddle/torch 模型。
+      -   在模型初始化时，将 base_model 的权重拷贝至 raw_model。
+      -   在 single_step 模式下，将 base_model 的输入同步作为 raw_model 的输入。
 
-  -   `example_inp` ：传入输入的样例数据，样例数据包含 ( paddle_input, torch_input ) 的结构，其中 `paddle_input` 和 `torch_input` 是一个 dict ，包含了需要传入给对应的 layer 和 module 的 name 到 value 的映射，即最后调用时使用 `layer(**paddle_input)` 的形式。注意顺序，paddle 在前 torch 在后。
+  -   `raw_model` ：待对齐的 paddle/torch 模型。
 
-  -   `auto_weights` : 是否使用随机数值统一初始化 paddle 与 torch 模型，默认为 `True`
+  -   `inputs` ：样例数据。传入结构为 (base_model_inputs, raw_model_inputs) 的 list/tuple，其中 base_model_inputs 和 raw_model_inputs 是 dict 类型，最终以 `model(**model_inputs)` 的形式进行传参。
 
-  -   `layer_map` : 指定 paddle 与 torch 的 layer 映射关系，当模型结构无法完全对齐时需要通过此参数指定 layer 的映射关系，详见[LayerMap使用说明](LayerMap.md)
+### 可选参数
 
-  -   `options` ：一个传递参数的字典
+  -   `loss_fns` ：损失函数。传入结构为 (base_model_loss, raw_model_loss) 的 list/tuple。 要求传入的 loss function 只接受一个参数。
 
-      -   `atol` ： 绝对精度误差上限，默认值为  `0`
+  -   `optimizers` ：优化器。传入结构为 (base_model_opt, raw_model_opt) 的 list/tuple。由 paddle/torch 的优化器或 lambda 函数组成，当传入 lambda 函数，它需要同时完成 step 和clear grad的 操作。
 
-      -   `rtol` ： 相对精度误差上限，默认值为  `1e-7`
+  -   `layer_map` : 指定 base_model 与 raw_model 间的映射关系，要求 base_model 的部分作为 key，raw_model 的部分作为 value。当模型结构无法完全对齐时需要通过此参数指定 layer 的映射关系，详见[LayerMap使用说明](LayerMap.md)
 
-      -   `diff_phase` ：  `"both"|"forward"|"backward"`  默认为  `"both"`。设置为  `"both"`  时，工具将比较前反向的 diff；当设置为  `"forward"`  时，仅比较前向 diff，且会跳过模型的 backward 计算过程。"backward" 仅在使用 single_step 时有效。
+### kwargs 可选项
 
-      -   `compare_mode` ：  `"mean"|"strict"`  默认为  `"mean"`。  `"mean"`  表示使用Tensor间误差的均值作为对齐标准；  `"strict"`  表示对Tensor进行逐数据（Elementwise）的对齐检查。
+  -   `atol` ： 绝对精度误差上限，默认值为  `0`
 
-      -   `single_step` ：  `True|False`  默认为  `False`。设置为  `True`  时开启单步对齐模式，forward 过程中每一个 step 都会同步模型的输入，可以避免层间误差累积。
+  -   `rtol` ： 相对精度误差上限，默认值为  `1e-7`
 
-      > 注：
-      >
-      > single_step 模式下，对齐检查的逻辑会随着 diff_phase 属性的变化而不同。如果需要同时用 single_step 对齐前反向，则 padiff 将会运行模型两次，并分别进行前向和反向的 single_step 对齐检查 （single step 模式下运行模型的 forward 无法正常训练）。
+  -   `auto_init` : 是否使用 base_model 的权重初始化 raw_model，默认为 `True`
 
-  -   `loss_fn` ：由 paddle 和 torch 使用的损失函数按顺序组成的 list。在使用时，要求传入的 loss function 只接受一个参数。
+  -   `compare_mode` ：  `"mean"|"strict"`  默认为  `"mean"`。  `"mean"`  表示使用Tensor间误差的均值作为对齐标准；  `"strict"`  表示对Tensor进行逐数据（Elementwise）的对齐检查。
 
-  -   `optimizer` ：由 paddle 和 torch 使用的优化器或 lambda 函数按顺序组成的 list，当传入 lambda 函数，它需要同时完成 step 和clear grad的 操作。
+  -   `diff_phase` ：  `"both"|"forward"|"backward"`  默认为  `"both"`。设置为  `"both"`  时，工具将比较前反向的 diff；当设置为  `"forward"`  时，仅比较前向 diff，且会跳过模型的 backward 计算过程。"backward" 仅在使用 single_step 时有效。
 
-  -   `steps` ： 支持多 step 的对齐检查，默认值为 `1`。当输入steps >1 时要求  `option["diff_phase"]`  为  `"both"`，且传入了optimizer
+  -   `single_step` ：  `True|False`  默认为  `False`。设置为  `True`  时开启单步对齐模式，forward 过程中每一个 step 都会同步模型的输入，可以避免层间误差累积。
+
+  > 注：
+  >
+  > single_step 模式下，对齐检查的逻辑会随着 diff_phase 属性的变化而不同。如果需要同时用 single_step 对齐前反向，则 padiff 将会运行模型两次，并分别进行前向和反向的 single_step 对齐检查 （single step 模式下运行模型的 forward 无法正常训练）。
+
+  -   `steps` ： 支持多 step 的对齐检查，默认值为 1。只有当 `option["diff_phase"]`  为  `"both"`，且传入了optimizers 时才允许 steps > 1。
+
+  -   `model_names` :  指定 base_model 与 raw_model 的名字，用于打印 log 信息，默认为类型名加后缀。
 
 使用代码示例：
 ```py
@@ -47,46 +65,102 @@ from padiff import auto_diff
 import torch
 import paddle
 
-class SimpleLayer(paddle.nn.Layer):
-    # your definition
-
 class SimpleModule(torch.nn.Module):
-    # your definition
+  def __init__(self):
+      super(SimpleModule, self).__init__()
+      self.linear1 = torch.nn.Linear(100, 10)
+  def forward(self, x):
+      x = self.linear1(x)
+      return x
 
+class SimpleLayer(paddle.nn.Layer):
+  def __init__(self):
+      super(SimpleLayer, self).__init__()
+      self.linear1 = paddle.nn.Linear(100, 10)
+  def forward(self, x):
+      x = self.linear1(x)
+      return x
 
-layer = SimpleLayer()
 module = SimpleModule()
+layer = SimpleLayer()
 
 inp = paddle.rand((100, 100)).numpy().astype("float32")
-inp = ({'x': paddle.to_tensor(inp)},
-     {'y': torch.as_tensor(inp) })
+inp = ({'x': torch.as_tensor(inp) },
+     {'x': paddle.to_tensor(inp)})
 
-auto_diff(layer, module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0, 'compare_mode': 'strict', 'single_step':False})
+auto_diff(module, layer, inp, atol=1e-4, rtol=0, auto_init=True, compare_mode='strict', single_step=False)
 ```
 
 
 
-  ## 二、`assign_weight` 接口参数
+## 二、`assign_weight` 接口参数
 
-  **接口功能**：将 torch 模型权重复制到 paddle 模型中，可以结合 `layer_map` 进行自定义初始化
+### 函数接口签名
+`assign_weight(base_model, raw_model, layer_map={})`
 
-  **函数接口签名*：`assign_weight(layer, module, layer_map=LayerMap())`
+将 base_model 模型权重复制到 raw_model 模型中，可以结合 `layer_map` 进行自定义初始化
 
-  -   `layer` ：传入待对齐的 paddle 模型
+### 参数说明
 
-  -   `module` ：传入待对齐的 torch 模型
+-   `base_model` ：基准权重值
 
-  -   `layer_map` ： 指定 paddle 与 torch 的 layer 映射关系，当模型结构无法完全对齐时需要通过此参数指定 layer的 映射关系；详见 [LayerMap使用说明](LayerMap.md)
+-   `raw_model` ：待初始化的模型
+
+-   `layer_map` ： 指定 base_model 与 raw_model 的映射关系，当模型结构无法完全对齐时需要通过此参数指定 layer的 映射关系；详见 [LayerMap使用说明](LayerMap.md)
+
 
 使用代码示例：
 ```py
-from padiff import assign_weight, LayerMap
+from padiff import assign_weight
 import torch
 import paddle
 
-layer = SimpleLayer()
-module = SimpleModule()
-layer_map = LayerMap()
+class SimpleModule(torch.nn.Module):
+  def __init__(self):
+      super(SimpleModule, self).__init__()
+      self.linear1 = torch.nn.Linear(100, 10)
+  def forward(self, x):
+      x = self.linear1(x)
+      return x
 
-assign_weight(layer, module, layer_map)
+class SimpleLayer(paddle.nn.Layer):
+  def __init__(self):
+      super(SimpleLayer, self).__init__()
+      self.linear1 = paddle.nn.Linear(100, 10)
+  def forward(self, x):
+      x = self.linear1(x)
+      return x
+
+module = SimpleModule()
+layer = SimpleLayer()
+
+assign_weight(module, layer)
+```
+
+
+## 三、`check_dataloader` 接口参数
+
+### 函数接口签名
+`check_dataloader(first_loader, second_loader, options=None)`
+
+传入两个 dataloader，对它们的数据进行比较
+
+### 参数说明
+
+-   `first_loader`，`second_loader` ：两个用于比对的 dataloader ，无顺序要求
+
+-   `kwargs` ： 支持传入额外的对比选项
+
+  -   `atol` ： 绝对精度误差上限，默认值为  `0`
+
+  -   `rtol` ： 相对精度误差上限，默认值为  `1e-7`
+
+  -   `compare_mode` ：  `"mean"|"strict"`  默认为  `"mean"`。  `"mean"`  表示使用Tensor间误差的均值作为对齐标准；  `"strict"`  表示对Tensor进行逐数据（Elementwise）的对齐检查。
+
+使用示例：
+```py
+from paddle_data import paddle_dataloader
+from torch_data import torch_dataloader
+
+check_dataloader(paddle_dataloader, torch_dataloader, atol=1-e7)
 ```
