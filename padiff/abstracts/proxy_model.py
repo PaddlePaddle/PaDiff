@@ -14,6 +14,7 @@
 
 import paddle
 import torch
+import re
 
 from .proxy_parameter import ProxyParam
 
@@ -137,7 +138,8 @@ class PaddleModel(ProxyModel):
         return deco_iter(origin_iter, ProxyModel.create_from)
 
     def get_device(self):
-        return paddle.get_device()
+        place_str = str(self.model.parameters()[0].place)
+        return re.match(r"Place\((.*)\)", place_str).group(1)
 
     def to_cpu(self):
         self.model.to("cpu")

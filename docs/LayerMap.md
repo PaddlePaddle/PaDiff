@@ -25,7 +25,7 @@
 ## 快速使用 LayerMap：LayerMap.auto 接口
 **功能介绍**
 
-`auto` 是 `class LayerMap` 实例的成员方法。依次传入 paddle 和 torch 模型后，该方法根据当前支持 Special Init 的组件信息自动更新自身记录的信息。
+`auto` 是 `class LayerMap` 实例的成员方法。依次传入 base_model 和 raw_model 模型后，该方法根据当前支持 Special Init 的组件信息自动更新自身记录的信息。
 
 **适用情况**
 
@@ -64,13 +64,13 @@ paddle_layer = SimpleLayer()
 torch_module = SimpleModule()
 
 layer_map = LayerMap()
-layer_map.auto(paddle_layer, torch_module)
+layer_map.auto(torch_module, paddle_layer)
 
 inp = paddle.rand((100, 100)).numpy().astype("float32")
-inp = ({'x': paddle.to_tensor(inp)},
-     {'y': torch.as_tensor(inp) })
+inp = ({'x': torch.as_tensor(inp)},
+     {'x': paddle.to_tensor(inp)})
 
-auto_diff(paddle_layer, torch_module, inp, auto_weights=True, options={'atol': 1e-4, 'rtol':0, 'compare_mode': 'strict', 'single_step':False}, layer_map=layer_map)
+auto_diff(torch_module, paddle_layer, inp, layer_map=layer_map)
 ```
 
 
@@ -98,7 +98,7 @@ auto_diff(paddle_layer, torch_module, inp, auto_weights=True, options={'atol': 1
 from padiff import LayerMap
 layer_map = LayerMap()
 layer_map.map = {
-    layer.sublayer1 : module.submodule1
+    module.submodule1 : layer.sublayer1
 }
 # 表示 paddle中的layer.sublayer1和torch的model.submodule1 是对应的。
 ```
@@ -133,7 +133,6 @@ layer_map.ignore_class(layer, LayerClass)
 ```
 
 
-
 ## LayerMap使用样例
 
 layer_map使用情景之一： 顶层模型对应，但子模型无对应关系。
@@ -141,15 +140,9 @@ layer_map使用情景之一： 顶层模型对应，但子模型无对应关系�
 ```py
 # 由于paddle与torch的MultiHeadAttention无法直接对齐
 # 需要使用 layer_map 功能
-
-class SimpleLayer(paddle.nn.Layer):
-  def __init__(self):
-      super(SimpleLayer, self).__init__()
-      self.attn = paddle.nn.MultiHeadAttention(16, 1)
-
-  def forward(self, q, k, v):
-      x = self.attn(q, k, v)
-      return x
+from padiff import auto_diff
+import torch
+import paddle
 
 class SimpleModule(torch.nn.Module):
   def __init__(self):
@@ -160,36 +153,47 @@ class SimpleModule(torch.nn.Module):
       x, _ = self.attn(q, k, v)
       return x
 
+class SimpleLayer(paddle.nn.Layer):
+  def __init__(self):
+      super(SimpleLayer, self).__init__()
+      self.attn = paddle.nn.MultiHeadAttention(16, 1)
 
-layer = SimpleLayer()
+  def forward(self, q, k, v):
+      x = self.attn(q, k, v)
+      return x
+
 module = SimpleModule()
+layer = SimpleLayer()
 
 # 目前 auto_diff 已支持 MultiHeadAttention 的权重自动初始化，因此此处无需其他操作
 # 否则，此处应自定义初始化函数，并使用 special init 机制自行注册
 layer_map = LayerMap()
-layer_map.map = {layer.attn: module.attn}
+layer_map.map = {module.attn : layer.attn}
 
 inp = paddle.rand((2, 4, 16)).numpy()
 inp = (
-    {"q": paddle.to_tensor(inp), "k": paddle.to_tensor(inp), "v": paddle.to_tensor(inp)},
     {"q": torch.as_tensor(inp), "k": torch.as_tensor(inp), "v": torch.as_tensor(inp)},
+    {"q": paddle.to_tensor(inp), "k": paddle.to_tensor(inp), "v": paddle.to_tensor(inp)},
 )
 
-auto_diff(layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4})
-
+auto_diff(module, layer, inp, layer_map=layer_map)
 ```
 
 layer_map使用情景之二： 略过无法对齐的sublayer
 
-使用 auto_diff 时，可能出现这样的情况：从计算逻辑上 paddle 与 torch 模型是对齐的，但从模型结构看，它们并不对齐。**若的确找不到合适的顶层模块设置对应**，那么可以使用 ignore layer 功能，略过部分子模型的对齐检查。
+使用 auto_diff 时，可能出现这样的情况：从计算逻辑上模型是对齐的，但从模型结构看，它们并不对齐。**若的确找不到合适的顶层模块设置对应**，那么可以使用 ignore layer 功能，略过部分子模型的对齐检查。
 
 （更新后，以下大部分情况都已经可以自动避免）
 
-1.  在 paddle / torch 模型定义中，某一方使用了 wrap layer（比如 Sequential 或者自定义的类），而另一方并未使用（或者使用了另一种包裹方式）
-2.  在 paddle / torch 模型定义中，某一方使用了 API 接口，另一方使用了 layer/module (例如 Relu)。导致模型结构存在差异，需要使用 ignore layer 功能略过 API 所对应的 layer/module （暂未支持 API 与 layer/module 的对齐）
-3.  在 paddle / torch 模型定义中，一系列顺序的子模型可以对齐，但是单个子模型无法一一对应，auto_diff暂时不支持直接在LayerMap中设置多对多的映射关系
+1.  在模型定义中，某一方使用了 wrap layer（比如 Sequential 或者自定义的类），而另一方并未使用（或者使用了另一种包裹方式）
+2.  在 模型定义中，某一方使用了 API 接口，另一方使用了封装好的 layer/module (例如 Relu)。导致模型结构存在差异，需要使用 ignore layer 功能略过 API 所对应的 layer/module （暂未支持 API 与 layer/module 的对齐）
+3.  在模型定义中，一系列顺序的子模型可以对齐，但是单个子模型无法一一对应，auto_diff暂时不支持直接在LayerMap中设置多对多的映射关系
 
 ```py
+from padiff import auto_diff, LayerMap
+import torch
+import paddle
+
 class NOPLayer(paddle.nn.Layer):
   def __init__(self):
       super(NOPLayer, self).__init__()
@@ -228,6 +232,6 @@ layer_map = LayerMap()
 layer_map.ignore(layer.nop)
 
 auto_diff(
-  layer, module, inp, auto_weights=True, layer_map=layer_map, options={"atol": 1e-4}
+  layer, module, inp, auto_weights=True, layer_map=layer_map, atol=1e-4
 )
 ```

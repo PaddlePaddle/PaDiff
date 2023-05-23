@@ -54,10 +54,10 @@ def process_each_weight(process, models, layer_map):
                 )
             except Exception as e:
                 err_str = f"Error occured between:\n"
-                err_str += f"    base_model {submodel_0.class_name}: {submodel_0.model_repr_info()}\n"
-                err_str += f"            {submodel_0.path_info + '.' + param_name_0}\n"
-                err_str += f"    raw_model {submodel_1.class_name}: {submodel_1.model_repr_info()}\n"
-                err_str += f"            {submodel_1.path_info + '.' + param_name_1}\n"
+                err_str += f"    base_model: `{submodel_0.model_repr_info()}`\n"
+                err_str += f"                `{submodel_0.path_info + '.' + param_name_0}`\n"
+                err_str += f"    raw_model: `{submodel_1.model_repr_info()}`\n"
+                err_str += f"               `{submodel_1.path_info + '.' + param_name_1}`\n"
                 err_str += f"{type(e).__name__ + ':  ' + str(e)}\n"
                 err_str += weight_struct_info(models, (submodel_0, submodel_1))
                 raise RuntimeError(err_str)
@@ -66,11 +66,7 @@ def process_each_weight(process, models, layer_map):
 # this interface is exposed, so it takes two models as inputs
 def assign_weight(base_model, raw_model, layer_map={}):
     """
-    Init weights of layer(paddle) and module(torch) with same value
-
-    Args:
-        layer (paddle.nn.Layer): input paddle layer
-        module (torch.nn.Module): input torch module
+    Set weights in raw_model to the same as the values in base_model
     """
 
     if not isinstance(raw_model, ProxyModel):
@@ -150,7 +146,7 @@ def check_weight(models, options, layer_map):
             _weight_check = False
             info = (
                 "=" * 25 + "\n" + "After training, weight value is different.\n"
-                "between base_model part `{}`, raw_model part `{}` \n"
+                "between base_model: `{}`, raw_model: `{}` \n\n"
                 "{} param path:\n    {}\n"
                 "{} param path:\n    {}\n"
                 "{}\n\n".format(
@@ -212,7 +208,7 @@ def check_grad(models, options, layer_map):
             _grad_check = False
             info = (
                 "=" * 25 + "\n" + "After training, grad value is different.\n"
-                "between base_model part `{}`, raw_model part `{}` \n"
+                "between base_model: `{}`, raw_model: `{}` \n\n"
                 "{} param path:\n    {}\n"
                 "{} param path:\n    {}\n"
                 "{}\n\n".format(
