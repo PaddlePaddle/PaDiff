@@ -43,8 +43,6 @@ def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, lay
     """
 
     options = kwargs
-    init_options(options)
-
     models = (base_model, raw_model)
 
     # ProxyModel.create_from will do assert check for models
@@ -79,6 +77,7 @@ def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, lay
                 opt
             ), "Invalid optimizer"
 
+    init_options(options)
     layer_map = LayerMap.create_from(layer_map)
     init_path_info(models)
     trainer = Trainer(models, loss_fns, optimizers, layer_map, options)
