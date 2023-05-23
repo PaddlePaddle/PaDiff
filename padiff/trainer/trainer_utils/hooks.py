@@ -150,7 +150,7 @@ def info_hook(model, input, output, net_id):
         base_fwd_item = base_report.find_item(report, net_id, "forward")
 
         retval = map_structure_and_replace_key(
-            partial(_transform_tensor, type="paddle" if isinstance(model, paddle.nn.Layer) else "torch"),
+            partial(_transform_tensor, type_="paddle" if isinstance(model, paddle.nn.Layer) else "torch"),
             [base_fwd_item.output],
             output,
         )
@@ -211,26 +211,26 @@ class TorchModuleStr(torch.nn.Module):
         self.__api__ = net.__api__
 
 
-def _transform_tensor(tt, type):
-    if isinstance(tt, (torch.Tensor, paddle.Tensor)):
-        if tt.numel() == 0:
-            if tt.dtype == torch.float32 or tt.dtype == torch.float:
+def _transform_tensor(tensor, type_):
+    if isinstance(tensor, (torch.Tensor, paddle.Tensor)):
+        if tensor.numel() == 0:
+            if tensor.dtype == torch.float32 or tensor.dtype == torch.float:
                 retval = paddle.to_tensor([], dtype="float32")
-            elif tt.dtype == torch.float64:
+            elif tensor.dtype == torch.float64:
                 retval = paddle.to_tensor([], dtype="float64")
-            elif tt.dtype == torch.float16:
+            elif tensor.dtype == torch.float16:
                 retval = paddle.to_tensor([], dtype="float16")
-            elif tt.dtype == torch.int32 or tt.dtype == torch.int:
+            elif tensor.dtype == torch.int32 or tensor.dtype == torch.int:
                 retval = paddle.to_tensor([], dtype="int32")
-            elif tt.dtype == torch.int16:
+            elif tensor.dtype == torch.int16:
                 retval = paddle.to_tensor([], dtype="int16")
-            elif tt.dtype == torch.int64:
+            elif tensor.dtype == torch.int64:
                 retval = paddle.to_tensor([], dtype="int64")
             else:
-                raise RuntimeError(f"In single step mode, copy torch tensor {tt} with dtype {tt.dtype} Failed")
+                raise RuntimeError(f"In single step mode, copy torch tensor {tensor} with dtype {tensor.dtype} Failed")
         else:
-            retval = paddle.to_tensor(tt.detach().cpu().numpy())
+            retval = paddle.to_tensor(tensor.detach().cpu().numpy())
 
-        return retval if type == "paddle" else torch.Tensor(retval.numpy())
+        return retval if type_ == "paddle" else torch.Tensor(retval.numpy())
     else:
-        return tt
+        return tensor
