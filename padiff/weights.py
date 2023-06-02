@@ -22,6 +22,7 @@ from .utils import (
     diff_log_path,
     weight_struct_info,
     assert_tensor_equal,
+    init_path_info
 )
 from .layer_map import LayerMap
 from .abstracts import ProxyModel
@@ -68,6 +69,8 @@ def assign_weight(base_model, raw_model, layer_map={}):
     """
     Set weights in raw_model to the same as the values in base_model
     """
+
+    init_path_info([base_model, raw_model])
 
     if not isinstance(raw_model, ProxyModel):
         raw_model = ProxyModel.create_from(raw_model)
