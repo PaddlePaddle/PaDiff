@@ -16,13 +16,7 @@ from itertools import zip_longest
 
 import numpy
 
-from .utils import (
-    log,
-    log_file,
-    diff_log_path,
-    weight_struct_info,
-    assert_tensor_equal,
-)
+from .utils import log, log_file, diff_log_path, weight_struct_info, assert_tensor_equal, init_path_info
 from .layer_map import LayerMap
 from .abstracts import ProxyModel
 from .file_loader import global_yaml_loader as yamls
@@ -73,6 +67,8 @@ def assign_weight(base_model, raw_model, layer_map={}):
         raw_model = ProxyModel.create_from(raw_model)
     if not isinstance(base_model, ProxyModel):
         base_model = ProxyModel.create_from(base_model)
+
+    init_path_info([base_model, raw_model])
 
     layer_map = LayerMap.create_from(layer_map)
     models = (base_model, raw_model)
