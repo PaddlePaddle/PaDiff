@@ -144,9 +144,9 @@ class tiny_pose_torch(torch.nn.Module):
     def forward(self,x):
         x = self.backbone.forward_features(x)
         x = self.head(x)
-        
+
         return x
-     
+
 # 编写构造 dataloader 的逻辑
 
 def build_torch_data_pipeline():
@@ -158,7 +158,7 @@ def build_torch_data_pipeline():
     cfg.data.samples_per_gpu=1
     cfg.data.workers_per_gpu=1
     cfg.data_cfg.use_gt_bbox=True
-   
+
     dataset = build_dataset(cfg.data.train)
     # step 1: give default values and override (if exist) from cfg.data
     loader_cfg = {
@@ -186,23 +186,23 @@ def build_torch_data_pipeline():
 
     # step 2: cfg.data.train_dataloader has highest priority
     train_loader_cfg = dict(loader_cfg, **cfg.data.get('train_dataloader', {}))
-    
-    data_loaders = build_dataloader(dataset, **train_loader_cfg) 
+
+    data_loaders = build_dataloader(dataset, **train_loader_cfg)
 
     return dataset,data_loaders
 
 def build_paddle_data_pipeline():
     config_file = 'vitpose_base_simple_coco_256x192.yml'
     cfg = load_config(config_file)
- 
+
     capital_mode = 'train'
     capital_mode = capital_mode.capitalize()
     dataset = cfg['{}Dataset'.format(capital_mode)] = create(
                 '{}Dataset'.format(capital_mode))()
-    
+
     loader = create('{}Reader'.format(capital_mode))(
                 dataset, cfg.worker_num)
-   
+
     return dataset,loader
 ```
 
@@ -250,7 +250,7 @@ def test_forward():
     torch_model = tiny_pose_torch()
     torch_model.load_state_dict(torch_new_state_dict)
     torch_model.eval()
-    
+
     paddle_model = tiny_pose_paddle()
     paddle_model.eval()
 
@@ -260,11 +260,11 @@ def test_forward():
 
     print("paddle dateloader build!")
     paddle_dataset,paddle_dataloader = build_paddle_data_pipeline()
-    
+
     # step 3: 构造 layer_map
     layer_map = LayerMap()
     layer_map.auto(paddle_model, torch_model)
-    
+
     # step 4: 使用工具接口初始化 paddle 模型权重 （复制torch权重到paddle模型）
     assign_weight(paddle_model, torch_model, layer_map)
 
@@ -272,7 +272,7 @@ def test_forward():
     for idx, (paddle_batch, torch_batch
                 ) in enumerate(zip(paddle_dataloader, torch_dataloader)):
 
-        inp = ({'x': paddle_batch['image']},  
+        inp = ({'x': paddle_batch['image']},
                {'x': torch_batch['img']})
 
         # step 6: 调用 auto_diff 接口
@@ -283,13 +283,13 @@ def test_forward():
             auto_weights=False,
             layer_map=layer_map,
             options={
-                'atol':0.0, 
+                'atol':0.0,
                 'rtol':1e-5,
                 'single_step':False,
                 'diff_phase':'forward',
             }
         )
-        
+
         if result == False:
             break
 ```
@@ -321,7 +321,7 @@ def test_forward():
     torch_model = tiny_pose_torch()
     torch_model.load_state_dict(torch_new_state_dict)
     torch_model.eval()
-    
+
     paddle_model = tiny_pose_paddle()
     paddle_model.eval()
 
@@ -331,18 +331,18 @@ def test_forward():
 
     print("paddle dateloader build!")
     paddle_dataset,paddle_dataloader = build_paddle_data_pipeline()
-    
+
     # step 3: 构造 layer_map
     layer_map = LayerMap()
     layer_map.auto(paddle_model, torch_model)
-    
+
     # step 4: 使用工具接口初始化 paddle 模型权重 （复制torch权重到paddle模型）
     assign_weight(paddle_model, torch_model, layer_map)
 
     # step 5: 定义损失函数
     def paddle_loss(input):
         # ...
-    
+
     def torch_loss(input):
         # ...
 
@@ -350,7 +350,7 @@ def test_forward():
     for idx, (paddle_batch, torch_batch
                 ) in enumerate(zip(paddle_dataloader, torch_dataloader)):
 
-        inp = ({'x': paddle_batch['image']},  
+        inp = ({'x': paddle_batch['image']},
                {'x': torch_batch['img']})
 
         # step 7: 调用 auto_diff 接口
@@ -361,7 +361,7 @@ def test_forward():
             auto_weights=False,
             layer_map=layer_map,
             options={
-            'atol':0.0, 
+            'atol':0.0,
                 'rtol':1e-5,
                 'single_step':False,
                 'diff_phase':'forward',
@@ -371,7 +371,7 @@ def test_forward():
                 torch_loss,
             ],
         )
-        
+
         if result == False:
             break
 ```
@@ -397,7 +397,7 @@ optimizer 参数的具体的使用方法详见 [Tutorial](Tutorial.md)，以下�
 
 ### 关于参数设置
 
-1.   auto_weights 
+1.   auto_weights
 
      由于在多 step 对齐检查中，需要更新权重，因此 auto_weights 必须设置为 False，否则在每一个 step 前都会触发权重的拷贝。
 
@@ -426,7 +426,7 @@ def test_forward():
     torch_model = tiny_pose_torch()
     torch_model.load_state_dict(torch_new_state_dict)
     torch_model.eval()
-    
+
     paddle_model = tiny_pose_paddle()
     paddle_model.eval()
 
@@ -436,11 +436,11 @@ def test_forward():
 
     print("paddle dateloader build!")
     paddle_dataset,paddle_dataloader = build_paddle_data_pipeline()
-    
+
     # step 3: 构造 layer_map
     layer_map = LayerMap()
     layer_map.auto(paddle_model, torch_model)
-    
+
     # step 4: 使用工具接口初始化 paddle 模型权重 （复制torch权重到paddle模型）
     assign_weight(paddle_model, torch_model, layer_map)
 
@@ -448,7 +448,7 @@ def test_forward():
     for idx, (paddle_batch, torch_batch
                 ) in enumerate(zip(paddle_dataloader, torch_dataloader)):
 
-        inp = ({'x': paddle_batch['image']},  
+        inp = ({'x': paddle_batch['image']},
                {'x': torch_batch['img']})
 
         # step 6: 调用 auto_diff 接口，提供对应的 optimizer
@@ -459,14 +459,14 @@ def test_forward():
             auto_weights=False,
             layer_map=layer_map,
             options={
-            'atol':0.0, 
+            'atol':0.0,
                 'rtol':1e-5,
                 'single_step':False,
                 'diff_phase':'both',
             }
             optimizer=[paddle_opt, torch_opt]
         )
-        
+
         if result == False:
             break
 ```
@@ -484,18 +484,18 @@ def test_forward():
     torch_model = tiny_pose_torch()
     torch_model.load_state_dict(torch_new_state_dict)
     torch_model.eval()
-    
+
     paddle_model = tiny_pose_paddle()
     paddle_model.eval()
 
     # step 2: 构造 input
-    inp = ({'x': paddle_batch['image']},  
+    inp = ({'x': paddle_batch['image']},
            {'x': torch_batch['img']})
 
     # step 3: 构造 layer_map
     layer_map = LayerMap()
     layer_map.auto(paddle_model, torch_model)
-    
+
     # step 4: 使用工具接口初始化 paddle 模型权重 （复制torch权重到paddle模型）
     assign_weight(paddle_model, torch_model, layer_map)
 
@@ -507,7 +507,7 @@ def test_forward():
         auto_weights=False,
         layer_map=layer_map,
         options={
-            'atol':0.0, 
+            'atol':0.0,
             'rtol':1e-5,
             'single_step':False,
             'diff_phase':'both',
@@ -545,8 +545,8 @@ def test_forward():
 ```py
 from padiff import auto_diff, assign_weight, LayerMap()
 
-def test_forward():        
-    # ... 
+def test_forward():
+    # ...
 
     result = auto_diff(
         paddle_model,
@@ -555,14 +555,10 @@ def test_forward():
         auto_weights=False,
         layer_map=layer_map,
         options={
-            'atol':0.0, 
+            'atol':0.0,
             'rtol':1e-5,
             'single_step':False,
             'diff_phase':'both',
         }
     )
 ```
-
-
-
-
