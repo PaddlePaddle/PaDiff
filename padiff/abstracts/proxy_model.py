@@ -24,6 +24,7 @@ class ProxyModel:
         self.model = model
         self.model_type = model_type
         self.name = name
+        self.init_path_info()
 
     @staticmethod
     def create_from(model, name=None):
@@ -38,8 +39,19 @@ class ProxyModel:
         else:
             raise RuntimeError(f"Can not create ProxyModel from {type(model)}")
 
-    def __call__(self, *args, **kwargs):
-        return self.model(*args, **kwargs)
+    @property
+    def class_name(self):
+        return self.model.__class__.__name__
+
+    @property
+    def fullname(self):
+        return f"{self.model_type}::{self.class_name}"
+
+    def __str__(self, *args, **kwargs):
+        return f"Model({self.fullname})"
+
+    def __repr__(self, *args, **kwargs):
+        return f"Model({self.fullname})"
 
     def model_repr_info(self):
         model = self.model
@@ -59,20 +71,21 @@ class ProxyModel:
     def path_info(self):
         return self.model.path_info
 
-    @property
-    def class_name(self):
-        return self.model.__class__.__name__
+    def init_path_info(self):
+        def _set_path_info(model, path):
+            for name, child in model.named_children():
+                path.append(name)
+                setattr(child.model, "path_info", ".".join(path))
+                _set_path_info(child, path)
+                path.pop()
 
-    @property
-    def fullname(self):
-        return f"{self.model_type}::{self.class_name}"
+        setattr(self.model, "path_info", self.name)
+        _set_path_info(self, [self.name])
 
-    def __str__(self, *args, **kwargs):
-        return f"Model({self.fullname})"
 
-    def __repr__(self, *args, **kwargs):
-        return f"Model({self.fullname})"
-
+    '''
+        support native interfaces
+    '''
     def parameters(self):
         raise NotImplementedError()
 
@@ -107,6 +120,63 @@ class ProxyModel:
 
     def register_forward_post_hook(self, hook):
         raise NotImplementedError()
+
+    '''
+        training
+    '''
+    def __call__(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
+    def backward(self, loss):
+        pass
+
+    '''
+        black_list and white_list
+    '''
+    @property
+    def black_list(self, black):
+        pass
+
+    @black_list.setter
+    def set_black_list(self, black):
+        pass
+
+    @property
+    def white_list(self, white):
+        pass
+
+    @white_list.setter
+    def set_white_list(self, white):
+        pass
+
+    '''
+        traversal tools
+    '''
+
+    '''
+        about report
+    '''
+    @property
+    def report(self):
+        pass
+
+    def dump_report(self):
+        pass
+
+    def try_dump_report(self):
+        pass
+
+    '''
+        weight and grad
+    '''
+    def dump_weight(self):
+        pass
+
+    def dump_grad(self):
+        pass
+
+
+
 
 
 class PaddleModel(ProxyModel):

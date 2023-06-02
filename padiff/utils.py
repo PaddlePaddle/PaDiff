@@ -175,8 +175,9 @@ def init_options(options):
     default_options = {
         "atol": 0,
         "rtol": 1e-7,
-        "auto_init": True,
         "compare_mode": "mean",
+
+        "auto_init": True,
         "diff_phase": "both",
         "single_step": False,
         "steps": 1,

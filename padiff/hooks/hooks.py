@@ -87,7 +87,7 @@ def post_structure_hook(layer, input, output, model_idx):
     hook for record forward infos
 """
 
-# do not enter api layer which is triggered under in info_hook
+# do not enter api layer which is triggered under info_hook
 __in_info_hook__ = False
 
 

@@ -43,6 +43,7 @@ class Runner(object):
         reports[1].layer_map = self.layer_map
         self.reports = reports
 
+    # should be interface of proxy model
     def run_step(self, inputs):
         def run_model(model_idx):
             with register_hooker(self, model_idx):
