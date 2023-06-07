@@ -117,7 +117,7 @@ import paddle
 import torch
 from padiff import auto_diff, assign_weight, add_special_init, LayerMap
 
-import numpy 
+import numpy
 
 '''
     模型定义同上，此处略过
@@ -129,7 +129,7 @@ import numpy
 
 # 自定义模型初始化函数
 def init_component(layer, module):
-    print("init component")  
+    print("init component")
 
     # 在自定义的初始化函数中，手动对齐 linear1 <=> linear1, linear2 <=> linear2
     for (name, paddle_param), torch_param in zip(
@@ -207,7 +207,7 @@ from .special_init_pool import global_special_init_pool as init_pool
 
 @init_pool.register(paddle_name="PaddleComponent", torch_name="TorchComponent")    # 此处填写模型的类名
 def init_component(layer, module):
-    print(" ***** init component ***** ")  
+    print(" ***** init component ***** ")
     # 在自定义的初始化函数中，手动对齐 linear1 vs linear1, linear2 vs linear2
     for (name, paddle_param), torch_param in zip(
         layer.linear1.named_parameters(prefix="", include_sublayers=False),
@@ -244,5 +244,3 @@ def init_component(layer, module):
 3.   提交PR
 
 完成上面的文件编写后，可以联系 repo 管理员 review 并合入，提交后 padiff 工具就能够支持对应模型的初始化逻辑，无需重复编写。
-
-
