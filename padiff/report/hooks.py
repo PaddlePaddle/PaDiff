@@ -14,72 +14,59 @@
 
 import contextlib
 from functools import partial
-from .report import current_reports
-from ...utils import (
-    yamls,
+from .report import current_report
+from ..utils import (
     clone_structure,
+    clone_tensors,
     map_structure_and_replace_key,
     flatten,
     for_each_grad_tensor,
-    map_structure_and_replace_key,
-    extract_frame_summary,
 )
-import os
+
 import paddle
 import torch
 
 
 @contextlib.contextmanager
-def register_hooker(runner, model_idx):
-    options = yamls.options
-    options["curent_model_idx"] = model_idx
-
-    model = runner.models[model_idx]
-    layer_map = runner.layer_map
-
-    if os.getenv("PADIFF_CUDA_MEMORY") != "OFF":
-        device = runner.devices[model_idx]
-        model.to(device)
+def register_hooker(model):
+    marker = model.marker
 
     remove_handles = []
     idx = 0
-    # struct_hook_layers includes all layer marked by ignore_recursively, which might also in ignored layers
-    # for these layers, we need add pre and post hook for model structure, but not info hook
-    models = layer_map.struct_hook_layers(model)
+    # traversal_for_hook includes layers which we need add pre and post hook
+    # for model structure, but not info hook (they are in black list)
+    models = list(marker.traversal_for_hook(model))
     for mod in models:
-        pre_handle = mod.register_forward_pre_hook(partial(pre_structure_hook, model_idx=model_idx))
-        if mod not in layer_map._ignored_layers:
+        pre_handle = mod.register_forward_pre_hook(partial(pre_structure_hook))
+        if mod not in marker.black_list:
             handle = mod.register_forward_post_hook(partial(info_hook, net_id=idx))
             remove_handles.append(handle)
-        post_handle = mod.register_forward_post_hook(partial(post_structure_hook, model_idx=model_idx))
+        post_handle = mod.register_forward_post_hook(partial(post_structure_hook))
         remove_handles.extend([pre_handle, post_handle])
         idx += 1
     yield
     for h in remove_handles:
         h.remove()
 
-    if os.getenv("PADIFF_CUDA_MEMORY") != "OFF":
-        model.to_cpu()
-    options["curent_model_idx"] = None
-
-
 """
     hooks used to build module structure
 """
 
-
-def pre_structure_hook(layer, input, model_idx):
-    rep = current_reports()[model_idx]
-    rep.stack.push_layer(layer)
-    if layer in rep.layer_map.layers_in_map():
-        rep.stack._top().in_layer_map = True
-        rep.stack._top().is_leaf = True
+def pre_structure_hook(layer, input):
+    report = current_report()
+    report.stack.push_layer(layer)
+    if layer in report.marker.layer_map:
+        report.stack._top().layer_type = "in map"
+        report.stack._top().layer_map_idx = report.marker.layer_map.index(layer)
+        report.stack._top().is_leaf = True
     return None
 
 
-def post_structure_hook(layer, input, output, model_idx):
-    rep = current_reports()[model_idx]
-    rep.stack.pop_layer(layer)
+def post_structure_hook(layer, input, output):
+    report = current_report()
+    retval = report.stack.pop_layer(layer)
+    if retval in report.marker.black_list:
+        report.stack._top().children.pop()
     return None
 
 
@@ -95,21 +82,12 @@ def info_hook(model, input, output, net_id):
     """
     Notice: the model is a origin layer/module, not ProxyModel
     """
-    options = yamls.options
-
-    # this logic is for fix wrapped api layer, which can not give a model_idx param because they are wrapped and register hook during import
-    if not options or options["curent_model_idx"] is None:
-        return None
-    model_idx = options["curent_model_idx"]
-
     global __in_info_hook__
     if __in_info_hook__:
         return None
 
-    report = current_reports()[model_idx]
+    report = current_report()
 
-    # not in report_guard
-    # if report is not None but the stack is emtpy, this api might be used in loss function or optimizer, skip
     if report is None or report.stack._top() is None:
         return None
 
@@ -117,10 +95,10 @@ def info_hook(model, input, output, net_id):
     if output is None or all([not isinstance(x, (paddle.Tensor, torch.Tensor)) for x in flatten(output)]):
         return None
 
-    # if an api under _ignore_sublayer, do not create report
-    # a layer under _ignore_sublayer will not register this hook, except it is a mapped layer
+    # if an api under black_list_recursively, do not create report
+    # a layer under black_list_recursively will not register this hook, except it is a mapped layer
     # report.stack._top().net can not be an api layer !!!
-    if report.stack._top().net in report.layer_map._sublayer_ignored_layers and hasattr(model, "__api__"):
+    if report.stack._top().net in report.marker.black_list_recursively and hasattr(model, "__api__"):
         return None
 
     __in_info_hook__ = True
@@ -131,22 +109,20 @@ def info_hook(model, input, output, net_id):
     else:
         _model = model
 
-    frame_info, frames = extract_frame_summary()
-    new_in = clone_structure(input)
-    new_out = clone_structure(output)
-    fwd_item = report.put_item("forward", new_in, new_out, _model, net_id, frame_info, frames)
-    bwd_item = report.put_item("backward", new_in, new_out, _model, net_id, frame_info, frames)
+    new_in = clone_tensors(input)
+    new_out = clone_tensors(output)
+    fwd_item = report.put_item("forward", new_in, new_out, _model, net_id)
+    bwd_item = report.put_item("backward", new_in, new_out, _model, net_id)
     bwd_item.set_forward(fwd_item)
 
     report.stack.push_api(_model, fwd_item, bwd_item)
 
     for i, (t,) in enumerate(for_each_grad_tensor(input)):
-        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i, net_id=net_id, model_idx=model_idx))
+        t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i, net_id=net_id))
 
-    # model_idx == 0: base_model
-    # model_idx == 1: raw_model
-    if model_idx == 1 and net_id != -1 and options["single_step"] and options["diff_phase"] == "forward":
-        base_report = current_reports()[0]
+    # if under single step forward guard
+    if net_id != -1 and False:
+        base_report = None # get_base_report()
         base_fwd_item = base_report.find_item(report, net_id, "forward")
 
         retval = map_structure_and_replace_key(
@@ -166,15 +142,14 @@ def info_hook(model, input, output, net_id):
 """
 
 
-def tensor_hook(x_grad, bwd_item, nth_tensor, net_id, model_idx):
-    new_grad = clone_structure(x_grad)
-    bwd_item.set_input_grads(nth_tensor, new_grad)
+def tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
+    new_grad = clone_tensors(x_grad)
+    bwd_item.set_input_grads(nth_tensor, new_grad[0])
 
-    options = yamls.options
-
-    if model_idx == 1 and net_id != -1 and options["single_step"] and options["diff_phase"] == "backward":
-        base_report = current_reports()[0]
-        raw_report = current_reports()[1]
+    # if under single step backward guard
+    if net_id != -1 and False:
+        base_report = None # TODO
+        raw_report = current_report()
         base_bwd_item = raw_report.find_item(base_report, net_id, "backward")
 
         return map_structure_and_replace_key(
@@ -185,10 +160,10 @@ def tensor_hook(x_grad, bwd_item, nth_tensor, net_id, model_idx):
     return x_grad
 
 
-"""
-    tools used in hook
-"""
 
+"""
+    utils
+"""
 
 def padiff_layer_str(model):
     if isinstance(model, paddle.nn.Layer):

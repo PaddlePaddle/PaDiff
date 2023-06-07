@@ -25,9 +25,8 @@ from functools import partial
 from importlib.abc import MetaPathFinder, Loader
 from importlib.machinery import SourceFileLoader, ExtensionFileLoader, PathFinder
 
-from .file_loader import global_json_loader as jsons
-from .trainer.trainer_utils import info_hook
-
+from .report.hooks import info_hook
+from .datas import global_json_loader as jsons
 
 def module_filter(name):
     if name in jsons.paddle_apis.keys() or name in jsons.torch_apis.keys():
@@ -223,7 +222,7 @@ class PaDiffLoader(Loader):
         return None
 
 
-if os.getenv("PADIFF_API_CHECK") != "OFF":
+if os.getenv("PADIFF_API_CHECK") != "OFF" and False:
     for name in jsons.TORCH_PATH:
         if name in sys.modules.keys():
             module = sys.modules[name]
@@ -240,16 +239,5 @@ if os.getenv("PADIFF_API_CHECK") != "OFF":
 import paddle
 import torch
 
-from .layer_map import LayerMap
-from .weights import assign_weight
-from .auto_diff import auto_diff
-from .special_init import add_special_init
-from .utils import check_dataloader
 
-__all__ = [
-    "auto_diff",
-    "LayerMap",
-    "assign_weight",
-    "add_special_init",
-    "check_dataloader",
-]
+from .abstracts import create_model

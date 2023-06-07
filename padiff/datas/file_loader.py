@@ -21,41 +21,51 @@ import json
     yaml_loader
 """
 
+global_compare_configs = {
+    "atol": 0,
+    "rtol": 1e-7,
+    "compare_mode": "mean",
+}
+
+def update_configs(cfg):
+    global_compare_configs.update(cfg)
 
 class yaml_loader:
     def __init__(self):
-        yaml_path = os.path.join(os.path.dirname(__file__), "configs", "assign_weight.yaml")
+        yaml_path = os.path.join(os.path.dirname(__file__), "assign_weight.yaml")
         with open(yaml_path, "r") as yaml_file:
             self._assign_yaml = yaml.safe_load(yaml_file)
         self._options = {}
 
-    def get_weight_settings(self, base_model, raw_model, param_name):
+    def get_weight_settings(self, nodes, reports, param_names):
         # only when paddle model compare with torch model, need to update settings
-        if raw_model.model_type == base_model.model_type:
+        if reports[0]["framework"] == reports[1]["framework"]:
             settings = {"transpose": False}
-            settings.update(self._options)
+            settings.update(global_compare_configs)
             return settings
 
         # settings are used to fix the diff between paddle and torch, so keep `paddle`` and `torch` infos here
         # currently, assign_weight.yaml only recorded transpose setting
         # transpose paddle or torch is the same, so it's no need to change current yaml file temporarily
-        if raw_model.model_type == "paddle":
-            paddle_model = raw_model
-            torch_model = base_model
+        if reports[0]["framework"] == "paddle":
+            paddle_model = nodes[0]
+            torch_model = nodes[1]
+            param_name = param_names[0]
         else:
-            paddle_model = base_model
-            torch_model = raw_model
+            paddle_model = nodes[1]
+            torch_model = nodes[0]
+            param_name = param_names[1]
 
-        assign_config = self._assign_yaml.get(paddle_model.class_name, None)
+        assign_config = self._assign_yaml.get(paddle_model["name"], None)
         settings = {
             "transpose": False,
         }
 
         if assign_config is not None:
             assert (
-                torch_model.class_name in assign_config["torch"]
+                torch_model["name"] in assign_config["torch"]
             ), "Not correspond, paddle layer {}  vs torch module {}. check your __init__ to make sure every sublayer is corresponded, or view the model struct reports in diff_log.".format(
-                paddle_model.class_name, torch_model.class_name
+                paddle_model["name"], torch_model["name"]
             )
 
         if (
@@ -111,7 +121,7 @@ class json_loader:
             "paddle.signal",
         ]
 
-        json_path = os.path.join(os.path.dirname(__file__), "configs", "api_mapping.json")
+        json_path = os.path.join(os.path.dirname(__file__), "api_mapping.json")
         with open(json_path, "r") as file:
             api_mapping = json.load(file)
 

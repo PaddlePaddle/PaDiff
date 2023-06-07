@@ -80,6 +80,6 @@ class TorchParam(ProxyParam):
 
     def grad(self):
         if self.param.grad is not None:
-            return self.param.grad.detach().cpu().numpy()
+            return self.param.grad.data.detach().cpu().numpy()
         else:
             return None

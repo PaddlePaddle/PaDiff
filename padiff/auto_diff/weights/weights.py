@@ -31,10 +31,6 @@ from .special_init import build_name
 
 
 def process_each_weight(process, models, layer_map):
-    def _process_runner(process, submodels, param_names, params):
-        settings = yamls.get_weight_settings(submodels[0], submodels[1], param_names[0])
-        process(submodels, param_names, params, settings)
-
     submodels_0 = layer_map.weight_init_layers(models[0])
     submodels_1 = layer_map.weight_init_layers(models[1])
 
@@ -46,11 +42,12 @@ def process_each_weight(process, models, layer_map):
             submodel_1.named_parameters(recursively=False),
         ):
             try:
-                _process_runner(
-                    process,
+                settings = yamls.get_weight_settings(submodel_0, submodel_1, param_name_0)
+                process(
                     (submodel_0, submodel_1),
                     (param_name_0, param_name_1),
                     (param_0, param_1),
+                    settings
                 )
             except Exception as e:
                 err_str = f"Error occured between:\n"

@@ -20,13 +20,23 @@ import numpy as np
 import paddle
 import torch
 from itertools import zip_longest
+import os.path as osp
+import traceback
 
 
 try:
     from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
 except:
     from paddle.utils import flatten, pack_sequence_as, map_structure
-from .file_loader import global_yaml_loader as yamls
+
+
+"""
+    global infos
+"""
+global_options = None
+log_path = os.path.join(sys.path[0], "padiff_log")
+
+__reset_log_dir__ = False       # reset log_path only once
 
 
 """
@@ -85,6 +95,10 @@ def clone_structure(inputs):
     return map_structure(_clone_tensor, inputs)
 
 
+def clone_tensors(inputs):
+    tensors = [_clone_tensor(t) for (t,) in for_each_tensor(inputs)]
+    return tensors
+
 """
     traversal tools
 """
@@ -132,13 +146,13 @@ def max_diff(output1, output2):
     return _max_diff
 
 
-def assert_tensor_equal(tensor1, tensor2, options):
+def assert_tensor_equal(tensor1, tensor2, cfg):
     """
     return None or raise Error.
     """
-    atol = options["atol"]
-    rtol = options["rtol"]
-    compare_mode = options["compare_mode"]
+    atol = cfg["atol"]
+    rtol = cfg["rtol"]
+    compare_mode = cfg["compare_mode"]
 
     if compare_mode == "mean":
         np.testing.assert_allclose(tensor1.mean(), tensor2.mean(), atol=atol, rtol=rtol)
@@ -170,7 +184,6 @@ def tensors_mean(inp, mode):
     init tools
 """
 
-
 def init_options(options):
     default_options = {
         "atol": 0,
@@ -183,7 +196,6 @@ def init_options(options):
         "steps": 1,
         "use_loss": False,
         "use_opt": False,
-        "curent_model_idx": None,
     }
 
     default_options.update(options)
@@ -212,52 +224,28 @@ def init_options(options):
             print("  {}: `{}`".format(key, options[key]))
     print("}")
 
-    yamls.options = options
+    global global_options
+    global_options = options
 
 
-def init_path_info(models):
-    def _set_path_info(model, path):
-        for name, child in model.named_children():
-            path.append(name)
-            setattr(child.model, "path_info", ".".join(path))
-            _set_path_info(child, path)
-            path.pop()
+"""
+    process files
+"""
 
-    for model in models:
-        setattr(model.model, "path_info", model.name)
-        _set_path_info(model, [model.name])
-
-
-def remove_inplace(models):
-    """
-    Set `inplace` tag to `False` for torch module
-    """
-
-    for model in models:
-        if model.model_type == "torch":
-            for submodel in model.submodels():
-                if hasattr(submodel, "inplace"):
-                    submodel.inplace = False
+def reset_dir(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path)
 
 
 """
     log utils
 """
 
-diff_log_path = os.path.join(sys.path[0], "diff_log")
-__reset_log_dir__ = False
-
-
-def reset_log_dir():
-    if os.path.exists(diff_log_path):
-        shutil.rmtree(diff_log_path)
-    os.makedirs(diff_log_path)
-
-
 def log_file(filename, mode, info):
     global __reset_log_dir__
     if not __reset_log_dir__:
-        reset_log_dir()
+        reset_dir(log_path)
         __reset_log_dir__ = True
 
     filepath = os.path.join(sys.path[0], "diff_log", filename)
@@ -271,102 +259,9 @@ def log(*args):
     print("[AutoDiff]", *args)
 
 
-def weight_struct_info(models, submodels):
-    lines = 0
-    infos = []
-
-    for idx in range(2):
-        model = models[idx]
-        submodel = submodels[idx]
-        title = f"{model.name}\n" + "=" * 40 + "\n"
-        retval = weight_struct_string(model, mark=submodel, prefix=[" " * 4])
-        info = title + "\n".join(retval)
-        infos.append(info)
-        lines += len(retval)
-
-    retstr = ""
-    if lines > 100:
-        file_names = [f"weight_{models[idx].name}.log" for idx in range(2)]
-        for idx in range(2):
-            info = infos[idx]
-            log_file(file_names[idx], "w", info)
-        retstr += (
-            f"Weight diff log saved to `{diff_log_path}/{file_names[0]}` and `{diff_log_path}/{file_names[1]}`.\n"
-        )
-        retstr += "Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !\n"
-    else:
-        for info in infos:
-            retstr += info
-            retstr += "\n"
-
-    retstr += "\nNOTICE: submodel will be marked with `(skip)` because: \n"
-    retstr += "    1. This submodel is contained by layer_map.\n"
-    retstr += "    2. This submodel has no parameter, so padiff think it is a wrap layer.\n"
-
-    retstr += "\nHint:\n"
-    retstr += "    1. Check the definition order of params in submodel is the same.\n"
-    retstr += "    2. Check the corresponding submodel have the same style:\n"
-    retstr += "       param <=> param, buffer <=> buffer, embedding <=> embedding ...\n"
-    retstr += "       cases like param <=> buffer, param <=> embedding are not allowed.\n"
-    retstr += "    3. If can not change model codes, try to use a `LayerMap`\n"
-    retstr += "       which can solve most problems.\n"
-    retstr += "    0. Visit `https://github.com/PaddlePaddle/PaDiff` to find more infomation.\n"
-
-    return retstr
-
-
-def weight_struct_string(model, mark=None, prefix=[]):
-    cur_str = ""
-    for i, s in enumerate(prefix):
-        if i == len(prefix) - 1:
-            cur_str += s
-        else:
-            if s == " |--- ":
-                cur_str += " |    "
-            elif s == " +--- ":
-                cur_str += "      "
-            else:
-                cur_str += s
-
-    cur_str += str(model.class_name)
-
-    if not hasattr(model.model, "no_skip"):
-        cur_str += "  (skip)"
-
-    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(model.model, "path_info"):
-        cur_str += "  (" + model.path_info + ")"
-
-    if mark.model is model.model:
-        cur_str += "    <---  *** HERE ***"
-
-    ret_strs = [cur_str]
-
-    children = list(model.children())
-    for i, child in enumerate(children):
-        pre = " |--- "
-        if i == len(children) - 1:
-            pre = " +--- "
-        prefix.append(pre)
-        retval = weight_struct_string(child, mark, prefix)
-        ret_strs.extend(retval)
-        prefix.pop()
-
-    return ret_strs
-
-
-def debug_print(model, mark=None, prefix=[]):
-    retval = weight_struct_string(model, mark=None, prefix=[])
-    print("\n".join(retval))
-
-
 """
     stack tools
 """
-
-
-import os.path as osp
-import traceback
-
 
 def _is_system_package(filename):
     exclude = [
@@ -431,3 +326,16 @@ def check_dataloader(first_loader, second_loader, **kwargs):
             print(f"{type(e).__name__ + ':  ' + str(e)}")
             return False
     return True
+
+
+class Counter:
+    def __init__(self):
+        self.clear()
+
+    def clear(self):
+        self.id = 0
+
+    def get_id(self):
+        ret = self.id
+        self.id += 1
+        return ret

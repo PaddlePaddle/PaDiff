@@ -12,8 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .proxy_model import ProxyModel
-
-__all__ = [
-    "ProxyModel",
-]
+from .proxy_model import create_model

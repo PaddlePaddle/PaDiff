@@ -17,14 +17,35 @@ import torch
 import re
 
 from .proxy_parameter import ProxyParam
+from .proxy_utils import deco_iter, init_path_info, remove_inplace
+from .marker import Marker
+
+from ..report import Report, report_guard, register_hooker
+from ..utils import reset_dir
+from ..dump_tools import dump_runtime, dump_weights_grads, dump_root
+
+
+# this interface is for user
+def create_model(model):
+    retval = ProxyModel.create_from(model)
+    init_path_info(retval)
+    reset_dir(retval.dump_path)
+    if retval.framework == "torch":
+        remove_inplace(retval)
+    return retval
 
 
 class ProxyModel:
-    def __init__(self, model, name, model_type):
+    def __init__(self, model, name, framework):
         self.model = model
-        self.model_type = model_type
+        self.framework = framework            # paddle/torch
         self.name = name
-        self.init_path_info()
+
+        self.marker = Marker(self)
+        self.report = Report(self.marker)
+        self.step = 0
+
+        self.dump_path = dump_root + "/" + self.name
 
     @staticmethod
     def create_from(model, name=None):
@@ -33,9 +54,11 @@ class ProxyModel:
         if isinstance(model, ProxyModel):
             return model
         elif isinstance(model, paddle.nn.Layer):
-            return PaddleModel(model, name)
+            retval = PaddleModel(model, name)
+            return retval
         elif isinstance(model, torch.nn.Module):
-            return TorchModel(model, name)
+            retval = TorchModel(model, name)
+            return retval
         else:
             raise RuntimeError(f"Can not create ProxyModel from {type(model)}")
 
@@ -45,7 +68,7 @@ class ProxyModel:
 
     @property
     def fullname(self):
-        return f"{self.model_type}::{self.class_name}"
+        return f"{self.framework}::{self.class_name}"
 
     def __str__(self, *args, **kwargs):
         return f"Model({self.fullname})"
@@ -71,25 +94,53 @@ class ProxyModel:
     def path_info(self):
         return self.model.path_info
 
-    def init_path_info(self):
-        def _set_path_info(model, path):
-            for name, child in model.named_children():
-                path.append(name)
-                setattr(child.model, "path_info", ".".join(path))
-                _set_path_info(child, path)
-                path.pop()
+    '''
+        training
+    '''
+    def __call__(self, *args, **kwargs):
+        with register_hooker(self), report_guard(self.report):
+            return self.model(*args, **kwargs)
 
-        setattr(self.model, "path_info", self.name)
-        _set_path_info(self, [self.name])
+    def backward(self, loss):
+        with register_hooker(self), report_guard(self.report):
+            return loss.backward()
+    '''
+        black_list and white_list
+        mode : "self" | "sublayers" | "all"
+    '''
+    def update_black_list(self, layers, mode="all"):
+        self.marker.update_black_list(layers, mode)
+
+    def update_white_list(self, layers, mode="self"):
+        self.marker.update_white_list(layers, mode)
+    
+    def update_black_list_with_class(self, layer_class, recursively=True):
+        pass
+
+    def update_white_list_with_class(self, layer_class, recursively=False):
+        pass
+
+    '''
+        about dump
+    '''
+    def try_dump(self, per_step):
+        if self.step % per_step == 0:
+            step_path = f"{self.dump_path}/step_{self.step}"
+            reset_dir(step_path)
+            dump_weights_grads(self, step_path)
+            dump_runtime(self, step_path)
+
+        self.report = Report(self.marker)
+        self.step += 1
 
 
     '''
         support native interfaces
     '''
-    def parameters(self):
+    def parameters(self, recursively):
         raise NotImplementedError()
 
-    def named_parameters(self):
+    def named_parameters(self, recursively):
         raise NotImplementedError()
 
     # child sublayers, do not include self
@@ -120,63 +171,6 @@ class ProxyModel:
 
     def register_forward_post_hook(self, hook):
         raise NotImplementedError()
-
-    '''
-        training
-    '''
-    def __call__(self, *args, **kwargs):
-        return self.model(*args, **kwargs)
-
-    def backward(self, loss):
-        pass
-
-    '''
-        black_list and white_list
-    '''
-    @property
-    def black_list(self, black):
-        pass
-
-    @black_list.setter
-    def set_black_list(self, black):
-        pass
-
-    @property
-    def white_list(self, white):
-        pass
-
-    @white_list.setter
-    def set_white_list(self, white):
-        pass
-
-    '''
-        traversal tools
-    '''
-
-    '''
-        about report
-    '''
-    @property
-    def report(self):
-        pass
-
-    def dump_report(self):
-        pass
-
-    def try_dump_report(self):
-        pass
-
-    '''
-        weight and grad
-    '''
-    def dump_weight(self):
-        pass
-
-    def dump_grad(self):
-        pass
-
-
-
 
 
 class PaddleModel(ProxyModel):
@@ -268,20 +262,3 @@ class TorchModel(ProxyModel):
 
     def register_forward_post_hook(self, hook):
         return self.model.register_forward_hook(hook)
-
-
-def deco_iter(iterator, fn):
-    def new_fn(obj):
-        try:
-            return fn(obj)
-        except:
-            return obj
-
-    def new_generator():
-        for obj in iterator:
-            if isinstance(obj, (tuple, list)):
-                yield tuple(map(new_fn, obj))
-            else:
-                yield new_fn(obj)
-
-    return new_generator()

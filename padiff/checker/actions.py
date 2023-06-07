@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ...utils import assert_tensor_equal
+from ..utils import assert_tensor_equal
+from .checker_utils import load_numpy
 import torch
 import paddle
+import numpy
 
 import warnings
 
@@ -26,12 +28,12 @@ class ActionPool:
     def register(self, cls):
         name = cls.__name__
         self.pool.append(cls())
-        sorted(self.pool, key=lambda x: x.priority, reverse=True)
+        sorted(self.pool, key=lambda x: x.priority, reverse=True)   # high -> low
         return cls
 
-    def find_actions(self, base_model, raw_model):
+    def find_actions(self, report_0, node_0, report_1, node_1):
         for act in self.pool:
-            if act.match(base_model, raw_model):
+            if act.match(report_0, node_0, report_1, node_1):
                 return act
         raise RuntimeError("No action is matched, not expected.")
 
@@ -44,7 +46,7 @@ def get_action(*args, **kargs):
 
 
 class Action:
-    def match(self, base_model, raw_model):
+    def match(self, report_0, node_0, report_1, node_1):
         raise NotImplementedError("")
 
     def __call__(self, base_item, raw_item, cfg):
@@ -57,49 +59,20 @@ class Action:
 
 @global_actions.register
 class EqualAction(Action):
-    def match(self, base_model, raw_model):
-        if (
-            isinstance(base_model, torch.nn.Module)
-            and isinstance(raw_model, paddle.nn.Layer)
-            or isinstance(raw_model, torch.nn.Module)
-            and isinstance(base_model, paddle.nn.Layer)
-        ):
-            return True
-        return False
+    def match(self, report_0, node_0, report_1, node_1):
+        return True
 
     @property
     def priority(self):
         return 0
 
-    def __call__(self, base_item, raw_item, cfg):
-        tensors_0 = base_item.tensors_for_compare()
-        tensors_1 = raw_item.tensors_for_compare()
-        for (t0,), (t1,) in zip(tensors_0, tensors_1):
-            if t0.numel() == 0 or t1.numel() == 0:
-                warnings.warn("Found Tensor.numel() is 0, compare skipped!")
+    def __call__(self, file_list_0, file_list_1, cfg):
+        for path_0, path_1 in zip(file_list_0, file_list_1):
+            tensor_0 = load_numpy(path_0)
+            tensor_1 = load_numpy(path_1)
+            if tensor_0.size == 0 or tensor_1.size == 0:
+                if tensor_0.size != tensor_1.size:
+                    raise RuntimeError("size of tensors is not equal")
+                warnings.warn("Found nparray.size == 0, compare skipped!")
                 continue
-            assert_tensor_equal(t0.detach().cpu().numpy(), t1.detach().cpu().numpy(), cfg)
-
-
-@global_actions.register
-class PPAction(Action):
-    def match(self, base_model, raw_model):
-        try:
-            assert isinstance(base_model, paddle.nn.Layer)
-            assert isinstance(raw_model, paddle.nn.Layer)
-        except:
-            return False
-        return True
-
-    @property
-    def priority(self):
-        return 1
-
-    def __call__(self, base_item, raw_item, cfg):
-        tensors_0 = base_item.tensors_for_compare()
-        tensors_1 = raw_item.tensors_for_compare()
-        for (t0,), (t1,) in zip(tensors_0, tensors_1):
-            if t0.numel() == 0 or t1.numel() == 0:
-                warnings.warn("Found Tensor.numel() is 0, compare skipped!")
-                continue
-            assert_tensor_equal(t0.detach().cpu().numpy(), t1.detach().cpu().numpy(), cfg)
+            assert_tensor_equal(tensor_0, tensor_1, cfg)
