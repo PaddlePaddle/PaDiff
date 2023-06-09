@@ -59,6 +59,7 @@ class TestCaseName(unittest.TestCase):
 
             if i % 2 == 0:
                 assert check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == True
+                assert check_params(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == True
 
     def test_check_fail(self):
         layer = SimpleLayer()
@@ -81,6 +82,7 @@ class TestCaseName(unittest.TestCase):
 
             if i % 2 == 0:
                 assert check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == False
+                assert check_params(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == False
 
 
 if __name__ == "__main__":

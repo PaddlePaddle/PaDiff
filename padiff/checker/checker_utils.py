@@ -51,10 +51,8 @@ def struct_info_log(reports, nodes, file_prefix):
         info = title + "\n".join(retval)
         log_file(file_name, "w", info)
 
-    retval = f"Log saved to \n"
-    retval += f"    {log_path}/{file_names[0]}\n"
-    retval += f"    {log_path}/{file_names[1]}\n\n"
-    retval += "Please view the reports and checkout the layer marked with `<---  *** HERE ***` !"
+    retval = f"Logs: {log_path}/{file_names[0]}\n"
+    retval += f"      {log_path}/{file_names[1]}\n"
     return retval
 
 
