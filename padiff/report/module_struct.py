@@ -104,8 +104,8 @@ def _tree_print(root, mark=None, prefix=[]):
                 cur_str += s
 
     cur_str += str(root)
-    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(root.net, "path_info"):
-        cur_str += "  (" + root.net.path_info + ")"
+    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(root.net, "route"):
+        cur_str += "  (" + root.net.route + ")"
     if mark is root:
         cur_str += "    <---  *** HERE ***"
 

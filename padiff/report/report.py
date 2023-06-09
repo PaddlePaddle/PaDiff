@@ -30,7 +30,7 @@ class Report:
         self.items.append(
             ReportItem(
                 type_=type_,
-                step=step,          # runtime order of layers/apis
+                step=step,          # report order of layers/apis
                 input_=input_,
                 output=output,
                 net=net,
@@ -55,7 +55,7 @@ class ReportItem:
             "backward",
         ], f"type can only be one of ['forward', 'backward'], but{type_}"
         self.type = type_               # fwd or bwd
-        self.step = step                # runtime order
+        self.step = step                # report order
         self.input = input_             # layer input (same for fwd or bwd)
         self.output = output            # layer output (same for fwd or bwd)
 
@@ -108,8 +108,6 @@ def report_guard(report):
     old_report = global_report
     try:
         global_report = report
-        # should we clear counter?
-        # report.counter.clear()
         yield
     finally:
         global_report = old_report

@@ -15,18 +15,18 @@
 
 import paddle
 import torch
-from .utils import log, init_options, init_path_info
-from .abstracts import ProxyModel
-from .layer_map import LayerMap
-from .weights import assign_weight
-from .trainer import Trainer
+from .diff_utils import init_options, OptimizerHelper
+from ..utils import log
+from ..abstracts import ProxyModel, create_model
+from ..weight_init import assign_weight
+
 
 
 paddle.set_printoptions(precision=10)
 torch.set_printoptions(precision=10)
 
 
-def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, layer_map=None, **kwargs):
+def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, **kwargs):
     """
     Given example inputs, automatically find the first layer with precision diff.
 
@@ -43,31 +43,23 @@ def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, lay
     """
 
     options = kwargs
-    models = (base_model, raw_model)
 
-    # ProxyModel.create_from will do assert check for models
-    if "model_names" in options:
-        assert len(options["model_names"]) == 2
-        assert options["model_names"][0] != options["model_names"][1], "Can not use same name for two model."
-        models = [ProxyModel.create_from(x, name) for x, name in zip(models, options["model_names"])]
-    else:
+    if not isinstance(base_model, ProxyModel) or not isinstance(raw_model, ProxyModel):
         names = [base_model.__class__.__name__ + "(base_model)", raw_model.__class__.__name__ + "(raw_model)"]
-        log(f"Model_names not found, use default names instead:")
-        print(f"             `{names[0]}`")
-        print(f"             `{names[1]}`")
-        models = [ProxyModel.create_from(x, name) for x, name in zip(models, names)]
-        options["model_names"] = names
+        models = [create_model(x, name) for x, name in zip(models, names)]
 
     assert isinstance(inputs, (tuple, list)), "Invalid Argument."
 
-    for input in inputs:
-        assert isinstance(input, dict), "Invalid Argument."
+    for input_ in inputs:
+        assert isinstance(input_, dict), "Invalid Argument."
 
     if loss_fns is not None:
         options["use_loss"] = True
         assert len(loss_fns) == 2
         for loss in loss_fns:
             assert callable(loss), "Invalid loss function"
+    else:
+        loss_fns = [None, None]
 
     if optimizers is not None:
         options["use_opt"] = True
@@ -76,137 +68,25 @@ def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, lay
             assert isinstance(opt, (paddle.optimizer.Optimizer, torch.optim.Optimizer)) or callable(
                 opt
             ), "Invalid optimizer"
+        optimizers = [OptimizerHelper(opt) for opt in optimizers]
+    else:
+        optimizers = [None, None]
 
     init_options(options)
-    layer_map = LayerMap.create_from(layer_map)
-    init_path_info(models)
-    trainer = Trainer(models, loss_fns, optimizers, layer_map, options)
-    if options["auto_init"] and not assign_weight(base_model, raw_model, layer_map):
+    cfg = {}
+    for key in ("atol", "rtol", "compare_mode"):
+        cfg[key] = options[key]
+        del options[key]
+
+    if options["auto_init"] and not assign_weight(base_model, raw_model):
         return False
 
-    ret = trainer.train(inputs)
+    ##########
+    # TODO run model -> dump -> compare
+    ##########
 
-    if ret:
-        log("SUCCESS !!!\n")
-    else:
-        log("FAILED !!!\n")
-
-    return ret
-
-
-#=================================================================================
+    run_pipeline((base_model, raw_model), inputs, loss_fns, optimizers, options, cfg)
 
 
 
-from .Runner import Runner
-from .OptimizerHelper import OptimizerHelper
-from .Checker import Checker
-
-from .trainer_utils import Report
-from ..utils import log
-
-
-class Trainer:
-    def __init__(self, models, loss_fn, opt, layer_map, options):
-        self.models = models
-        self.model_types = [x.model_type for x in models]
-        self.runner = Runner(models, loss_fn, layer_map, options)
-        self.optimizer_helper = OptimizerHelper(opt, options)
-        self.options = options
-        self.steps = options["steps"]
-        self.layer_map = layer_map
-
-    def do_run(self, reports, inputs):
-        self.runner.set_report(reports)
-        self.runner.run_step(inputs)
-        setattr(reports[0].stack.root, "model_name", self.models[0].name)
-        setattr(reports[1].stack.root, "model_name", self.models[1].name)
-
-    def do_check_fwd_bwd(self, reports):
-        ret = Checker.check_forward_and_backward(reports, self.options)
-        return ret
-
-    def do_check_grad(self):
-        ret = Checker.check_grad(self.models, options=self.options, layer_map=self.layer_map)
-        return ret
-
-    def do_check_weight(self):
-        ret = Checker.check_weight(self.models, options=self.options, layer_map=self.layer_map)
-        return ret
-
-    def do_optimizer(self):
-        self.optimizer_helper.step()
-
-    def train(self, inputs):
-        if self.options["single_step"]:
-            return self.run_single_step(inputs)
-        else:
-            return self.run_normal(inputs)
-
-    # run pipeline should be a part of auto_diff
-    # not used in new design
-    def run_normal(self, inputs):
-        for step_id in range(self.options["steps"]):
-            log(f"=================Train Step {step_id}=================")
-            reports = [Report(self.model_types[x]) for x in range(2)]
-            self.do_run(reports, inputs)
-
-            ret = self.do_check_fwd_bwd(reports)
-            if ret == False:
-                return False
-
-            if self.options["diff_phase"] == "forward":
-                log("Diff phase is forward, weight and grad check skipped.")
-            else:
-                ret = self.do_check_grad()
-                if ret == False:
-                    return False
-
-                self.do_optimizer()
-                ret = self.do_check_weight()
-                if ret == False:
-                    return False
-        return True
-
-    def run_single_step(self, inputs):
-        diff_phase = self.options["diff_phase"]
-        for step_id in range(self.options["steps"]):
-            log(f"=================Train Step {step_id}=================")
-
-            if diff_phase == "forward" or diff_phase == "both":
-                log(f"diff phase is {diff_phase}, run single_step forward part.")
-                self.options["diff_phase"] = "forward"
-
-                reports = [Report(self.model_types[x]) for x in range(2)]
-                self.do_run(reports, inputs)
-
-                ret = self.do_check_fwd_bwd(reports)
-                if ret == False:
-                    log("Diff found at sinle_step mode `forward` part!")
-                    return False
-
-            if diff_phase == "backward" or diff_phase == "both":
-                log(f"diff phase is {diff_phase}, run single_step backward part.")
-                self.options["diff_phase"] = "backward"
-
-                reports = [Report(self.model_types[x]) for x in range(2)]
-                self.do_run(reports, inputs)
-
-                ret = self.do_check_fwd_bwd(reports)
-                if ret == False:
-                    log("Diff found at sinle_step mode `backward` part!")
-                    return False
-
-                ret = self.do_check_grad()
-                if ret == False:
-                    log("Diff found at sinle_step mode `backward` part!")
-                    return False
-
-                self.do_optimizer()
-                ret = self.do_check_weight()
-                if ret == False:
-                    log("Diff found at sinle_step mode `backward` part!")
-                    return False
-
-        self.options["diff_phase"] = diff_phase
-        return True
+    return

@@ -22,7 +22,8 @@ from ..utils import (
     flatten,
     for_each_grad_tensor,
 )
-
+import json
+import numpy
 import paddle
 import torch
 
@@ -35,7 +36,7 @@ def register_hooker(model):
     idx = 0
     # traversal_for_hook includes layers which we need add pre and post hook
     # for model structure, but not info hook (they are in black list)
-    models = list(marker.traversal_for_hook(model))
+    models = list(marker.traversal_for_hook())
     for mod in models:
         pre_handle = mod.register_forward_pre_hook(partial(pre_structure_hook))
         if mod not in marker.black_list:
@@ -121,14 +122,13 @@ def info_hook(model, input, output, net_id):
         t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i, net_id=net_id))
 
     # if under single step forward guard
-    if net_id != -1 and False:
-        base_report = None # get_base_report()
-        base_fwd_item = base_report.find_item(report, net_id, "forward")
+    if single_step_state == "forward" and net_id != -1:
+        # two report_item with same id, the step_idx should be corresponded
+        step_idx = len(list(filter(lambda x: x.type == "forward" and x.net_id == net_id, report.items))) - 1
+        base_report_node = find_base_report_node(net_id, step_idx)
 
         retval = map_structure_and_replace_key(
-            partial(_transform_tensor, type_="paddle" if isinstance(model, paddle.nn.Layer) else "torch"),
-            [base_fwd_item.output],
-            output,
+            replace_forward_output(base_report_node), output, output
         )
         __in_info_hook__ = False
         return retval
@@ -146,19 +146,18 @@ def tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
     new_grad = clone_tensors(x_grad)
     bwd_item.set_input_grads(nth_tensor, new_grad[0])
 
-    # if under single step backward guard
-    if net_id != -1 and False:
-        base_report = None # TODO
-        raw_report = current_report()
-        base_bwd_item = raw_report.find_item(base_report, net_id, "backward")
+    if single_step_state == "backward" and net_id != -1:
+        report = current_report()
+        step_idx = list(filter(lambda x: x.type == "backward" and x.net_id == net_id, report.items)).index(bwd_item) - 1
+        base_report_node = find_base_report_node(net_id, step_idx)
 
-        return map_structure_and_replace_key(
-            partial(_transform_tensor, type="paddle" if isinstance(x_grad, paddle.Tensor) else "torch"),
-            [base_bwd_item.input_grads],
-            x_grad,
-        )
+        value = numpy.load(base_report_node["bwd_grads"][nth_tensor])
+        if isinstance(x_grad, paddle.Tensor):
+            return paddle.to_tensor(value)
+        else:
+            return torch.as_tensor(value)
+
     return x_grad
-
 
 
 """
@@ -186,26 +185,73 @@ class TorchModuleStr(torch.nn.Module):
         self.__api__ = net.__api__
 
 
-def _transform_tensor(tensor, type_):
-    if isinstance(tensor, (torch.Tensor, paddle.Tensor)):
-        if tensor.numel() == 0:
-            if tensor.dtype == torch.float32 or tensor.dtype == torch.float:
-                retval = paddle.to_tensor([], dtype="float32")
-            elif tensor.dtype == torch.float64:
-                retval = paddle.to_tensor([], dtype="float64")
-            elif tensor.dtype == torch.float16:
-                retval = paddle.to_tensor([], dtype="float16")
-            elif tensor.dtype == torch.int32 or tensor.dtype == torch.int:
-                retval = paddle.to_tensor([], dtype="int32")
-            elif tensor.dtype == torch.int16:
-                retval = paddle.to_tensor([], dtype="int16")
-            elif tensor.dtype == torch.int64:
-                retval = paddle.to_tensor([], dtype="int64")
-            else:
-                raise RuntimeError(f"In single step mode, copy torch tensor {tensor} with dtype {tensor.dtype} Failed")
-        else:
-            retval = paddle.to_tensor(tensor.detach().cpu().numpy())
 
-        return retval if type_ == "paddle" else torch.Tensor(retval.numpy())
-    else:
-        return tensor
+single_step_phase = ""
+single_step_base = None
+
+
+@contextlib.contextmanager
+def SyncStepGuard(diff_phase, report_path):
+    global single_step_phase, single_step_base
+    try:
+        old_phase = single_step_phase
+        old_base = single_step_base
+
+        report_file = open(report_path + "/" + "report.json", "r")
+        report = json.load(report_file)
+        single_step_base = split_by_net_id(report)
+
+        yield
+    finally:
+        single_step_phase = old_phase
+        single_step_base = old_base
+
+
+def split_by_net_id(report):
+    bucket = {}
+    def _traversal(node, bucket):
+        net_id = node["metas"]["net_id"]
+        if net_id == -1:
+            return
+        if net_id not in bucket:
+            bucket[net_id] = [node]
+        else:
+            bucket[net_id].append(node)
+
+        for child in node["children"]:
+            _traversal(child, bucket)
+
+    _traversal(report["tree"], bucket)
+
+    for key in bucket:
+        bucket[key].sort(key=lambda x: x["metas"]["fwd_step"])
+
+    return bucket
+
+
+def single_step_state():
+    return single_step_phase
+
+
+def find_base_report_node(net_id, step_idx):
+    global single_step_base
+    return single_step_base[net_id][step_idx]
+
+
+def replace_forward_output(node):
+    numpy_file_list = node["fwd_outputs"]
+    cur_idx = 0
+
+    def inner(input_):
+        if isinstance(input_, (paddle.Tensor, torch.Tensor)):
+            if cur_idx >= len(numpy_file_list):
+                raise RuntimeError("In single step mode, try to replace tensor by dumpped numpy value, but the number of tensors and numpy is not equal. Maybe the models are not corresponded.")
+            value = numpy.load(numpy_file_list[cur_idx])
+            if isinstance(input_, paddle.Tensor):
+                return paddle.to_tensor(value)
+            else:
+                return torch.as_tensor(value)
+        else:
+            return input_
+    
+    return inner

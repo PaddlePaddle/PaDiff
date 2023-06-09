@@ -1,28 +1,47 @@
 import json
+import numpy
 from itertools import zip_longest
 
-from .checker_utils import clone_dict_tree, struct_info_log, traversal_nodes, load_numpy, build_file_name
+from .checker_utils import clone_dict_tree, struct_info_log, load_numpy, build_file_name, global_compare_configs, load_json, traversal_node
 from .actions import get_action
-from ..utils import log
+from ..utils import log, log_file, assert_tensor_equal
 from ..datas import global_yaml_loader as yamls
 
 
-def check_params(report_path_0, report_path_1, cfg):
-    report_0 = load_json(report_path_0)
-    report_1 = load_json(report_path_1)
+def check_params(report_path_0, report_path_1, cfg=None):
+    if cfg == None:
+        cfg = global_compare_configs
+    reports = [load_json(report_path_0, "params.json"), load_json(report_path_1, "params.json")]
+    node_lists = [traversal_node(rep["tree"]) for rep in reports]
 
-    reports = [report_0, report_1]
-    roots = [clone_dict_tree(rep["tree"]) for rep in reports]
-    node_lists = traversal_nodes(roots)
-
-    weight_equal = check_target(assert_weight, node_lists, reports, "weights")
-    grad_equal = check_target(assert_grad, node_lists, reports, "grads")
+    weight_equal = check_target(assert_weight, node_lists, reports, "weights", cfg)
+    grad_equal = check_target(assert_grad, node_lists, reports, "grads", cfg)
     return weight_equal and grad_equal
 
 
-def check_target(fn, node_lists, reports, compare_target):
+def check_weights(report_path_0, report_path_1, cfg=None):
+    if cfg == None:
+        cfg = global_compare_configs
+    reports = [load_json(report_path_0, "weights.json"), load_json(report_path_1, "weights.json")]
+    node_lists = [traversal_node(rep["tree"]) for rep in reports]
+
+    weight_equal = check_target(assert_weight, node_lists, reports, "weights", cfg)
+    return weight_equal
+
+
+def check_grads(report_path_0, report_path_1, cfg=None):
+    if cfg == None:
+        cfg = global_compare_configs
+    reports = [load_json(report_path_0, "grads.json"), load_json(report_path_1, "grads.json")]
+    node_lists = [traversal_node(rep["tree"]) for rep in reports]
+
+    grad_equal = check_target(assert_grad, node_lists, reports, "grads", cfg)
+    return grad_equal
+
+
+def check_target(fn, node_lists, reports, compare_target, cfg):
     flag = True
-    log_path = build_file_name(reports[0], f"{compare_target}.log")
+    log_path = build_file_name(reports[0], compare_target + "_diff")
 
     def checker(nodes, param_names, params, settings):
         assert_shape(params, settings)
@@ -51,7 +70,7 @@ def check_target(fn, node_lists, reports, compare_target):
             log_file(log_path, "a", info)
 
     try:
-        process_each_weight(checker, node_lists, reports, compare_target)
+        process_each_param(checker, node_lists, reports, compare_target, cfg)
     except Exception as e:
         log(f"Err occurs when compare {compare_target}!!!\n")
         print(type(e).__name__ + ":  " + str(e))
@@ -65,16 +84,17 @@ def check_target(fn, node_lists, reports, compare_target):
     return flag
 
 
-def process_each_param(process, node_lists, reports, target):
+def process_each_param(process, node_lists, reports, target, cfg):
     for node_0, node_1 in zip_longest(node_lists[0], node_lists[1], fillvalue=None):
         if node_0 is None or node_1 is None:
             raise RuntimeError("Found model with difference number of sublayers. Check your model.")
-        for (param_name_0, param_path_0), (param_name_1, param_path_1) in zip_longest(
+        for (param_name_0, param_path_0), (param_name_1, param_path_1) in zip(
             node_0[target].items(),
             node_1[target].items(),
         ):
             try:
-                settings = yamls.get_weight_settings((node_0, node_1), reports, (param_name_0, param_name_1))
+                settings = yamls.get_weight_settings((node_0["name"], node_1["name"]), (reports[0]["framework"], reports[1]["framework"]), (param_name_0, param_name_1))
+                settings.update(cfg)
                 param_0 = load_numpy(param_path_0)
                 param_1 = load_numpy(param_path_1)
                 process(
@@ -85,10 +105,10 @@ def process_each_param(process, node_lists, reports, target):
                 )
             except Exception as e:
                 err_str = f"Error occured between:\n"
-                err_str += f"    base_model: `{node_0["repr"]}`\n"
-                err_str += f"                `{node_0["route"] + '.' + param_name_0}`\n"
-                err_str += f"    raw_model: `{node_1["repr"]}`\n"
-                err_str += f"               `{node_1["route"] + '.' + param_name_1}`\n"
+                err_str += f"    base_model: `{node_0['repr']}`\n"
+                err_str += f"                `{node_0['route'] + '.' + param_name_0}`\n"
+                err_str += f"    raw_model: `{node_1['repr']}`\n"
+                err_str += f"               `{node_1['route'] + '.' + param_name_1}`\n"
                 err_str += f"{type(e).__name__ + ':  ' + str(e)}\n"
                 err_str += struct_info_log(reports, (node_0, node_1), target)
 
@@ -99,6 +119,7 @@ def process_each_param(process, node_lists, reports, target):
                 err_str += "       cases like param <=> buffer, param <=> embedding are not allowed.\n"
                 err_str += "    3. If can not change model codes, try to use a `LayerMap`\n"
                 err_str += "       which can solve most problems.\n"
+                err_str += "    4. (skip) means this layer is skipped because it is under black_list, or it has no param."
                 err_str += "    0. Visit `https://github.com/PaddlePaddle/PaDiff` to find more infomation.\n"
 
                 raise RuntimeError(err_str)

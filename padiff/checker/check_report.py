@@ -14,16 +14,15 @@
 
 
 from .actions import get_action
-from .checker_utils import clone_dict_tree, print_runtime_info, reorder_and_match_sublayers, load_json
+from .checker_utils import clone_dict_tree, print_report_info, reorder_and_match_sublayers, load_json, global_compare_configs
 from ..utils import log
 import json
 
 
-def check_runtime(report_path_0, report_path_1, cfg):
-    report_0 = load_json(report_path_0)
-    report_1 = load_json(report_path_1)
-
-    reports = [report_0, report_1]
+def check_report(report_path_0, report_path_1, cfg=None):
+    if cfg == None:
+        cfg = global_compare_configs
+    reports = [load_json(report_path_0, "report.json"), load_json(report_path_1, "report.json")]
     roots = [clone_dict_tree(rep["tree"]) for rep in reports]
 
     # forward check
@@ -48,8 +47,8 @@ def check_forward(nodes, reports, cfg):
         return True
     except Exception as e:
         compare_info = e
-        if len(nodes[0].children) == 0 or len(nodes[1].children) == 0:
-            print_runtime_info(nodes, reports, e, "Forward")
+        if len(nodes[0]["children"]) == 0 or len(nodes[1]["children"]) == 0:
+            print_report_info(nodes, reports, e, "Forward")
             return False
 
     # reorder current level
@@ -57,11 +56,11 @@ def check_forward(nodes, reports, cfg):
         if not nodes[1]["reordered"]:
             reorder_and_match_sublayers(nodes, reports)
     except Exception as e:
-        log(f"While checking forward, diff found at base_model {nodes[0]["name"]} vs raw_model {nodes[1]["name"]}")
+        log(f"While checking forward, diff found at base_model {nodes[0]['name']} vs raw_model {nodes[1]['name']}")
         log("Call `reorder_and_match_sublayers` for more detailed infos, but error occurs again:")
         print(type(e).__name__ + ":  " + str(e))
         log("Compare detail:")
-        print_runtime_info(nodes, reports, compare_info, "Forward")
+        print_report_info(nodes, reports, compare_info, "Forward")
         return False
 
     for child_0, child_1 in zip(nodes[0]["children"], nodes[1]["children"]):
@@ -71,21 +70,21 @@ def check_forward(nodes, reports, cfg):
 
     # sublayers is compared ok, but diff found at father layer
     log(
-        f"Sublayers of {nodes[0]["name"]} and {nodes[1]["name"]} are corresponded, but diff found at their output!"
+        f"Sublayers of {nodes[0]['name']} and {nodes[1]['name']} are corresponded, but diff found at their output!"
     )
-    print_runtime_info(nodes, reports, compare_info, "Forward")
+    print_report_info(nodes, reports, compare_info, "Forward")
     return False
 
 
 def check_backward(nodes, reports, cfg):
     act = get_action(reports[0], nodes[0], reports[1], nodes[1])
     try:
-        act(nodes[0]["bwd_outputs"], nodes[1]["bwd_outputs"], cfg)
+        act(nodes[0]["bwd_grads"], nodes[1]["bwd_grads"], cfg)
         return True
     except Exception as e:
         compare_info = e
-        if len(nodes[0].children) == 0 or len(nodes[1].children) == 0:
-            print_runtime_info(nodes, reports, e, "Backward")
+        if len(nodes[0]["children"]) == 0 or len(nodes[1]["children"]) == 0:
+            print_report_info(nodes, reports, e, "Backward")
             return False
 
     # reorder current level
@@ -93,21 +92,21 @@ def check_backward(nodes, reports, cfg):
         if not nodes[1]["reordered"]:
             reorder_and_match_sublayers(nodes, reports)
     except Exception as e:
-        log(f"While checking backward, diff found at base_model {nodes[0]["name"]} vs raw_model {nodes[1]["name"]}")
+        log(f"While checking backward, diff found at base_model {nodes[0]['name']} vs raw_model {nodes[1]['name']}")
         log("Call `reorder_and_match_sublayers` for more detailed infos, but error occurs again:")
         print(type(e).__name__ + ":  " + str(e))
         log("Compare detail:")
-        print_runtime_info(nodes, reports, compare_info, "Backward")
+        print_report_info(nodes, reports, compare_info, "Backward")
         return False
 
-    for child_0, child_1 in reversed(zip(nodes[0]["children"], nodes[1]["children"])):
+    for child_0, child_1 in zip(reversed(nodes[0]["children"]), reversed(nodes[1]["children"])):
         res = check_forward((child_0, child_1), reports, cfg)
         if res == False:
             return False
 
     # sublayers is compared ok, but diff found at father layer
     log(
-        f"Grad of sublayer {nodes[0]["name"]} and {nodes[1]["name"]} are corresponded, but current grad found diff!"
+        f"Grad of sublayer {nodes[0]['name']} and {nodes[1]['name']} are corresponded, but current grad found diff!"
     )
-    print_runtime_info(nodes, reports, compare_info, "Backward")
+    print_report_info(nodes, reports, compare_info, "Backward")
     return False

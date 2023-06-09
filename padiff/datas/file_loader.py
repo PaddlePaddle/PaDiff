@@ -21,15 +21,6 @@ import json
     yaml_loader
 """
 
-global_compare_configs = {
-    "atol": 0,
-    "rtol": 1e-7,
-    "compare_mode": "mean",
-}
-
-def update_configs(cfg):
-    global_compare_configs.update(cfg)
-
 class yaml_loader:
     def __init__(self):
         yaml_path = os.path.join(os.path.dirname(__file__), "assign_weight.yaml")
@@ -37,35 +28,34 @@ class yaml_loader:
             self._assign_yaml = yaml.safe_load(yaml_file)
         self._options = {}
 
-    def get_weight_settings(self, nodes, reports, param_names):
+    def get_weight_settings(self, layer_names, framework_types, param_names):
         # only when paddle model compare with torch model, need to update settings
-        if reports[0]["framework"] == reports[1]["framework"]:
+        if framework_types[0] == framework_types[1]:
             settings = {"transpose": False}
-            settings.update(global_compare_configs)
             return settings
 
         # settings are used to fix the diff between paddle and torch, so keep `paddle`` and `torch` infos here
         # currently, assign_weight.yaml only recorded transpose setting
         # transpose paddle or torch is the same, so it's no need to change current yaml file temporarily
-        if reports[0]["framework"] == "paddle":
-            paddle_model = nodes[0]
-            torch_model = nodes[1]
+        if framework_types[0] == "paddle":
+            paddle_name = layer_names[0]
+            torch_name = layer_names[1]
             param_name = param_names[0]
         else:
-            paddle_model = nodes[1]
-            torch_model = nodes[0]
+            paddle_name = layer_names[1]
+            torch_name = layer_names[0]
             param_name = param_names[1]
 
-        assign_config = self._assign_yaml.get(paddle_model["name"], None)
+        assign_config = self._assign_yaml.get(paddle_name, None)
         settings = {
             "transpose": False,
         }
 
         if assign_config is not None:
             assert (
-                torch_model["name"] in assign_config["torch"]
+                torch_name in assign_config["torch"]
             ), "Not correspond, paddle layer {}  vs torch module {}. check your __init__ to make sure every sublayer is corresponded, or view the model struct reports in diff_log.".format(
-                paddle_model["name"], torch_model["name"]
+                paddle_name, torch_name
             )
 
         if (
@@ -77,8 +67,6 @@ class yaml_loader:
         else:
             if assign_config["param"][param_name] == "transpose":
                 settings["transpose"] = True
-
-        settings.update(self._options)
 
         return settings
 

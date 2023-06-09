@@ -17,18 +17,18 @@ import torch
 import re
 
 from .proxy_parameter import ProxyParam
-from .proxy_utils import deco_iter, init_path_info, remove_inplace
+from .proxy_utils import deco_iter, init_route, remove_inplace
 from .marker import Marker
 
 from ..report import Report, report_guard, register_hooker
 from ..utils import reset_dir
-from ..dump_tools import dump_runtime, dump_weights_grads, dump_root
+from ..dump_tools import dump_report, dump_params, dump_root_path
 
 
 # this interface is for user
-def create_model(model):
-    retval = ProxyModel.create_from(model)
-    init_path_info(retval)
+def create_model(model, name=None):
+    retval = ProxyModel.create_from(model, name)
+    init_route(retval)
     reset_dir(retval.dump_path)
     if retval.framework == "torch":
         remove_inplace(retval)
@@ -38,14 +38,14 @@ def create_model(model):
 class ProxyModel:
     def __init__(self, model, name, framework):
         self.model = model
-        self.framework = framework            # paddle/torch
+        self.framework = framework            # "paddle"/"torch"
         self.name = name
 
         self.marker = Marker(self)
         self.report = Report(self.marker)
         self.step = 0
 
-        self.dump_path = dump_root + "/" + self.name
+        self.dump_path = dump_root_path + "/" + self.name
 
     @staticmethod
     def create_from(model, name=None):
@@ -91,8 +91,8 @@ class ProxyModel:
         return retstr
 
     @property
-    def path_info(self):
-        return self.model.path_info
+    def route(self):
+        return self.model.route
 
     '''
         training
@@ -123,14 +123,17 @@ class ProxyModel:
     '''
         about dump
     '''
+    def clear_report(self):
+        self.report = Report(self.marker)
+
+
     def try_dump(self, per_step):
         if self.step % per_step == 0:
-            step_path = f"{self.dump_path}/step_{self.step}"
-            reset_dir(step_path)
-            dump_weights_grads(self, step_path)
-            dump_runtime(self, step_path)
-
-        self.report = Report(self.marker)
+            path = f"{self.dump_path}/step_{self.step}"
+            reset_dir(path)
+            dump_params(self, path)
+            dump_report(self, path)
+        self.clear_report()
         self.step += 1
 
 

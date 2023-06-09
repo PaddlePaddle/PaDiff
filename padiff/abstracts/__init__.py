@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .proxy_model import create_model
+from .proxy_model import create_model, ProxyModel

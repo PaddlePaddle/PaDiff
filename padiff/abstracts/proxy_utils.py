@@ -2,18 +2,20 @@ from functools import partial
 import paddle
 import torch
 
-def init_path_info(model):
-    def _set_path_info(model, path):
+
+
+def init_route(model):
+    def _set_route(model, path):
         for name, child in model.named_children():
             path.append(name)
-            if not hasattr(child.model, "path_info"):
-                setattr(child.model, "path_info", ".".join(path))
-            _set_path_info(child, path)
+            if not hasattr(child.model, "route"):
+                setattr(child.model, "route", ".".join(path))
+            _set_route(child, path)
             path.pop()
 
-    if not hasattr(model, "path_info"):
-        setattr(model.model, "path_info", model.name)
-        _set_path_info(model, [model.name])
+    if not hasattr(model, "route"):
+        setattr(model.model, "route", model.name)
+        _set_route(model, [model.name])
 
 def remove_inplace(model):
     """
@@ -82,7 +84,7 @@ def auto(self, base_model, raw_model):
 
         base_model, base_path = base_info
         raw_model, raw_path = raw_info
-        name = build_name(base_model.model_type, base_model.class_name, raw_model.model_type, raw_model.class_name)
+        name = build_name(base_model.framework, base_model.class_name, raw_model.framework, raw_model.class_name)
         if name in init_pool.funcs.keys():
             _map.update({base_model.model: raw_model.model})
             print(

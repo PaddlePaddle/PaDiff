@@ -1,6 +1,16 @@
 from ..utils import log_path, log_file, log
 import numpy
+import os
+import json
 
+global_compare_configs = {
+    "atol": 1e-4,
+    "rtol": 0,
+    "compare_mode": "mean",
+}
+
+def update_configs(cfg):
+    global_compare_configs.update(cfg)
 
 def clone_dict_tree(root):
     new_root = {}
@@ -9,22 +19,24 @@ def clone_dict_tree(root):
     new_root["reordered"] = False
     new_root["children"] = []
     for child in root["children"]:
-        new_root["children"].append(clone_tree(child))
+        new_root["children"].append(clone_dict_tree(child))
     return new_root
 
-def print_runtime_info(nodes, reports, exc, stage):
-    step_idx = [node["metas"]["fwd_runtime_step"] if stage == "Forward" else nodes["metas"]["bwd_runtime_step"] for node in nodes]
+def print_report_info(nodes, reports, exc, stage):
+    step_idx = [node["metas"]["fwd_step"] if stage == "Forward" else node["metas"]["bwd_step"] for node in nodes]
     net_id = [node["metas"]["net_id"] for node in nodes]
 
     log("FAILED !!!")
     log(f"    Diff found in {stage} Stage in step: {step_idx[0]} vs {step_idx[1]}, net_id is {net_id[0]} vs {net_id[1]}")
-    log(f"    Type of layer is: {nodes[0]["name"]} vs {nodes[1]["name"]}")
+    log(f"    Type of layer is: {nodes[0]['name']} vs {nodes[1]['name']}")
+    log(f"    Route: {nodes[0]['route']}")
+    log(f"           {nodes[1]['route']}\n")
 
-    print(str(exc) + "\n\n")
+    print(f"{type(exc).__name__}: {str(exc)} \n")
 
     log("Check model struct:")
-    retstr = struct_info_log(reports, [node["origin_node"] for node in nodes], "runtime")
-    log(retstr)
+    retstr = struct_info_log(reports, [node["origin_node"] for node in nodes], "report")
+    print(retstr)
 
 
 def struct_info_log(reports, nodes, file_prefix):
@@ -32,15 +44,16 @@ def struct_info_log(reports, nodes, file_prefix):
     for idx in range(2):
         node = nodes[idx]
         report = reports[idx]
-        file_name = f"{file_prefix}_{report["model_name"]}.log"
-        file_name = build_file_name(report, file_name)
+        file_name = build_file_name(report, file_prefix + "_" + report['model_name'])
         file_names.append(file_name)
-        title = f"{report["model_name"]}\n" + "=" * 40 + "\n"
+        title = f"{report['model_name']}\n" + "=" * 40 + "\n"
         retval = tree_print(report["tree"], mark=node, prefix=[" " * 4])
         info = title + "\n".join(retval)
         log_file(file_name, "w", info)
 
-    retval = f"Log saved to `{log_path}/{file_names[0]}` and `{log_path}/{file_names[1]}`."
+    retval = f"Log saved to \n"
+    retval += f"    {log_path}/{file_names[0]}\n"
+    retval += f"    {log_path}/{file_names[1]}\n\n"
     retval += "Please view the reports and checkout the layer marked with `<---  *** HERE ***` !"
     return retval
 
@@ -58,7 +71,9 @@ def tree_print(node, mark=None, prefix=[]):
             else:
                 cur_str += s
 
-    cur_str += node["name"]
+    cur_str += node['name']
+    if "available" in node and node["available"] == False:
+        cur_str += " (skip)"
     if os.getenv("PADIFF_PATH_LOG") == "ON":
         cur_str += "  (" + node["route"] + ")"
     if mark is node:
@@ -98,24 +113,26 @@ def reorder_and_match_sublayers(nodes, reports):
 
         # reset orders
         reorder_api(base_apis, raw_apis)
-        layer_map = dict[zip(reports[0]["layer_map"], reports[1]["layer_map"])]
+        layer_map = dict(zip(reports[0]["layer_map"], reports[1]["layer_map"]))
         reorder_opaque_layers(base_opaque_layers, raw_opaque_layers, layer_map)
         reorder_normal_layers(base_layers, raw_layers)
 
         # for every child in nodes[0], find correspond child in nodes[1]
         new_children = []
-        for child in nodes[0].children:
-            if child.is_api:
+        for child in nodes[0]["children"]:
+            if child["type"] == "api":
                 new_children.append(raw_apis[0])
                 raw_apis.pop(0)
-            elif child.in_layer_map:
+            elif child["type"] == "in map":
                 new_children.append(raw_opaque_layers[0])
                 raw_opaque_layers.pop(0)
-            else:
+            elif child["type"] == "net":
                 new_children.append(raw_layers[0])
                 raw_layers.pop(0)
+            else:
+                raise RuntimeError("Invalid node type")
 
-        nodes[1].children = new_children
+        nodes[1]["children"] = new_children
         nodes[1]["reordered"] = True
 
     except Exception as e:
@@ -165,19 +182,26 @@ def reorder_normal_layers(base_nodes, raw_nodes):
     raw_nodes.clear()
     for node in base_nodes:
         correspond_node = bucket[node["metas"]["net_id"]].pop(0)
-        raw_nodes.append(correspond_child)
+        raw_nodes.append(correspond_node)
 
-
-def traversal_nodes(nodes):
-    pass
+def traversal_node(node, node_list=[]):
+    if node["available"]:
+        node_list.append(node)
+    for child in node["children"]:
+        traversal_node(child, node_list)
+    return node_list
 
 def build_file_name(report, file_name):
-    pass
+    strs = report["file_path"].split("/")
+    for s in reversed(strs):
+        if "step_" in s:
+            return file_name + "_" + s + ".log"
+    return file_name
 
 def load_numpy(path):
-    return numpy.load(open(path, "r"))
+    return numpy.load(path)
 
-def load_json(path):
-    f = open(path, "r")
+def load_json(path, report_name):
+    f = open(path + "/" + report_name, "r")
     retval = json.load(f)
     return retval

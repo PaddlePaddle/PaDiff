@@ -13,7 +13,6 @@ class Marker:
         self.use_white_list = False
 
         self.layer_map = []
-        self.init_traversal_tools()
 
     def update_black_list(self, layers, mode="all"):
         assert mode in ("self", "sublayers", "all")
@@ -43,66 +42,70 @@ class Marker:
     def update_white_list_with_class(self, layer_class, recursively=False):
         pass
 
-    def init_traversal_tools(self):
-        self.traversal_all = traversal_prototype( 
-            self,
-            fn0 = lambda x, y: True,
-            fn1 = lambda x, y: True,
-        )
-        self.traversal_with_black_list = traversal_prototype(
-            self,
-            fn0 = lambda root, child: child.model not in root.black_list and not child.is_wrap_layer(),
-            fn1 = lambda root, child: child.model not in root.black_list_recursively,
-        )
-        self.traversal_layers_for_model_struct = traversal_prototype(
-            self,
-            fn0 = lambda root, child: (child.model not in root.black_list and not is_wrap_layer(child)) or child.model in root.black_list_recursively,
-            fn1 = lambda root, child: child.model not in root.black_list_recursively
-        )
-        
-        def _traversal_with_white_list(model):
-            for child in model.children():
-                if child.model in self.white_list:
-                    yield child
-                if child.model in self.white_list_recursively:
-                    for sublayer in self.traversal_all(child):
-                        yield sublayer
-                else:
-                    for sublayer in _traversal_with_white_list(child):
-                        yield sublayer
-
-        self.traversal_with_white_list = _traversal_with_white_list
-
-    def traversal_layers(self, model, include_self=True):
-        if include_self:
+    def traversal_layers(self, include_self=True):
+        for model in traversal_layers(self.proxy_model, self, include_self):
             yield model
-        if self.use_white_list:
-            for mod in self.traversal_with_white_list(model):
-                yield mod
-        else:
-            for mod in self.traversal_with_black_list(model):
-                yield mod
-
-    def traversal_for_hook(self, model):
-        yield model
-        if self.use_white_list:
-            for mod in self.traversal_with_white_list(model):
-                yield mod
-        else:
-            for mod in self.traversal_layers_for_model_struct(model):
-                yield mod
+    
+    def traversal_for_hook(self):
+        for model in traversal_for_hook(self.proxy_model, self):
+            yield model
 
 
 def is_wrap_layer(model):
     return len(list(model.parameters(recursively=False))) == 0
 
 
-def traversal_prototype(marker, fn0, fn1):
-    def inner(model):
+def traversal_prototype(fn0, fn1):
+    def inner(model, marker):
         for child in model.children():
-            if fn0(marker, child):
+            if fn0(child, marker):
                 yield child
-            if fn1(marker, child):
-                for sublayer in inner(child):
+            if fn1(child, marker):
+                for sublayer in inner(child, marker):
                     yield sublayer
     return inner
+
+
+traversal_all = traversal_prototype(
+    fn0 = lambda model, marker: True,
+    fn1 = lambda model, marker: True,
+)
+traversal_with_black_list = traversal_prototype(
+    fn0 = lambda model, marker: model.model not in marker.black_list and not is_wrap_layer(model),
+    fn1 = lambda model, marker: model.model not in marker.black_list_recursively,
+)
+traversal_layers_for_model_struct = traversal_prototype(
+    fn0 = lambda model, marker: (model.model not in marker.black_list and not is_wrap_layer(model)) or model.model in marker.black_list_recursively,
+    fn1 = lambda model, marker: model.model not in marker.black_list_recursively
+)
+
+def traversal_with_white_list(model, marker):
+    for child in model.children():
+        if child.model in marker.white_list:
+            yield child
+        if child.model in marker.white_list_recursively:
+            for sublayer in traversal_all(child, marker):
+                yield sublayer
+        else:
+            for sublayer in traversal_with_white_list(child, marker):
+                yield sublayer
+
+
+def traversal_layers(model, marker, include_self=True):
+    if include_self:
+        yield model
+    if marker.use_white_list:
+        for mod in traversal_with_white_list(model, marker):
+            yield mod
+    else:
+        for mod in traversal_with_black_list(model, marker):
+            yield mod
+
+def traversal_for_hook(model, marker):
+    yield model
+    if marker.use_white_list:
+        for mod in traversal_with_white_list(model, marker):
+            yield mod
+    else:
+        for mod in traversal_layers_for_model_struct(model, marker):
+            yield mod
