@@ -57,8 +57,8 @@ class TestCaseName(unittest.TestCase):
             module.backward(loss)
             module.try_dump(2)
 
-        if i % 2 == 0:
-            assert check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == True
+            if i % 2 == 0:
+                assert check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == True
 
     def test_check_fail(self):
         layer = SimpleLayer()
@@ -79,8 +79,8 @@ class TestCaseName(unittest.TestCase):
             module.backward(loss)
             module.try_dump(2)
 
-        if i % 2 == 0:
-            assert check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == False
+            if i % 2 == 0:
+                assert check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == False
 
 
 if __name__ == "__main__":
