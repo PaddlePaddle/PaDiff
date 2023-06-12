@@ -26,6 +26,5 @@ for root, dirs, files in os.walk("./"):
                 err_info += f"{output}\n"
                 raise RuntimeError(err_info)
             else:
-                print(".")
-            os.system("rm -rf ./tests/padiff_dump")
-            os.system("rm -rf ./tests/padiff_log")
+                print(".", end="", flush=True)
+            os.system("rm -rf ./tests/padiff_dump ./tests/padiff_log")
