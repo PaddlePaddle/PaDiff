@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..utils import log_file, log, log_path
 import os
 
 
@@ -72,8 +71,7 @@ class NetWrapper(object):
         self.children = []
         self.father = None
 
-        self.layer_type = "net"        # "api" | "in map" | "net"
-        self.layer_map_idx = -1
+        self.layer_type = "net"  # "api" | "in map" | "net"
 
         self.fwd_report = None
         self.bwd_report = None

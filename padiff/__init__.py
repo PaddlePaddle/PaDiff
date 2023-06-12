@@ -28,6 +28,7 @@ from importlib.machinery import SourceFileLoader, ExtensionFileLoader, PathFinde
 from .report.hooks import info_hook
 from .datas import global_json_loader as jsons
 
+
 def module_filter(name):
     if name in jsons.paddle_apis.keys() or name in jsons.torch_apis.keys():
         return True, name.partition(".")[0]
@@ -222,7 +223,7 @@ class PaDiffLoader(Loader):
         return None
 
 
-if os.getenv("PADIFF_API_CHECK") != "OFF" and False:
+if os.getenv("PADIFF_API_CHECK") == "ON":
     for name in jsons.TORCH_PATH:
         if name in sys.modules.keys():
             module = sys.modules[name]
@@ -239,15 +240,16 @@ if os.getenv("PADIFF_API_CHECK") != "OFF" and False:
 import paddle
 import torch
 
+paddle.set_printoptions(precision=10)
+torch.set_printoptions(precision=10)
 
-from .abstracts import create_model
-from .checker import check_report, check_params
-from .weight_init import assign_weight
+from .interfaces import *
 
-
-__all__ =[
+__all__ = [
     "create_model",
     "check_report",
     "check_params",
     "assign_weight",
+    "auto_diff",
+    "check_dataloader",
 ]

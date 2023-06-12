@@ -1,6 +1,22 @@
+# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import paddle
 import torch
-from types import MethodType
+from ..utils import log
+from ..weight_init.special_init.special_init_pool import global_special_init_pool as init_pool
+
 
 class Marker:
     def __init__(self, proxy_model):
@@ -32,9 +48,33 @@ class Marker:
         if mode in ("sublayers", "all"):
             self.white_list_recursively.update(set(layers))
         self.use_white_list = True
-    
+
     def set_layer_map(self, layer_map):
-        self.layer_map = layer_map
+        _layer_map = []
+        for layer in self.traversal_layers():
+            if layer.model in layer_map:
+                self.black_list_recursively.add(layer.model)
+                _layer_map.append(layer)
+
+        self.layer_map = _layer_map
+
+    def auto_layer_map(self, place):
+        """
+        Try to find components which support special init, and add them to layer_map automatically.
+        NOTICE: this api suppose that all sublayers/submodules are defined in same order,
+                if not, this may not work correctly.
+        """
+        _layer_map = []
+        registered = init_pool.registered_base_models if place == "base" else init_pool.registered_raw_models
+
+        log("Auto set layer_map start searching...")
+        for layer in self.traversal_layers():
+            if layer.fullname in registered:
+                print(f"++++    {place}_model found `{layer.fullname}` add to layer_map   ++++")
+                _layer_map.append(layer)
+                self.black_list_recursively.add(layer.model)
+        print()
+        return True
 
     def update_black_list_with_class(self, layer_class, recursively=True):
         pass
@@ -45,14 +85,10 @@ class Marker:
     def traversal_layers(self, include_self=True):
         for model in traversal_layers(self.proxy_model, self, include_self):
             yield model
-    
+
     def traversal_for_hook(self):
         for model in traversal_for_hook(self.proxy_model, self):
             yield model
-
-
-def is_wrap_layer(model):
-    return len(list(model.parameters(recursively=False))) == 0
 
 
 def traversal_prototype(fn0, fn1):
@@ -63,21 +99,23 @@ def traversal_prototype(fn0, fn1):
             if fn1(child, marker):
                 for sublayer in inner(child, marker):
                     yield sublayer
+
     return inner
 
 
 traversal_all = traversal_prototype(
-    fn0 = lambda model, marker: True,
-    fn1 = lambda model, marker: True,
+    fn0=lambda model, marker: True,
+    fn1=lambda model, marker: True,
 )
 traversal_with_black_list = traversal_prototype(
-    fn0 = lambda model, marker: model.model not in marker.black_list and not is_wrap_layer(model),
-    fn1 = lambda model, marker: model.model not in marker.black_list_recursively,
+    fn0=lambda model, marker: model.model not in marker.black_list,
+    fn1=lambda model, marker: model.model not in marker.black_list_recursively,
 )
 traversal_layers_for_model_struct = traversal_prototype(
-    fn0 = lambda model, marker: (model.model not in marker.black_list and not is_wrap_layer(model)) or model.model in marker.black_list_recursively,
-    fn1 = lambda model, marker: model.model not in marker.black_list_recursively
+    fn0=lambda model, marker: model.model not in marker.black_list or model.model in marker.black_list_recursively,
+    fn1=lambda model, marker: model.model not in marker.black_list_recursively,
 )
+
 
 def traversal_with_white_list(model, marker):
     for child in model.children():
@@ -100,6 +138,7 @@ def traversal_layers(model, marker, include_self=True):
     else:
         for mod in traversal_with_black_list(model, marker):
             yield mod
+
 
 def traversal_for_hook(model, marker):
     yield model

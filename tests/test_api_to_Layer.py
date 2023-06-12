@@ -18,11 +18,7 @@ os.environ["PADIFF_API_CHECK"] = "ON"
 
 import unittest
 
-from padiff.trainer.trainer_utils import Report
-from padiff.trainer import Trainer
-from padiff.utils import init_options
-from padiff.abstracts import ProxyModel
-from padiff import LayerMap
+from padiff import *
 import paddle
 import torch
 
@@ -58,23 +54,16 @@ class SimpleModule(torch.nn.Module):
 class TestCaseName(unittest.TestCase):
     def test_api_to_Layer(self):
         layer = SimpleLayer()
-        module = SimpleModule()
-        inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
-        options = {}
-        init_options(options)
+        layer = create_model(layer)
 
-        paddle_report = Report("paddle")
-        torch_report = Report("torch")
-        trainer = Trainer(
-            (ProxyModel.create_from(module), ProxyModel.create_from(layer)), None, None, LayerMap(), options
-        )
+        # module = SimpleModule()
+        # module = create_model(module)
+        inp = paddle.rand((100, 100), dtype="float32")
 
-        trainer.do_run((torch_report, paddle_report), inp)
+        layer(inp)
+        layer.report
 
-        # [layer(SimpleLayer, Linear) + api(linear, relu) + method(mul, add)] * (fwd, bwd) = 12
-        assert len(paddle_report.items) == 12
-        assert len(torch_report.items) == 12
+        assert len(layer.report.items) == 12
 
 
 if __name__ == "__main__":

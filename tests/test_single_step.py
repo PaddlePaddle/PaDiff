@@ -17,7 +17,7 @@ import unittest
 import paddle
 import torch
 
-from padiff import auto_diff
+from padiff import *
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -71,8 +71,8 @@ class SimpleModuleDiff(torch.nn.Module):
 
 class TestSingleStep(unittest.TestCase):
     def test_success(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
+        layer = create_model(SimpleLayer())
+        module = create_model(SimpleModule())
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         atol = 1e-5
@@ -81,8 +81,8 @@ class TestSingleStep(unittest.TestCase):
             print("err atol too small")
 
     def test_failed(self):
-        layer = SimpleLayerDiff()
-        module = SimpleModuleDiff()
+        layer = create_model(SimpleLayerDiff())
+        module = create_model(SimpleModuleDiff())
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert auto_diff(layer, module, inp, atol=1e-4, single_step=True) is False, "Success. expected failed."

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from padiff import auto_diff
+from padiff import *
 import unittest
 
 import paddle
@@ -30,8 +30,8 @@ class TestCaseName(unittest.TestCase):
 
     def test_success(self):
         paddle.set_device("cpu")
-        layer = paddle.vision.resnet50()
-        module = torchvision.models.resnet50().to("cpu")
+        layer = create_model(paddle.vision.resnet50())
+        module = create_model(torchvision.models.resnet50().to("cpu"))
         inp = paddle.rand((10, 3, 224, 224)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cpu")})
         assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."

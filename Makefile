@@ -34,7 +34,7 @@ lint:
 test: unit-test
 
 unit-test:
-	PYTHONPATH=. PADIFF_API_CHECK=OFF python tests/padiff_unittests.py
+	PYTHONPATH=. python tests/padiff_unittests.py
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 

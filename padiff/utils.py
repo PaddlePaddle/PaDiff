@@ -19,9 +19,6 @@ import shutil
 import numpy as np
 import paddle
 import torch
-from itertools import zip_longest
-import os.path as osp
-import traceback
 
 
 try:
@@ -33,6 +30,8 @@ except:
 """
     clone tensor
 """
+
+
 def is_tensor(x):
     return isinstance(x, (paddle.Tensor, torch.Tensor))
 
@@ -59,7 +58,7 @@ def set_require_grad(x):
         x.stop_gradient = False
 
 
-def _clone_tensor(inp):     # to cpu
+def _clone_tensor(inp):  # to cpu
     if isinstance(inp, (torch.Tensor, paddle.Tensor)):
         if inp.numel() == 0:
             if isinstance(inp, torch.Tensor):
@@ -86,6 +85,8 @@ def clone_tensors(inputs):
 """
     traversal tools
 """
+
+
 def for_each_tensor(*structure):
     flat_structure = [flatten(s) for s in structure]
     entries = zip(*flat_structure)
@@ -114,6 +115,8 @@ def map_structure_and_replace_key(func, structure1, structure2):
 """
     tensor compare or compute
 """
+
+
 def assert_tensor_equal(tensor1, tensor2, cfg):
     """
     return None or raise Error.
@@ -131,6 +134,8 @@ def assert_tensor_equal(tensor1, tensor2, cfg):
 """
     process files
 """
+
+
 def reset_dir(path):
     if os.path.exists(path):
         shutil.rmtree(path)
@@ -141,7 +146,7 @@ def reset_dir(path):
     log utils
 """
 log_path = os.path.join(sys.path[0], "padiff_log")
-__reset_log_dir__ = False       # reset log_path only once
+__reset_log_dir__ = False  # reset log_path only once
 
 
 def log_file(filename, mode, info):

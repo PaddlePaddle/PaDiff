@@ -17,7 +17,7 @@ import torch
 import re
 
 from .proxy_parameter import ProxyParam
-from .proxy_utils import deco_iter, init_route, remove_inplace
+from .proxy_utils import deco_iter
 from .marker import Marker
 
 from ..report import Report, report_guard, register_hooker
@@ -25,20 +25,10 @@ from ..utils import reset_dir
 from ..dump_tools import dump_report, dump_params, dump_root_path
 
 
-# this interface is for user
-def create_model(model, name=None):
-    retval = ProxyModel.create_from(model, name)
-    init_route(retval)
-    reset_dir(retval.dump_path)
-    if retval.framework == "torch":
-        remove_inplace(retval)
-    return retval
-
-
 class ProxyModel:
     def __init__(self, model, name, framework):
         self.model = model
-        self.framework = framework            # "paddle"/"torch"
+        self.framework = framework  # "paddle"/"torch"
         self.name = name
 
         self.marker = Marker(self)
@@ -94,9 +84,10 @@ class ProxyModel:
     def route(self):
         return self.model.route
 
-    '''
+    """
         training
-    '''
+    """
+
     def __call__(self, *args, **kwargs):
         with register_hooker(self), report_guard(self.report):
             return self.model(*args, **kwargs)
@@ -104,42 +95,51 @@ class ProxyModel:
     def backward(self, loss):
         with register_hooker(self), report_guard(self.report):
             return loss.backward()
-    '''
+
+    """
         black_list and white_list
         mode : "self" | "sublayers" | "all"
-    '''
+    """
+
     def update_black_list(self, layers, mode="all"):
         self.marker.update_black_list(layers, mode)
 
     def update_white_list(self, layers, mode="self"):
         self.marker.update_white_list(layers, mode)
-    
+
     def update_black_list_with_class(self, layer_class, recursively=True):
         pass
 
     def update_white_list_with_class(self, layer_class, recursively=False):
         pass
 
-    '''
+    def set_layer_map(self, layers):
+        self.marker.set_layer_map(layers)
+
+    def auto_layer_map(self, place):
+        self.marker.auto_layer_map(place)
+
+    """
         about dump
-    '''
+    """
+
     def clear_report(self):
         self.report = Report(self.marker)
 
-
-    def try_dump(self, per_step):
+    def try_dump(self, per_step, dump_path=None):
+        if dump_path is None:
+            dump_path = f"{self.dump_path}/step_{self.step}"
         if self.step % per_step == 0:
-            path = f"{self.dump_path}/step_{self.step}"
-            reset_dir(path)
-            dump_params(self, path)
-            dump_report(self, path)
+            reset_dir(dump_path)
+            dump_params(self, dump_path)
+            dump_report(self, dump_path)
         self.clear_report()
         self.step += 1
 
-
-    '''
+    """
         support native interfaces
-    '''
+    """
+
     def parameters(self, recursively):
         raise NotImplementedError()
 

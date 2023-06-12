@@ -21,6 +21,7 @@ import json
     yaml_loader
 """
 
+
 class yaml_loader:
     def __init__(self):
         yaml_path = os.path.join(os.path.dirname(__file__), "assign_weight.yaml")
@@ -205,7 +206,7 @@ class json_loader:
                 self.torch_tensor_methods.remove(torch_method)
 
 
-if os.getenv("PADIFF_API_CHECK") != "OFF":
+if os.getenv("PADIFF_API_CHECK") == "ON":
     global_json_loader = json_loader()
 else:
     global_json_loader = None

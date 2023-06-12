@@ -17,7 +17,7 @@ import unittest
 import paddle
 import torch
 
-from padiff import auto_diff
+from padiff import *
 
 """
 测试 不同的 `forward顺序`，但是具有同样的 `定义顺序`
@@ -53,8 +53,8 @@ class SimpleModule(torch.nn.Module):
 
 class TestCase(unittest.TestCase):
     def test_success(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
+        layer = create_model(SimpleLayer())
+        module = create_model(SimpleModule())
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed, expect success."

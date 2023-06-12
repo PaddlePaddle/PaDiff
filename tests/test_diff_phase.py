@@ -18,7 +18,7 @@ import unittest
 import paddle
 import torch
 
-from padiff import auto_diff
+from padiff import *
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -29,11 +29,6 @@ class SimpleLayer(paddle.nn.Layer):
         self.act = paddle.nn.ReLU()
 
     def forward(self, x):
-        """
-        x -> linear1 -> x -> relu -> x -> add -> linear2 -> output
-        |                                  |
-        |----------------------------------|
-        """
         resdual = x
         x = self.linear1(x)
         x = self.act(x)
@@ -50,11 +45,6 @@ class SimpleModule(torch.nn.Module):
         self.act = torch.nn.ReLU()
 
     def forward(self, x):
-        """
-        x -> linear1 -> x -> relu -> x -> add -> linear2 -> output
-        |                                  |
-        |----------------------------------|
-        """
         resdual = x
         x = self.linear1(x)
         x = self.act(x)
@@ -65,16 +55,15 @@ class SimpleModule(torch.nn.Module):
 
 class TestCaseName(unittest.TestCase):
     def test_check_weight_grad(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
-        options = {"atol": 1e-4, "diff_phase": "forward"}
+        layer = create_model(SimpleLayer())
+        module = create_model(SimpleModule())
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert auto_diff(layer, module, inp, **options) is True, "Failed. expected success."
+        assert auto_diff(layer, module, inp, diff_phase="forward") is True, "Failed. expected success."
 
-        for param in module.parameters():
-            assert param.grad is None
+        for param in module.parameters(recursively=True):
+            assert param.grad() is None
 
 
 if __name__ == "__main__":

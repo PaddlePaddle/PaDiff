@@ -14,7 +14,7 @@
 
 import contextlib
 
-from ..utils import for_each_grad_tensor, for_each_tensor, Counter
+from ..utils import Counter, for_each_grad_tensor
 from .module_struct import LayerStack
 
 
@@ -30,11 +30,11 @@ class Report:
         self.items.append(
             ReportItem(
                 type_=type_,
-                step=step,          # report order of layers/apis
+                step=step,  # report order of layers/apis
                 input_=input_,
                 output=output,
                 net=net,
-                net_id=net_id,      # traversal order of sublayers
+                net_id=net_id,  # traversal order of sublayers
             )
         )
         return self.items[-1]
@@ -54,16 +54,16 @@ class ReportItem:
             "forward",
             "backward",
         ], f"type can only be one of ['forward', 'backward'], but{type_}"
-        self.type = type_               # fwd or bwd
-        self.step = step                # report order
-        self.input = input_             # layer input (same for fwd or bwd)
-        self.output = output            # layer output (same for fwd or bwd)
+        self.type = type_  # fwd or bwd
+        self.step = step  # report order
+        self.input = input_  # layer input (same for fwd or bwd)
+        self.output = output  # layer output (same for fwd or bwd)
 
-        self.net = net                  # the layer ,if it is an api, this should be a str layer which is generated in hooks
+        self.net = net  # the layer ,if it is an api, this should be a str layer which is generated in hooks
         self.net_str = net.__name__ if hasattr(net, "__api__") else net.__class__.__name__
-        self.net_id = net_id            # sublayer order
-        self.fwd_item = None            # bound to another reportitem, if self.type is "backward"
-        self.bwd_item = None            # bound to another reportitem, if self.type is "forward"
+        self.net_id = net_id  # sublayer order
+        self.fwd_item = None  # bound to another reportitem, if self.type is "backward"
+        self.bwd_item = None  # bound to another reportitem, if self.type is "forward"
         self.input_grads = self._gen_input_grads()
 
     def set_forward(self, fwd):
@@ -84,9 +84,9 @@ class ReportItem:
 
     def tensors_for_compare(self):
         if self.type == "forward":
-            return self.output
+            return [t for (t,) in for_each_grad_tensor(self.output)]
         if self.type == "backward":
-            return self.input_grads
+            return [t for (t,) in for_each_grad_tensor(self.input_grads)]
 
     def __repr__(self):
         return self.__str__()

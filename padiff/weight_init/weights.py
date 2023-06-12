@@ -17,21 +17,15 @@ import numpy
 import os
 
 from ..utils import log, log_file, log_path
-from ..abstracts import create_model, ProxyModel
 from ..datas import global_yaml_loader as yamls
 from .special_init import build_name, global_special_init_pool as init_pool
 
 
 # this interface is exposed, so it takes two models as inputs
-def assign_weight(base_model, raw_model):
+def assign_weight_(base_model, raw_model):
     """
     Set weights in raw_model to the same as the values in base_model
     """
-
-    if not isinstance(raw_model, ProxyModel):
-        raw_model = create_model(raw_model)
-    if not isinstance(base_model, ProxyModel):
-        base_model = create_model(base_model)
 
     models = (base_model, raw_model)
     for model in models:
@@ -74,7 +68,7 @@ def assign_weight(base_model, raw_model):
     except Exception as e:
         log("Assign weight Failed !!!\n")
         print(type(e).__name__ + ":  " + str(e))
-        return RuntimeError()
+        return False
 
 
 def process_each_weight(process, models):
@@ -90,13 +84,12 @@ def process_each_weight(process, models):
             submodel_1.named_parameters(recursively=False),
         ):
             try:
-                settings = yamls.get_weight_settings((submodel_0.class_name, submodel_1.class_name), (submodel_0.framework, submodel_1.framework), (param_name_0, param_name_1))
-                process(
-                    (submodel_0, submodel_1),
+                settings = yamls.get_weight_settings(
+                    (submodel_0.class_name, submodel_1.class_name),
+                    (submodel_0.framework, submodel_1.framework),
                     (param_name_0, param_name_1),
-                    (param_0, param_1),
-                    settings
                 )
+                process((submodel_0, submodel_1), (param_name_0, param_name_1), (param_0, param_1), settings)
             except Exception as e:
                 err_str = f"Error occured when trying init weights, between:\n"
                 err_str += f"    base_model: `{submodel_0.model_repr_info()}`\n"

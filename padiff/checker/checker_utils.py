@@ -1,16 +1,36 @@
+# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from ..utils import log_path, log_file, log
+from ..weight_init.special_init.special_init_pool import global_special_init_pool as init_pool
+
+from itertools import zip_longest
 import numpy
 import os
 import json
 
+
 global_compare_configs = {
     "atol": 1e-4,
-    "rtol": 0,
+    "rtol": 1e-7,
     "compare_mode": "mean",
 }
 
+
 def update_configs(cfg):
     global_compare_configs.update(cfg)
+
 
 def clone_dict_tree(root):
     new_root = {}
@@ -22,12 +42,20 @@ def clone_dict_tree(root):
         new_root["children"].append(clone_dict_tree(child))
     return new_root
 
-def print_report_info(nodes, reports, exc, stage):
+
+def print_report_info(nodes, reports, exc, stage, msg=None):
     step_idx = [node["metas"]["fwd_step"] if stage == "Forward" else node["metas"]["bwd_step"] for node in nodes]
     net_id = [node["metas"]["net_id"] for node in nodes]
 
     log("FAILED !!!")
-    log(f"    Diff found in {stage} Stage in step: {step_idx[0]} vs {step_idx[1]}, net_id is {net_id[0]} vs {net_id[1]}")
+
+    if msg is not None:
+        log("ADDITIONAL MESSAGE:")
+        print(msg + "\n")
+        log("DIFF DETAILS:")
+    log(
+        f"    Diff found in {stage} Stage in step: {step_idx[0]} vs {step_idx[1]}, net_id is {net_id[0]} vs {net_id[1]}"
+    )
     log(f"    Type of layer is: {nodes[0]['name']} vs {nodes[1]['name']}")
     log(f"    Route: {nodes[0]['route']}")
     log(f"           {nodes[1]['route']}\n")
@@ -44,7 +72,7 @@ def struct_info_log(reports, nodes, file_prefix):
     for idx in range(2):
         node = nodes[idx]
         report = reports[idx]
-        file_name = build_file_name(report, file_prefix + "_" + report['model_name'])
+        file_name = build_file_name(report, file_prefix + "_" + report["model_name"])
         file_names.append(file_name)
         title = f"{report['model_name']}\n" + "=" * 40 + "\n"
         retval = tree_print(report["tree"], mark=node, prefix=[" " * 4])
@@ -69,7 +97,7 @@ def tree_print(node, mark=None, prefix=[]):
             else:
                 cur_str += s
 
-    cur_str += node['name']
+    cur_str += node["name"]
     if "available" in node and node["available"] == False:
         cur_str += " (skip)"
     if os.getenv("PADIFF_PATH_LOG") == "ON":
@@ -152,10 +180,11 @@ def swap(seq, l, r):
     seq[r] = temp
     return
 
+
 def reorder_opaque_layers(base_nodes, raw_nodes, layer_map):
     for idx, base_node in enumerate(base_nodes):
         # an api layer can not have in_layer_map mark, so node.net is save
-        correspond_route = layer_map[base_node["route"]]
+        correspond_route = layer_map["route"][base_node["route"]]
         correspond_node = next(node for node in raw_nodes if node["route"] == correspond_route)
         item_idx = raw_nodes.index(correspond_node)
         if item_idx == idx:
@@ -166,6 +195,7 @@ def reorder_opaque_layers(base_nodes, raw_nodes, layer_map):
             raise RuntimeError("Duplicate key or values, check your LayerMap")
 
     return
+
 
 def reorder_normal_layers(base_nodes, raw_nodes):
     # we suppose that: corresponding layers have same net_id
@@ -182,12 +212,14 @@ def reorder_normal_layers(base_nodes, raw_nodes):
         correspond_node = bucket[node["metas"]["net_id"]].pop(0)
         raw_nodes.append(correspond_node)
 
+
 def traversal_node(node, node_list=[]):
     if node["available"]:
         node_list.append(node)
     for child in node["children"]:
         traversal_node(child, node_list)
     return node_list
+
 
 def build_file_name(report, file_name):
     strs = report["file_path"].split("/")
@@ -196,10 +228,45 @@ def build_file_name(report, file_name):
             return file_name + "_" + s + ".log"
     return file_name
 
+
 def load_numpy(path):
+    if path is None:
+        return None
     return numpy.load(path)
 
+
 def load_json(path, report_name):
-    f = open(path + "/" + report_name, "r")
-    retval = json.load(f)
+    with open(path + "/" + report_name, "r") as f:
+        retval = json.load(f)
     return retval
+
+
+def check_layer_map(reports):
+    if len(reports[0]["layer_map"]["route"]) == 0 and len(reports[1]["layer_map"]["route"]) == 0:
+        return True
+    log("Start check layer_map:")
+    layer_maps = [zip(rep["layer_map"]["route"], rep["layer_map"]["fullname"]) for rep in reports]
+    for base_info, raw_info in zip_longest(layer_maps[0], layer_maps[1], fillvalue=None):
+        if raw_info is None or base_info is None:
+            print(
+                "\nError: The number of submodels which need special init is not the same! Check your layer_map first!"
+            )
+            return False
+
+        base_route, base_fullname = base_info
+        raw_route, raw_fullname = raw_info
+        func_key = base_fullname + "###" + raw_fullname
+
+        if func_key in init_pool.funcs.keys():
+            print(
+                f"++++    base_model `{base_fullname}` at `{base_route}` <==>  raw_model `{raw_fullname}` at `{raw_route}`   ++++"
+            )
+        else:
+            print("\nError: When check layer_map in order, find that raw_model can not matchs base_model.")
+            print(f"    base_model:  `{base_fullname}` at `{base_route}`")
+            print(f"    raw_model: `{raw_fullname}` at `{raw_route}`")
+            log("Check layer_map FAILED!!!\n")
+            return False
+
+    log("Check layer_map SUCCESS!!!\n")
+    return True

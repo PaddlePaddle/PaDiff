@@ -12,48 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
-os.environ["PADIFF_CUDA_MEMORY"] = "OFF"
 
 import unittest
-from padiff import auto_diff
+from padiff import *
 import paddle
 import torch
 
 
 class SimpleLayer1(paddle.nn.Layer):
-    def __init__(self, in_size, hidden_size, out_size):
-        super(SimpleLayer1, self).__init__()
-
-        layers = []
-        layers.append(paddle.nn.Linear(in_size, hidden_size))
-        layers.append(paddle.nn.LayerNorm(hidden_size))
-        layers.append(paddle.nn.Linear(hidden_size, out_size))
-        self.layers = paddle.nn.Sequential(*layers)
-
-    def forward(self, x):
-        return self.layers(x)
-
-
-class SimpleModule1(torch.nn.Module):
-    def __init__(self, in_size, hidden_size, out_size):
-        super(SimpleModule1, self).__init__()
-
-        self.linear1 = torch.nn.Linear(in_size, hidden_size)
-        self.layer_norm = torch.nn.LayerNorm(hidden_size)
-        self.linear2 = torch.nn.Linear(hidden_size, out_size)
-
-    def forward(self, x):
-        x = self.linear1(x)
-        x = self.layer_norm(x)
-        x = self.linear2(x)
-        return x
-
-
-class SimpleLayer2(paddle.nn.Layer):
     def __init__(self):
-        super(SimpleLayer2, self).__init__()
+        super(SimpleLayer1, self).__init__()
         self.embedder = paddle.nn.Embedding(3, 16)
         self.lstm = paddle.nn.LSTM(16, 8, 2, time_major=True)
 
@@ -63,9 +31,9 @@ class SimpleLayer2(paddle.nn.Layer):
         return x
 
 
-class SimpleModule2(torch.nn.Module):
+class SimpleModule1(torch.nn.Module):
     def __init__(self):
-        super(SimpleModule2, self).__init__()
+        super(SimpleModule1, self).__init__()
         self.embedder = torch.nn.Embedding(3, 16)
         self.lstm = torch.nn.LSTM(
             input_size=16,
@@ -79,9 +47,9 @@ class SimpleModule2(torch.nn.Module):
         return x
 
 
-class SimpleLayer3(paddle.nn.Layer):
+class SimpleLayer2(paddle.nn.Layer):
     def __init__(self):
-        super(SimpleLayer3, self).__init__()
+        super(SimpleLayer2, self).__init__()
         self.attn = paddle.nn.MultiHeadAttention(16, 1)
 
     def forward(self, q, k, v):
@@ -89,9 +57,9 @@ class SimpleLayer3(paddle.nn.Layer):
         return x
 
 
-class SimpleModule3(torch.nn.Module):
+class SimpleModule2(torch.nn.Module):
     def __init__(self):
-        super(SimpleModule3, self).__init__()
+        super(SimpleModule2, self).__init__()
         self.attn = torch.nn.MultiheadAttention(16, 1, batch_first=True)
 
     def forward(self, q, k, v):
@@ -107,31 +75,9 @@ class NOPLayer(paddle.nn.Layer):
         return x
 
 
-class SimpleLayer4(paddle.nn.Layer):
+class SimpleLayer3(paddle.nn.Layer):
     def __init__(self):
-        super(SimpleLayer4, self).__init__()
-        self.nop = NOPLayer()
-        self.linear = paddle.nn.Linear(100, 10)
-
-    def forward(self, x):
-        x = self.nop(x)
-        x = self.linear(x)
-        return x
-
-
-class SimpleModule4(torch.nn.Module):
-    def __init__(self):
-        super(SimpleModule4, self).__init__()
-        self.linear = torch.nn.Linear(100, 10)
-
-    def forward(self, x):
-        x = self.linear(x)
-        return x
-
-
-class SimpleLayer5(paddle.nn.Layer):
-    def __init__(self):
-        super(SimpleLayer5, self).__init__()
+        super(SimpleLayer3, self).__init__()
         self.conv = paddle.nn.Conv2D(3, 32, 3, padding=1)
         self.bn = paddle.nn.BatchNorm2D(32)
 
@@ -141,9 +87,9 @@ class SimpleLayer5(paddle.nn.Layer):
         return x
 
 
-class SimpleModule5(torch.nn.Module):
+class SimpleModule3(torch.nn.Module):
     def __init__(self):
-        super(SimpleModule5, self).__init__()
+        super(SimpleModule3, self).__init__()
         self.conv = torch.nn.Conv2d(3, 32, 3, padding=1)
         self.bn = torch.nn.BatchNorm2d(32)
 
@@ -155,28 +101,22 @@ class SimpleModule5(torch.nn.Module):
 
 class TestCaseName(unittest.TestCase):
     def test_layer_map_1(self):
-        layer = SimpleLayer1(4, 8, 4)
-        module = SimpleModule1(4, 8, 4)
+        layer = create_model(SimpleLayer1())
+        module = create_model(SimpleModule1())
 
-        inp = paddle.to_tensor([[1, 2, 0, 1]]).numpy().astype("float32")
-        inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
-        assert auto_diff(module, layer, inp, layer_map={}, atol=1e-4) is True, "Failed. expected success."
-
-    def test_layer_map_2(self):
-        layer = SimpleLayer2()
-        module = SimpleModule2()
-
-        layer_map = {module.lstm: layer.lstm}
+        module.set_layer_map([module.model.lstm])
+        layer.set_layer_map([layer.model.lstm])
 
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
         inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
-        assert auto_diff(module, layer, inp, layer_map=layer_map, atol=1e-4) is True, "Failed. expected success."
+        assert auto_diff(module, layer, inp, atol=1e-4) is True, "Failed. expected success."
 
-    def test_layer_map_3(self):
-        layer = SimpleLayer3()
-        module = SimpleModule3()
+    def test_layer_map_2(self):
+        layer = create_model(SimpleLayer2())
+        module = create_model(SimpleModule2())
 
-        layer_map = {module.attn: layer.attn}
+        module.set_layer_map([module.model.attn])
+        layer.set_layer_map([layer.model.attn])
 
         inp = paddle.rand((2, 4, 16)).numpy()
         inp = (
@@ -184,31 +124,25 @@ class TestCaseName(unittest.TestCase):
             {"q": paddle.to_tensor(inp), "k": paddle.to_tensor(inp), "v": paddle.to_tensor(inp)},
         )
 
-        assert auto_diff(module, layer, inp, layer_map=layer_map, atol=1e-4) is True, "Failed. expected success."
+        assert auto_diff(module, layer, inp, atol=1e-4) is True, "Failed. expected success."
 
-    def test_layer_map_4(self):
-        layer = SimpleLayer4()
-        module = SimpleModule4()
+    def test_layer_map_3(self):
+        layer = SimpleLayer3()
+        module = SimpleModule3()
 
-        inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = (
-            {"x": torch.as_tensor(inp)},
-            {"x": paddle.to_tensor(inp)},
-        )
-
-        assert auto_diff(module, layer, inp, atol=1e-4)
-
-    def test_layer_map_5(self):
-        layer = SimpleLayer5()
-        module = SimpleModule5()
         layer.eval()
         module.eval()
-        layer_map = {module.bn: layer.bn}
+
+        layer = create_model(layer)
+        module = create_model(module)
+
+        module.set_layer_map([module.model.bn])
+        layer.set_layer_map([layer.model.bn])
 
         inp = paddle.rand((1, 3, 32, 32)).numpy()
         inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
 
-        assert auto_diff(module, layer, inp, layer_map=layer_map, atol=1e-4) is True, "Failed. expected success."
+        assert auto_diff(module, layer, inp, atol=1e-4) is True, "Failed. expected success."
 
 
 if __name__ == "__main__":

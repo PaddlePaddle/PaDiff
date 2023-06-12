@@ -14,9 +14,6 @@
 
 from ..utils import assert_tensor_equal
 from .checker_utils import load_numpy
-import torch
-import paddle
-import numpy
 
 import warnings
 
@@ -28,7 +25,7 @@ class ActionPool:
     def register(self, cls):
         name = cls.__name__
         self.pool.append(cls())
-        sorted(self.pool, key=lambda x: x.priority, reverse=True)   # high -> low
+        sorted(self.pool, key=lambda x: x.priority, reverse=True)  # high -> low
         return cls
 
     def find_actions(self, report_0, node_0, report_1, node_1):
