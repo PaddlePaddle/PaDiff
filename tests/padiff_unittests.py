@@ -15,7 +15,6 @@
 import os
 import subprocess
 
-failed_tests = []
 
 for root, dirs, files in os.walk("./"):
     for fname in files:
@@ -23,21 +22,10 @@ for root, dirs, files in os.walk("./"):
             fpath = root + "/" + fname
             (status, output) = subprocess.getstatusoutput("python " + fpath)
             if status != 0:
-                failed_tests.append((fpath, output))
-                print("F", end="", flush=True)
+                err_info = f"*** ===================== {fpath} ========================= ***\n"
+                err_info += f"{output}\n"
+                raise RuntimeError(err_info)
             else:
-                print(".", end="", flush=True)
-print("", flush=True)
-
-if len(failed_tests) != 0:
-    err_info = f"\nTOTAL {len(failed_tests)} TEST FAILED!!!\n"
-    for idx, ft in enumerate(failed_tests):
-        fpath, output = ft
-        err_info += f"*** ===================== [{idx}] {fpath} ========================= ***\n"
-        err_info += f"{output}\n"
-    for idx, ft in enumerate(failed_tests):
-        fpath, output = ft
-        err_info += f"*** ===================== {fpath} ========================= ***\n"
-    raise RuntimeError(err_info)
-else:
-    print("TEST SUCCESS!!!")
+                print(".")
+            os.system("rm -rf ./tests/padiff_dump")
+            os.system("rm -rf ./tests/padiff_log")
