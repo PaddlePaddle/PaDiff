@@ -16,3 +16,4 @@
 
 from .interfaces import create_model, assign_weight, auto_diff, check_dataloader
 from ..checker import check_report, check_params
+from ..dump_tools import set_dump_root_path

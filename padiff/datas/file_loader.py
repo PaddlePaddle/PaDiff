@@ -18,11 +18,11 @@ import json
 
 
 """
-    yaml_loader
+    YamlLoader
 """
 
 
-class yaml_loader:
+class YamlLoader:
     def __init__(self):
         yaml_path = os.path.join(os.path.dirname(__file__), "assign_weight.yaml")
         with open(yaml_path, "r") as yaml_file:
@@ -85,15 +85,15 @@ class yaml_loader:
         self._options.update(val)
 
 
-global_yaml_loader = yaml_loader()
+global_yaml_loader = YamlLoader()
 
 
 """
-    json_loader
+    JsonLoader
 """
 
 
-class json_loader:
+class JsonLoader:
     def __init__(self):
         self.TORCH_PATH = [
             "torch.nn.functional",
@@ -207,6 +207,6 @@ class json_loader:
 
 
 if os.getenv("PADIFF_API_CHECK") == "ON":
-    global_json_loader = json_loader()
+    global_json_laoder = JsonLoader()
 else:
-    global_json_loader = None
+    global_json_laoder = None

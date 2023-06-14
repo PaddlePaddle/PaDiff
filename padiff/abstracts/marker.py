@@ -58,19 +58,19 @@ class Marker:
 
         self.layer_map = _layer_map
 
-    def auto_layer_map(self, place):
+    def auto_layer_map(self, model_place):
         """
         Try to find components which support special init, and add them to layer_map automatically.
         NOTICE: this api suppose that all sublayers/submodules are defined in same order,
                 if not, this may not work correctly.
         """
         _layer_map = []
-        registered = init_pool.registered_base_models if place == "base" else init_pool.registered_raw_models
+        registered = init_pool.registered_base_models if model_place == "base" else init_pool.registered_raw_models
 
         log("Auto set layer_map start searching...")
         for layer in self.traversal_layers():
             if layer.fullname in registered:
-                print(f"++++    {place}_model found `{layer.fullname}` add to layer_map   ++++")
+                print(f"++++    {model_place}_model found `{layer.fullname}` add to layer_map   ++++")
                 _layer_map.append(layer)
                 self.black_list_recursively.add(layer.model)
         print()
@@ -92,6 +92,8 @@ class Marker:
 
 
 def traversal_prototype(fn0, fn1):
+    # if fn0 returns True, yield current model
+    # if fn1 returns True, need traversal recursively
     def inner(model, marker):
         for child in model.children():
             if fn0(child, marker):

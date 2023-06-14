@@ -26,7 +26,7 @@ from importlib.abc import MetaPathFinder, Loader
 from importlib.machinery import SourceFileLoader, ExtensionFileLoader, PathFinder
 
 from .report.hooks import info_hook
-from .datas import global_json_loader as jsons
+from .datas import global_json_laoder as jsons
 
 
 def module_filter(name):
@@ -252,4 +252,5 @@ __all__ = [
     "assign_weight",
     "auto_diff",
     "check_dataloader",
+    "set_dump_root_path",
 ]
