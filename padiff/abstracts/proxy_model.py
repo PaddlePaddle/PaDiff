@@ -17,13 +17,25 @@ import torch
 import re
 
 from .proxy_parameter import ProxyParam
+from .proxy_utils import deco_iter
+from .marker import Marker
+
+from ..report import Report, report_guard, register_hooker
+from ..utils import reset_dir
+from ..dump_tools import dump_report, dump_params, dump_root_path
 
 
 class ProxyModel:
-    def __init__(self, model, name, model_type):
+    def __init__(self, model, name, framework):
         self.model = model
-        self.model_type = model_type
+        self.framework = framework  # "paddle"/"torch"
         self.name = name
+
+        self.marker = Marker(self)
+        self.report = Report(self.marker)
+        self.step = 0
+
+        self.dump_path = dump_root_path + "/" + self.name
 
     @staticmethod
     def create_from(model, name=None):
@@ -32,14 +44,27 @@ class ProxyModel:
         if isinstance(model, ProxyModel):
             return model
         elif isinstance(model, paddle.nn.Layer):
-            return PaddleModel(model, name)
+            retval = PaddleModel(model, name)
+            return retval
         elif isinstance(model, torch.nn.Module):
-            return TorchModel(model, name)
+            retval = TorchModel(model, name)
+            return retval
         else:
             raise RuntimeError(f"Can not create ProxyModel from {type(model)}")
 
-    def __call__(self, *args, **kwargs):
-        return self.model(*args, **kwargs)
+    @property
+    def class_name(self):
+        return self.model.__class__.__name__
+
+    @property
+    def fullname(self):
+        return f"{self.framework}::{self.class_name}"
+
+    def __str__(self, *args, **kwargs):
+        return f"Model({self.fullname})"
+
+    def __repr__(self, *args, **kwargs):
+        return f"Model({self.fullname})"
 
     def model_repr_info(self):
         model = self.model
@@ -56,27 +81,69 @@ class ProxyModel:
         return retstr
 
     @property
-    def path_info(self):
-        return self.model.path_info
+    def route(self):
+        return self.model.route
 
-    @property
-    def class_name(self):
-        return self.model.__class__.__name__
+    """
+        training
+    """
 
-    @property
-    def fullname(self):
-        return f"{self.model_type}::{self.class_name}"
+    def __call__(self, *args, **kwargs):
+        with register_hooker(self), report_guard(self.report):
+            return self.model(*args, **kwargs)
 
-    def __str__(self, *args, **kwargs):
-        return f"Model({self.fullname})"
+    def backward(self, loss):
+        with register_hooker(self), report_guard(self.report):
+            return loss.backward()
 
-    def __repr__(self, *args, **kwargs):
-        return f"Model({self.fullname})"
+    """
+        black_list and white_list
+        mode : "self" | "sublayers" | "all"
+    """
 
-    def parameters(self):
+    def update_black_list(self, layers, mode="all"):
+        self.marker.update_black_list(layers, mode)
+
+    def update_white_list(self, layers, mode="self"):
+        self.marker.update_white_list(layers, mode)
+
+    def update_black_list_with_class(self, layer_class, recursively=True):
+        pass
+
+    def update_white_list_with_class(self, layer_class, recursively=False):
+        pass
+
+    def set_layer_map(self, layers):
+        self.marker.set_layer_map(layers)
+
+    def auto_layer_map(self, place):
+        self.marker.auto_layer_map(place)
+
+    """
+        about dump
+    """
+
+    def clear_report(self):
+        self.report = Report(self.marker)
+
+    def try_dump(self, per_step, dump_path=None):
+        if dump_path is None:
+            dump_path = f"{self.dump_path}/step_{self.step}"
+        if self.step % per_step == 0:
+            reset_dir(dump_path)
+            dump_params(self, dump_path)
+            dump_report(self, dump_path)
+        self.clear_report()
+        self.step += 1
+
+    """
+        support native interfaces
+    """
+
+    def parameters(self, recursively):
         raise NotImplementedError()
 
-    def named_parameters(self):
+    def named_parameters(self, recursively):
         raise NotImplementedError()
 
     # child sublayers, do not include self
@@ -198,20 +265,3 @@ class TorchModel(ProxyModel):
 
     def register_forward_post_hook(self, hook):
         return self.model.register_forward_hook(hook)
-
-
-def deco_iter(iterator, fn):
-    def new_fn(obj):
-        try:
-            return fn(obj)
-        except:
-            return obj
-
-    def new_generator():
-        for obj in iterator:
-            if isinstance(obj, (tuple, list)):
-                yield tuple(map(new_fn, obj))
-            else:
-                yield new_fn(obj)
-
-    return new_generator()

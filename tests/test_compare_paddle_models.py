@@ -16,14 +16,7 @@ import unittest
 
 import paddle
 
-from padiff import auto_diff
-
-"""
-测试 不同的 `forward顺序`，但是具有同样的 `定义顺序`
-
-期待结果：
-Success
-"""
+from padiff import *
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -43,24 +36,23 @@ class SimplleDIffLayer(paddle.nn.Layer):
         super(SimplleDIffLayer, self).__init__()
         self.linear1 = paddle.nn.Linear(100, 100)
         self.linear2 = paddle.nn.Linear(100, 100)
-        self.relu = paddle.nn.ReLU()
 
     def forward(self, x):
         x2 = self.linear2(x)
-        x2 = self.relu(x2)
+        x2 = paddle.nn.functional.relu(x2)
         x1 = self.linear1(x)
         return x2 + x1
 
 
 class TestCaseName(unittest.TestCase):
     def test_check_weight_grad(self):
-        model_0 = SimpleLayer()
-        model_1 = SimpleLayer()
-        model_2 = SimplleDIffLayer()
+        model_0 = create_model(SimpleLayer(), "SimpleLayer_0")
+        model_1 = create_model(SimpleLayer(), "SimpleLayer_1")
+        model_2 = create_model(SimplleDIffLayer())
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": paddle.to_tensor(inp)})
-        options = {"atol": 1e-4, "single_step": True, "model_names": ["paddle1", "paddle2"], "auto_init": True}
+        options = {"atol": 1e-4, "auto_init": True, "single_step": True}
         assert auto_diff(model_0, model_1, inp, **options) is True
         assert auto_diff(model_0, model_2, inp, **options) is False
 

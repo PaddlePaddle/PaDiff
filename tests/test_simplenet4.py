@@ -17,7 +17,7 @@ import unittest
 import paddle
 import torch
 
-from padiff import auto_diff
+from padiff import *
 
 """
 测试 同一个Module / Layer被多次forward
@@ -69,15 +69,15 @@ class SimpleModule(torch.nn.Module):
 
 class TestCaseName(unittest.TestCase):
     def test_success(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
+        layer = create_model(SimpleLayer())
+        module = create_model(SimpleModule())
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
 
     def test_failed(self):
-        layer = SimpleLayerDiff()
-        module = SimpleModule()
+        layer = create_model(SimpleLayerDiff())
+        module = create_model(SimpleModule())
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert auto_diff(layer, module, inp, atol=1e-4) is False, "Success. expected failed."

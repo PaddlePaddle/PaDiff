@@ -18,10 +18,11 @@ import unittest
 import paddle
 import torch
 
-from padiff import auto_diff, LayerMap
-from padiff.abstracts import ProxyModel
-from padiff.utils import reset_log_dir, init_options
-from padiff.trainer.Checker import check_grad, check_weight
+
+from padiff import *
+from padiff.checker import check_grads, check_weights
+from padiff.dump_tools import dump_grads, dump_weights
+from padiff.interfaces.diff_utils import default_loss
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -32,11 +33,6 @@ class SimpleLayer(paddle.nn.Layer):
         self.act = paddle.nn.ReLU()
 
     def forward(self, x):
-        """
-        x -> linear1 -> x -> relu -> x -> add -> linear2 -> output
-        |                                  |
-        |----------------------------------|
-        """
         resdual = x
         x = self.linear1(x)
         x = self.act(x)
@@ -53,11 +49,6 @@ class SimpleModule(torch.nn.Module):
         self.act = torch.nn.ReLU()
 
     def forward(self, x):
-        """
-        x -> linear1 -> x -> relu -> x -> add -> linear2 -> output
-        |                                  |
-        |----------------------------------|
-        """
         resdual = x
         x = self.linear1(x)
         x = self.act(x)
@@ -67,37 +58,62 @@ class SimpleModule(torch.nn.Module):
 
 
 class TestCaseName(unittest.TestCase):
-    def test_weight_grad_check(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
-        options = {"atol": 1e-4}
-        init_options(options)
+    def test_weight_grad_check_0(self):
+        layer = create_model(SimpleLayer())
+        module = create_model(SimpleModule())
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert auto_diff(layer, module, inp, **options) is True, "Failed. expected success."
 
-        module.zero_grad()
-        reset_log_dir()
+        assign_weight(layer, module)
+        out = layer(paddle.to_tensor(inp))
+        loss = default_loss(out, "paddle")
+        layer.backward(loss)
 
-        weight_check = check_weight(
-            (ProxyModel.create_from(layer), ProxyModel.create_from(module)), options, LayerMap()
-        )
-        grad_check = check_grad((ProxyModel.create_from(layer), ProxyModel.create_from(module)), options, LayerMap())
+        out = module(torch.as_tensor(inp))
+        loss = default_loss(out, "torch")
+        module.backward(loss)
+
+        module.model.zero_grad()
+
+        dump_weights(layer, layer.dump_path)
+        dump_weights(module, module.dump_path)
+
+        dump_grads(layer, layer.dump_path)
+        dump_grads(module, module.dump_path)
+
+        weight_check = check_weights(layer.dump_path, module.dump_path)
+        grad_check = check_grads(layer.dump_path, module.dump_path)
+
         assert weight_check is True, "Weight params should be same"
         assert grad_check is False, "Grad should be different"
 
-        layer = SimpleLayer()
-        module = SimpleModule()
-        assert auto_diff(layer, module, inp, **options) is True, "Failed. expected success."
+    def test_weight_grad_check_1(self):
+        layer = create_model(SimpleLayer())
+        module = create_model(SimpleModule())
 
-        for param in module.parameters():
+        inp = paddle.rand((100, 100)).numpy().astype("float32")
+
+        assign_weight(layer, module)
+        out = layer(paddle.to_tensor(inp))
+        loss = default_loss(out, "paddle")
+        layer.backward(loss)
+
+        out = module(torch.as_tensor(inp))
+        loss = default_loss(out, "torch")
+        module.backward(loss)
+
+        for param in module.model.parameters():
             param.data = param * 2
-        reset_log_dir()
-        weight_check = check_weight(
-            (ProxyModel.create_from(layer), ProxyModel.create_from(module)), options, LayerMap()
-        )
-        grad_check = check_grad((ProxyModel.create_from(layer), ProxyModel.create_from(module)), options, LayerMap())
+
+        dump_weights(layer, layer.dump_path)
+        dump_weights(module, module.dump_path)
+
+        dump_grads(layer, layer.dump_path)
+        dump_grads(module, module.dump_path)
+
+        grad_check = check_grads(layer.dump_path, module.dump_path)
+        weight_check = check_weights(layer.dump_path, module.dump_path)
+
         assert weight_check is False, "Weight params should be different"
         assert grad_check is True, "Grad should be same"
 

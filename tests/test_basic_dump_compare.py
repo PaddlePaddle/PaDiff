@@ -1,4 +1,4 @@
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
-os.environ["PADIFF_CUDA_MEMORY"] = "OFF"
-
+from padiff import *
 import unittest
-
 import paddle
 import torch
-
-from padiff import auto_diff
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -57,44 +51,53 @@ class SimpleModule(torch.nn.Module):
 
 
 class TestCaseName(unittest.TestCase):
-    def test_cpu_cpu(self):
-        paddle.set_device("cpu")
+    def test_check_success(self):
         layer = SimpleLayer()
-        module = SimpleModule().to("cpu")
-        inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cpu")})
-        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
-
-    def test_cpu_gpu(self):
-        if not paddle.device.is_compiled_with_cuda():
-            return
-        paddle.set_device("cpu")
-        layer = SimpleLayer()
+        layer = create_model(layer)
         module = SimpleModule()
-        module = module.to("cuda")
-        inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cuda")})
-        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
+        module = create_model(module)
 
-    def test_gpu_cpu(self):
-        if not paddle.device.is_compiled_with_cuda():
-            return
-        paddle.set_device("gpu")
-        layer = SimpleLayer()
-        module = SimpleModule().to("cpu")
-        inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cpu")})
-        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
+        assign_weight(layer, module)
 
-    def test_gpu_gpu(self):
-        if not paddle.device.is_compiled_with_cuda():
-            return
-        paddle.set_device("gpu")
-        layer = SimpleLayer()
-        module = SimpleModule().to("cuda")
         inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp).to("cuda")})
-        assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
+
+        for i in range(6):
+            out = layer(paddle.to_tensor(inp))
+            loss = out.mean()
+            layer.backward(loss)
+            layer.try_dump(2)
+
+            out = module(torch.as_tensor(inp))
+            loss = out.mean()
+            module.backward(loss)
+            module.try_dump(2)
+
+            if i % 2 == 0:
+                assert check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == True
+                assert check_params(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == True
+
+    def test_check_fail(self):
+        layer = SimpleLayer()
+        layer = create_model(layer)
+        module = SimpleModule()
+        module = create_model(module)
+
+        inp = paddle.rand((100, 100)).numpy().astype("float32")
+
+        for i in range(6):
+            out = layer(paddle.to_tensor(inp))
+            loss = out.mean()
+            layer.backward(loss)
+            layer.try_dump(2)
+
+            out = module(torch.as_tensor(inp))
+            loss = out.mean()
+            module.backward(loss)
+            module.try_dump(2)
+
+            if i % 2 == 0:
+                assert check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == False
+                assert check_params(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == False
 
 
 if __name__ == "__main__":

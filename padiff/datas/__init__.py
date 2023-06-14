@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .Trainer import Trainer
+from .file_loader import global_json_laoder, global_yaml_loader

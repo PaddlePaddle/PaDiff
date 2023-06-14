@@ -12,4 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .proxy_model import ProxyModel
+from .check_report import check_report
+from .check_params import check_params, check_weights, check_grads
+from .checker_utils import update_configs, global_compare_configs

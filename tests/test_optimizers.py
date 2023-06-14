@@ -17,7 +17,7 @@ import unittest
 import paddle
 import torch
 
-from padiff import auto_diff
+from padiff import *
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -28,11 +28,6 @@ class SimpleLayer(paddle.nn.Layer):
         self.act = paddle.nn.ReLU()
 
     def forward(self, x):
-        """
-        x -> linear1 -> x -> relu -> x -> add -> linear2 -> output
-        |                                  |
-        |----------------------------------|
-        """
         resdual = x
         x = self.linear1(x)
         x = self.act(x)
@@ -49,11 +44,6 @@ class SimpleModule(torch.nn.Module):
         self.act = torch.nn.ReLU()
 
     def forward(self, x):
-        """
-        x -> linear1 -> x -> relu -> x -> add -> linear2 -> output
-        |                                  |
-        |----------------------------------|
-        """
         resdual = x
         x = self.linear1(x)
         x = self.act(x)
@@ -64,33 +54,14 @@ class SimpleModule(torch.nn.Module):
 
 class TestCaseName(unittest.TestCase):
     def test_optimizer(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
+        layer = create_model(SimpleLayer())
+        module = create_model(SimpleModule())
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        paddle_opt = paddle.optimizer.Adam(learning_rate=0.001, parameters=layer.parameters())
-        torch_opt = torch.optim.Adam(lr=0.001, params=module.parameters())
+        paddle_opt = paddle.optimizer.Adam(learning_rate=0.001, parameters=layer.model.parameters())
+        torch_opt = torch.optim.Adam(lr=0.001, params=module.model.parameters())
         assert (
-            auto_diff(layer, module, inp, optimizer=[paddle_opt, torch_opt], atol=1e-4) is True
-        ), "Failed. expected success."
-
-    def test_multi_step(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
-        inp = paddle.rand((100, 100)).numpy().astype("float32")
-        inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        paddle_opt = paddle.optimizer.Adam(learning_rate=0.001, parameters=layer.parameters())
-        torch_opt = torch.optim.Adam(lr=0.001, params=module.parameters())
-        assert (
-            auto_diff(
-                layer,
-                module,
-                inp,
-                optimizer=[paddle_opt, torch_opt],
-                atol=1e-4,
-                steps=10,
-            )
-            is True
+            auto_diff(layer, module, inp, optimizers=[paddle_opt, torch_opt], atol=1e-4) is True
         ), "Failed. expected success."
 
 

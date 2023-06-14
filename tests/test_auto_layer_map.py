@@ -12,19 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
-os.environ["PADIFF_CUDA_MEMORY"] = "OFF"
 
 import unittest
-from padiff import auto_diff, LayerMap
+from padiff import *
 import paddle
 import torch
 
 
-class SimpleLayer2(paddle.nn.Layer):
+class SimpleLayer(paddle.nn.Layer):
     def __init__(self):
-        super(SimpleLayer2, self).__init__()
+        super(SimpleLayer, self).__init__()
         self.embedder = paddle.nn.Embedding(3, 16)
         self.lstm1 = paddle.nn.LSTM(16, 8, 2, time_major=True)
         self.lstm2 = paddle.nn.LSTM(8, 4, 2, time_major=True)
@@ -36,9 +33,9 @@ class SimpleLayer2(paddle.nn.Layer):
         return x
 
 
-class SimpleModule2(torch.nn.Module):
+class SimpleModule(torch.nn.Module):
     def __init__(self):
-        super(SimpleModule2, self).__init__()
+        super(SimpleModule, self).__init__()
         self.embedder = torch.nn.Embedding(3, 16)
         self.lstm1 = torch.nn.LSTM(
             input_size=16,
@@ -60,18 +57,15 @@ class SimpleModule2(torch.nn.Module):
 
 class TestCaseName(unittest.TestCase):
     def test_auto_layer_map(self):
-        layer = SimpleLayer2()
-        module = SimpleModule2()
+        module = create_model(SimpleModule())
+        module.auto_layer_map("base")
 
-        layer_map = LayerMap()
-        result = layer_map.auto(module, layer)
-        assert result == True
+        layer = create_model(SimpleLayer())
+        layer.auto_layer_map("raw")
 
         inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
         inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
-        assert (
-            auto_diff(module, layer, inp, layer_map=layer_map, auto_weights=True, atol=1e-4) is True
-        ), "Failed. expected success."
+        assert auto_diff(module, layer, inp, auto_weights=True, atol=1e-4) is True, "Failed. expected success."
 
 
 if __name__ == "__main__":

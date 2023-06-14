@@ -19,14 +19,12 @@ import shutil
 import numpy as np
 import paddle
 import torch
-from itertools import zip_longest
 
 
 try:
     from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
 except:
     from paddle.utils import flatten, pack_sequence_as, map_structure
-from .file_loader import global_yaml_loader as yamls
 
 
 """
@@ -60,10 +58,7 @@ def set_require_grad(x):
         x.stop_gradient = False
 
 
-def _clone_tensor(inp):
-    """
-    clone into cpu to save GPU memory.
-    """
+def _clone_tensor(inp):  # to cpu
     if isinstance(inp, (torch.Tensor, paddle.Tensor)):
         if inp.numel() == 0:
             if isinstance(inp, torch.Tensor):
@@ -79,10 +74,12 @@ def _clone_tensor(inp):
 
 
 def clone_structure(inputs):
-    """
-    Clone a nested structure.
-    """
     return map_structure(_clone_tensor, inputs)
+
+
+def clone_tensors(inputs):
+    tensors = [_clone_tensor(t) for (t,) in for_each_tensor(inputs)]
+    return tensors
 
 
 """
@@ -120,25 +117,13 @@ def map_structure_and_replace_key(func, structure1, structure2):
 """
 
 
-def max_diff(output1, output2):
-    _max_diff = 0
-    for (tensor1,), (tensor2,) in zip(for_each_tensor(output1), for_each_tensor(output2)):
-        if tensor2.numel() == 0 or tensor1.numel() == 0:
-            continue
-        temp = np.abs(tensor2.detach().cpu().numpy() - tensor1.detach().cpu().numpy()).max()
-        if temp > _max_diff:
-            _max_diff = temp
-
-    return _max_diff
-
-
-def assert_tensor_equal(tensor1, tensor2, options):
+def assert_tensor_equal(tensor1, tensor2, cfg):
     """
     return None or raise Error.
     """
-    atol = options["atol"]
-    rtol = options["rtol"]
-    compare_mode = options["compare_mode"]
+    atol = cfg["atol"]
+    rtol = cfg["rtol"]
+    compare_mode = cfg["compare_mode"]
 
     if compare_mode == "mean":
         np.testing.assert_allclose(tensor1.mean(), tensor2.mean(), atol=atol, rtol=rtol)
@@ -146,120 +131,31 @@ def assert_tensor_equal(tensor1, tensor2, options):
         np.testing.assert_allclose(tensor1, tensor2, atol=atol, rtol=rtol)
 
 
-def tensors_mean(inp, mode):
-    if isinstance(inp, torch.Tensor) or isinstance(inp, paddle.Tensor):
-        return inp.mean()
-
-    if mode == "torch":
-        means = []
-        for t in for_each_tensor(inp):
-            means.append(t[0].to(torch.float32).mean())
-        loss = torch.stack(means).mean()
-        return loss
-    elif mode == "paddle":
-        means = []
-        for t in for_each_tensor(inp):
-            means.append(t[0].astype("float32").mean())
-        loss = paddle.stack(means).mean()
-        return loss
-    else:
-        raise RuntimeError("unrecognized mode `{}`, expected: `torch` or `paddle`".format(mode))
-
-
 """
-    init tools
+    process files
 """
 
 
-def init_options(options):
-    default_options = {
-        "atol": 0,
-        "rtol": 1e-7,
-        "auto_init": True,
-        "compare_mode": "mean",
-        "diff_phase": "both",
-        "single_step": False,
-        "steps": 1,
-        "use_loss": False,
-        "use_opt": False,
-        "curent_model_idx": None,
-    }
-
-    default_options.update(options)
-    options.update(default_options)
-
-    if not options["single_step"] and options["diff_phase"] == "backward":
-        options["diff_phase"] = "both"
-        log("  Not in single_step mode, diff_phase `backward` is not supported, set to `both` instead.")
-
-    if options["diff_phase"] == "forward":
-        if options["use_opt"]:
-            options["use_opt"] = False
-            log("  Diff_phase is `forward`, optimizer will not be used.")
-        if options["steps"] > 1:
-            options["steps"] = 1
-            log("  Diff_phase is `forward`, steps is set to `1`.")
-
-    if options["steps"] > 1 and options["use_opt"] == False:
-        options["steps"] = 1
-        log("  Steps is set to `1`, because optimizers are not given.")
-
-    log("Your options:")
-    print("{")
-    for key in options.keys():
-        if key in ["atol", "rtol", "auto_init", "compare_mode", "single_step", "steps", "use_loss", "use_opt"]:
-            print("  {}: `{}`".format(key, options[key]))
-    print("}")
-
-    yamls.options = options
-
-
-def init_path_info(models):
-    def _set_path_info(model, path):
-        for name, child in model.named_children():
-            path.append(name)
-            setattr(child.model, "path_info", ".".join(path))
-            _set_path_info(child, path)
-            path.pop()
-
-    for model in models:
-        setattr(model.model, "path_info", model.name)
-        _set_path_info(model, [model.name])
-
-
-def remove_inplace(models):
-    """
-    Set `inplace` tag to `False` for torch module
-    """
-
-    for model in models:
-        if model.model_type == "torch":
-            for submodel in model.submodels():
-                if hasattr(submodel, "inplace"):
-                    submodel.inplace = False
+def reset_dir(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path)
 
 
 """
     log utils
 """
-
-diff_log_path = os.path.join(sys.path[0], "diff_log")
-__reset_log_dir__ = False
-
-
-def reset_log_dir():
-    if os.path.exists(diff_log_path):
-        shutil.rmtree(diff_log_path)
-    os.makedirs(diff_log_path)
+log_path = os.path.join(sys.path[0], "padiff_log")
+__reset_log_dir__ = False  # reset log_path only once
 
 
 def log_file(filename, mode, info):
     global __reset_log_dir__
     if not __reset_log_dir__:
-        reset_log_dir()
+        reset_dir(log_path)
         __reset_log_dir__ = True
 
-    filepath = os.path.join(sys.path[0], "diff_log", filename)
+    filepath = os.path.join(log_path, filename)
     with open(filepath, mode) as f:
         f.write(info)
 
@@ -270,163 +166,14 @@ def log(*args):
     print("[AutoDiff]", *args)
 
 
-def weight_struct_info(models, submodels):
-    lines = 0
-    infos = []
+class Counter:
+    def __init__(self):
+        self.clear()
 
-    for idx in range(2):
-        model = models[idx]
-        submodel = submodels[idx]
-        title = f"{model.name}\n" + "=" * 40 + "\n"
-        retval = weight_struct_string(model, mark=submodel, prefix=[" " * 4])
-        info = title + "\n".join(retval)
-        infos.append(info)
-        lines += len(retval)
+    def clear(self):
+        self.id = 0
 
-    retstr = ""
-    if lines > 100:
-        file_names = [f"weight_{models[idx].name}.log" for idx in range(2)]
-        for idx in range(2):
-            info = infos[idx]
-            log_file(file_names[idx], "w", info)
-        retstr += (
-            f"Weight diff log saved to `{diff_log_path}/{file_names[0]}` and `{diff_log_path}/{file_names[1]}`.\n"
-        )
-        retstr += "Please view the reports and checkout the layers which is marked with `<---  *** HERE ***` !\n"
-    else:
-        for info in infos:
-            retstr += info
-            retstr += "\n"
-
-    retstr += "\nNOTICE: submodel will be marked with `(skip)` because: \n"
-    retstr += "    1. This submodel is contained by layer_map.\n"
-    retstr += "    2. This submodel has no parameter, so padiff think it is a wrap layer.\n"
-
-    retstr += "\nHint:\n"
-    retstr += "    1. Check the definition order of params in submodel is the same.\n"
-    retstr += "    2. Check the corresponding submodel have the same style:\n"
-    retstr += "       param <=> param, buffer <=> buffer, embedding <=> embedding ...\n"
-    retstr += "       cases like param <=> buffer, param <=> embedding are not allowed.\n"
-    retstr += "    3. If can not change model codes, try to use a `LayerMap`\n"
-    retstr += "       which can solve most problems.\n"
-    retstr += "    0. Visit `https://github.com/PaddlePaddle/PaDiff` to find more infomation.\n"
-
-    return retstr
-
-
-def weight_struct_string(model, mark=None, prefix=[]):
-    cur_str = ""
-    for i, s in enumerate(prefix):
-        if i == len(prefix) - 1:
-            cur_str += s
-        else:
-            if s == " |--- ":
-                cur_str += " |    "
-            elif s == " +--- ":
-                cur_str += "      "
-            else:
-                cur_str += s
-
-    cur_str += str(model.class_name)
-
-    if not hasattr(model.model, "no_skip"):
-        cur_str += "  (skip)"
-
-    if os.getenv("PADIFF_PATH_LOG") == "ON" and hasattr(model.model, "path_info"):
-        cur_str += "  (" + model.path_info + ")"
-
-    if mark.model is model.model:
-        cur_str += "    <---  *** HERE ***"
-
-    ret_strs = [cur_str]
-
-    children = list(model.children())
-    for i, child in enumerate(children):
-        pre = " |--- "
-        if i == len(children) - 1:
-            pre = " +--- "
-        prefix.append(pre)
-        retval = weight_struct_string(child, mark, prefix)
-        ret_strs.extend(retval)
-        prefix.pop()
-
-    return ret_strs
-
-
-def debug_print(model, mark=None, prefix=[]):
-    retval = weight_struct_string(model, mark=None, prefix=[])
-    print("\n".join(retval))
-
-
-"""
-    stack tools
-"""
-
-
-import os.path as osp
-import traceback
-
-
-def _is_system_package(filename):
-    exclude = [
-        "lib/python",
-        "/usr/local",
-        osp.dirname(paddle.__file__),
-        osp.dirname(torch.__file__),
-        osp.dirname(__file__),  # exclude padiff
-    ]
-    for pattern in exclude:
-        if pattern in filename:
-            return True
-    return False
-
-
-def extract_frame_summary():
-    """
-    extract the current call stack by traceback module.
-    gather the call information and put them into ReportItem to helper locate the error.
-
-    frame_summary:
-        line: line of the code
-        lineno: line number of the file
-        filename: file name of the stack
-        name: the function name.
-    """
-    frame_summarys = traceback.StackSummary.extract(traceback.walk_stack(None))
-    last_user_fs = None
-    for fs in frame_summarys:
-        if not _is_system_package(fs.filename):
-            last_user_fs = fs
-            break
-    assert last_user_fs is not None, "Error happend, can't return None."
-    return last_user_fs, frame_summarys
-
-
-"""
-    check dataloader
-"""
-
-
-def check_dataloader(first_loader, second_loader, **kwargs):
-    def get_numpy(data):
-        if isinstance(data, (paddle.Tensor, torch.Tensor)):
-            return data.detach().cpu().numpy()
-        return data
-
-    options = {
-        "atol": 0,
-        "rtol": 1e-7,
-        "compare_mode": "mean",
-    }
-    options.update(kwargs)
-
-    for data_0, data_1 in zip_longest(first_loader, second_loader, fillvalue=None):
-        if data_0 is None or data_1 is None:
-            raise RuntimeError("Given dataloader return difference number of datas.")
-        try:
-            assert_tensor_equal(get_numpy(data_0), get_numpy(data_1), options)
-        except Exception as e:
-            log("check dataloader failed!!!")
-            print(f"{type(e).__name__ + ':  ' + str(e)}")
-            return False
-    return True
+    def get_id(self):
+        ret = self.id
+        self.id += 1
+        return ret

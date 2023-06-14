@@ -18,7 +18,7 @@ import unittest
 import paddle
 import torch
 
-from padiff import auto_diff
+from padiff import *
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -51,8 +51,8 @@ class SimpleModule(torch.nn.Module):
 
 class TestCaseName(unittest.TestCase):
     def test_success(self):
-        layer = SimpleLayer()
-        module = SimpleModule()
+        layer = create_model(SimpleLayer())
+        module = create_model(SimpleModule())
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         assert auto_diff(layer, module, inp, atol=1e-4) is True, "Failed. expected success."
