@@ -59,7 +59,6 @@ def pre_structure_hook(layer, input):
     report.stack.push_layer(layer)
     if layer in report.marker.layer_map:
         report.stack._top().layer_type = "in map"
-        report.stack._top().is_leaf = True
     return None
 
 

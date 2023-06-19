@@ -53,7 +53,7 @@ class SimpleLayer(paddle.nn.Layer):
         x = self.linear(x)
         return x
 
-model = create_model(SimpleLayer(), name="Simple")  # name 是可选的
+model = create_model(SimpleLayer(), name="Simple")    # name 是可选的
 ```
 
 
@@ -65,9 +65,9 @@ model = create_model(SimpleLayer(), name="Simple")  # name 是可选的
 ```py
 model = create_model(SimpleLayer(), name="Simple")
 
-output = model(inputs)			# 通过 model.__call__ 触发forward逻辑
+output = model(inputs)        # 通过 model.__call__ 触发forward逻辑
 loss = loss_fn(output)
-model.backward(loss)				# 通过 model.backward 来执行反向
+model.backward(loss)          # 通过 model.backward 来执行反向
 optimizer.step()
 ```
 
@@ -86,7 +86,7 @@ for data in dataloader():
     loss = loss_fn(output)
     model.backward(loss)
 
-		model.try_dump(per_step=10, dir_path)		# dir_path 可选项，try_dump 提供默认值
+    model.try_dump(per_step=10, dir_path)        # dir_path 可选项，try_dump 提供默认值
 ```
 
 
@@ -104,13 +104,13 @@ for idx, data in enumerate(dataloader()):
     model.backward(loss)
 
     model.dump_report(dir_path)
-    model.dump_params(dir_path)				# dump_params 包含了 weight 和 grad 信息
+    model.dump_params(dir_path)        # dump_params 包含了 weight 和 grad 信息
 
     model.dump_grads(dir_path)
     optimizer.step()
-    model.dump_weights(dir_path)			# 记录 optimizer.step 后的权重，可以检查 optimizer 的效果
+    model.dump_weights(dir_path)       # 记录 optimizer.step 后的权重，可以检查 optimizer 的效果
 
-    model.clear_report() 							# 需要手动删除 report，否则将不断累积
+    model.clear_report()               # 需要手动删除 report，否则将不断累积
 ```
 
 
