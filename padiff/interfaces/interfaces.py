@@ -62,9 +62,8 @@ def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, **k
     options = kwargs
 
     if not isinstance(base_model, ProxyModel) or not isinstance(raw_model, ProxyModel):
-        names = [base_model.__class__.__name__ + "(base_model)", raw_model.__class__.__name__ + "(raw_model)"]
-        models = [create_model(x, name) for x, name in zip(models, names)]
-
+        base_model = create_model(base_model, base_model.__class__.__name__ + "(base_model)")
+        raw_model = create_model(raw_model, raw_model.__class__.__name__ + "(raw_model)")
     assert isinstance(inputs, (tuple, list)), "Invalid Argument."
 
     for input_ in inputs:

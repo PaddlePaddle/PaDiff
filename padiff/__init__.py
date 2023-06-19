@@ -249,6 +249,8 @@ __all__ = [
     "create_model",
     "check_report",
     "check_params",
+    "check_weights",
+    "check_grads",
     "assign_weight",
     "auto_diff",
     "check_dataloader",
