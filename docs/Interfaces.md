@@ -36,7 +36,8 @@
 
      调用create_model接口后，能够dump ProxyModel 的 parameters，包括权重值和梯度值。在dump parameter 相关数据时，会根据ProxyModel所记录的黑白名单信息进行筛选，并按照模型结构进行保存。
 
-每一次dump都会生成一个json文件，json文件中记录各类meta信息以及树状结构，tensor信息被保存为npy文件，其文件路径记录在json文件中。
+3.   文件结构
+     每一次dump都会生成一个json文件，json文件中记录各类meta信息以及树状结构，tensor信息被保存为npy文件，其文件路径记录在json文件中。
 
 ### 创建proxy_model
 
