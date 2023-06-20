@@ -22,7 +22,7 @@ from .marker import Marker
 
 from ..report import Report, report_guard, register_hooker
 from ..utils import reset_dir
-from ..dump_tools import dump_report, dump_params, dump_root_path
+from ..dump_tools import dump_report, dump_params, dump_weights, dump_grads, dump_root_path
 
 
 class ProxyModel:
@@ -131,10 +131,30 @@ class ProxyModel:
             dump_path = f"{self.dump_path}/step_{self.step}"
         if self.step % per_step == 0:
             reset_dir(dump_path)
-            dump_params(self, dump_path)
-            dump_report(self, dump_path)
+            self.dump_params(dump_path)
+            self.dump_report(dump_path)
         self.clear_report()
         self.step += 1
+
+    def dump_report(self, dump_path=None):
+        if dump_path is None:
+            dump_path = f"{self.dump_path}"
+        dump_report(self, dump_path)
+
+    def dump_params(self, dump_path=None):
+        if dump_path is None:
+            dump_path = f"{self.dump_path}"
+        dump_params(self, dump_path)
+
+    def dump_weights(self, dump_path=None):
+        if dump_path is None:
+            dump_path = f"{self.dump_path}"
+        dump_weights(self, dump_path)
+
+    def dump_grads(self, dump_path=None):
+        if dump_path is None:
+            dump_path = f"{self.dump_path}"
+        dump_grads(self, dump_path)
 
     """
         support native interfaces
