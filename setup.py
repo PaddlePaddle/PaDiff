@@ -39,7 +39,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     package_data={
-        "padiff": ["configs/assign_weight.yaml", "configs/api_mapping.json"],
+        "padiff": ["datas/assign_weight.yaml", "datas/api_mapping.json"],
     },
     python_requires=">=3.7",
     classifiers=[
