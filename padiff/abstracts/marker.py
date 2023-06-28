@@ -90,6 +90,10 @@ class Marker:
         for model in traversal_for_hook(self.proxy_model, self):
             yield model
 
+    def traversal_all_layers(self):
+        for model in traversal_all_layers(self.proxy_model, self):
+            yield model
+
 
 def traversal_prototype(fn0, fn1):
     # if fn0 returns True, yield current model
@@ -150,3 +154,9 @@ def traversal_for_hook(model, marker):
     else:
         for mod in traversal_layers_for_model_struct(model, marker):
             yield mod
+
+
+def traversal_all_layers(model, marker):
+    yield model
+    for mod in traversal_all(model, marker):
+        yield mod
