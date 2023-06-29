@@ -28,6 +28,7 @@ class Marker:
         self.white_list_recursively = set()
         self.use_white_list = False
 
+        self.black_list_assign_weight = set()
         self.layer_map = []
 
     def update_black_list(self, layers, mode="all"):
@@ -51,9 +52,9 @@ class Marker:
 
     def set_layer_map(self, layer_map):
         _layer_map = []
-        for layer in self.traversal_layers():
+        for layer in self.traversal_all_layers():
             if layer.model in layer_map:
-                self.black_list_recursively.add(layer.model)
+                self.black_list_assign_weight.add(layer.model)
                 _layer_map.append(layer)
 
         self.layer_map = _layer_map
@@ -68,11 +69,11 @@ class Marker:
         registered = init_pool.registered_base_models if model_place == "base" else init_pool.registered_raw_models
 
         log("Auto set layer_map start searching...")
-        for layer in self.traversal_layers():
+        for layer in self.traversal_all_layers():
             if layer.fullname in registered:
                 print(f"++++    {model_place}_model found `{layer.fullname}` add to layer_map   ++++")
                 _layer_map.append(layer)
-                self.black_list_recursively.add(layer.model)
+                self.black_list_assign_weight.add(layer.model)
         print()
         return True
 
@@ -88,6 +89,10 @@ class Marker:
 
     def traversal_for_hook(self):
         for model in traversal_for_hook(self.proxy_model, self):
+            yield model
+
+    def traversal_all_layers(self):
+        for model in traversal_all_layers(self.proxy_model, self):
             yield model
 
 
@@ -116,6 +121,10 @@ traversal_with_black_list = traversal_prototype(
 traversal_layers_for_model_struct = traversal_prototype(
     fn0=lambda model, marker: model.model not in marker.black_list or model.model in marker.black_list_recursively,
     fn1=lambda model, marker: model.model not in marker.black_list_recursively,
+)
+traversal_layers_assign_weight = traversal_prototype(
+    fn0=lambda model, marker: model.model not in marker.black_list,
+    fn1=lambda model, marker: model.model not in marker.black_list_assign_weight,
 )
 
 
@@ -150,3 +159,9 @@ def traversal_for_hook(model, marker):
     else:
         for mod in traversal_layers_for_model_struct(model, marker):
             yield mod
+
+
+def traversal_all_layers(model, marker):
+    yield model
+    for mod in traversal_layers_assign_weight(model, marker):
+        yield mod
