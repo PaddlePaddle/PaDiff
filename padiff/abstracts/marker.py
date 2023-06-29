@@ -123,7 +123,7 @@ traversal_layers_for_model_struct = traversal_prototype(
     fn1=lambda model, marker: model.model not in marker.black_list_recursively,
 )
 traversal_layers_assign_weight = traversal_prototype(
-    fn0=lambda model, marker: model.model not in marker.black_list,
+    fn0=lambda model, marker: True,
     fn1=lambda model, marker: model.model not in marker.black_list_assign_weight,
 )
 
