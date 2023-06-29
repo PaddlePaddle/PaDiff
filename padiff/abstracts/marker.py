@@ -115,7 +115,7 @@ traversal_all = traversal_prototype(
 )
 traversal_with_black_list = traversal_prototype(
     fn0=lambda model, marker: model.model not in marker.black_list,
-    fn1=lambda model, marker: model.model not in marker.black_list_assign_weight,
+    fn1=lambda model, marker: model.model not in marker.black_list_recursively,
 )
 traversal_layers_assign_weight = traversal_prototype(
     fn0=lambda model, marker: model.model not in marker.black_list,
