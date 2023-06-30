@@ -221,7 +221,8 @@ def split_by_net_id(report):
         for child in node["children"]:
             _traversal(child, bucket)
 
-    _traversal(report["tree"], bucket)
+    for tree in report["tree"]:
+        _traversal(tree, bucket)
 
     for key in bucket:
         bucket[key].sort(key=lambda x: x["metas"]["fwd_step"])

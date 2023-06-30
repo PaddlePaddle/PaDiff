@@ -19,43 +19,60 @@ from .checker_utils import (
     struct_info_log,
     load_numpy,
     build_file_name,
-    global_compare_configs,
+    parse_cfg,
     load_json,
     traversal_node,
+    get_all_valid_path,
 )
 from ..utils import log, log_file, log_path, assert_tensor_equal
 from ..datas import global_yaml_loader as yamls
 
 
 def check_params(report_path_0, report_path_1, cfg=None):
-    if cfg == None:
-        cfg = global_compare_configs
-    reports = [load_json(report_path_0, "params.json"), load_json(report_path_1, "params.json")]
-    node_lists = [traversal_node(rep["tree"], []) for rep in reports]
+    cfg = parse_cfg(cfg)
+    log(f"Check params cfg: {cfg}")
 
-    weight_equal = check_target(assert_weight, node_lists, reports, "weights", cfg)
-    grad_equal = check_target(assert_grad, node_lists, reports, "grads", cfg)
-    return weight_equal and grad_equal
+    weight_rst = True
+    grad_rst = True
+    all_ranks_path_0, all_ranks_path_1 = get_all_valid_path(report_path_0, report_path_1)
+    for path_0, path_1 in zip(all_ranks_path_0, all_ranks_path_1):
+        reports = [load_json(path_0, "params.json"), load_json(path_1, "params.json")]
+        node_lists = [traversal_node(rep["tree"], []) for rep in reports]
+
+        log(f"Checking params in {path_0} and {path_1}")
+        weight_rst = weight_rst and check_target(assert_weight, node_lists, reports, "weights", cfg)
+        grad_rst = grad_rst and check_target(assert_grad, node_lists, reports, "grads", cfg)
+    return weight_rst and grad_rst
 
 
 def check_weights(report_path_0, report_path_1, cfg=None):
-    if cfg == None:
-        cfg = global_compare_configs
-    reports = [load_json(report_path_0, "weights.json"), load_json(report_path_1, "weights.json")]
-    node_lists = [traversal_node(rep["tree"], []) for rep in reports]
+    cfg = parse_cfg(cfg)
+    log(f"Check weights cfg: {cfg}")
 
-    weight_equal = check_target(assert_weight, node_lists, reports, "weights", cfg)
-    return weight_equal
+    weight_rst = True
+    all_ranks_path_0, all_ranks_path_1 = get_all_valid_path(report_path_0, report_path_1)
+    for path_0, path_1 in zip(all_ranks_path_0, all_ranks_path_1):
+        reports = [load_json(path_0, "weights.json"), load_json(path_1, "weights.json")]
+        node_lists = [traversal_node(rep["tree"], []) for rep in reports]
+
+        log(f"Checking weights in {path_0} and {path_1}")
+        weight_rst = weight_rst and check_target(assert_weight, node_lists, reports, "weights", cfg)
+    return weight_rst
 
 
 def check_grads(report_path_0, report_path_1, cfg=None):
-    if cfg == None:
-        cfg = global_compare_configs
-    reports = [load_json(report_path_0, "grads.json"), load_json(report_path_1, "grads.json")]
-    node_lists = [traversal_node(rep["tree"], []) for rep in reports]
+    cfg = parse_cfg(cfg)
+    log(f"Check grads cfg: {cfg}")
 
-    grad_equal = check_target(assert_grad, node_lists, reports, "grads", cfg)
-    return grad_equal
+    grad_rst = True
+    all_ranks_path_0, all_ranks_path_1 = get_all_valid_path(report_path_0, report_path_1)
+    for path_0, path_1 in zip(all_ranks_path_0, all_ranks_path_1):
+        reports = [load_json(path_0, "grads.json"), load_json(path_1, "grads.json")]
+        node_lists = [traversal_node(rep["tree"], []) for rep in reports]
+
+        log(f"Checking grads in {path_0} and {path_1}")
+        grad_rst = grad_rst and check_target(assert_grad, node_lists, reports, "grads", cfg)
+    return grad_rst
 
 
 def check_target(fn, node_lists, reports, compare_target, cfg):

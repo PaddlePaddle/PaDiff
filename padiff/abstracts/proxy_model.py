@@ -21,12 +21,12 @@ from .proxy_utils import deco_iter
 from .marker import Marker
 
 from ..report import Report, report_guard, register_hooker
-from ..utils import reset_dir
-from ..dump_tools import dump_report, dump_params, dump_weights, dump_grads, dump_root_path
+from ..utils import reset_dir, log
+from ..dump_tools import dump_report, dump_params, dump_weights, dump_grads, get_dump_root_path
 
 
 class ProxyModel:
-    def __init__(self, model, name, framework):
+    def __init__(self, model, name, framework, dump_freq=1):
         self.model = model
         self.framework = framework  # "paddle"/"torch"
         self.name = name
@@ -35,19 +35,26 @@ class ProxyModel:
         self.report = Report(self.marker)
         self.step = 0
 
-        self.dump_path = dump_root_path + "/" + self.name
+        self.dump_path = get_dump_root_path() + "/" + self.name
+
+        self.dump_freq = dump_freq
+        if self.dump_freq > 1:
+            log(
+                "WARNING: after setting dump_freq > 1 please call dump_params, dump_weighs, dump_grads apis "
+                "on the steps that can be divided by dump_freq. The calling of try_dump is intact."
+            )
 
     @staticmethod
-    def create_from(model, name=None):
+    def create_from(model, name=None, dump_freq=1):
         if name is None:
             name = model.__class__.__name__
         if isinstance(model, ProxyModel):
             return model
         elif isinstance(model, paddle.nn.Layer):
-            retval = PaddleModel(model, name)
+            retval = PaddleModel(model, name, dump_freq)
             return retval
         elif isinstance(model, torch.nn.Module):
-            retval = TorchModel(model, name)
+            retval = TorchModel(model, name, dump_freq)
             return retval
         else:
             raise RuntimeError(f"Can not create ProxyModel from {type(model)}")
@@ -89,11 +96,17 @@ class ProxyModel:
     """
 
     def __call__(self, *args, **kwargs):
-        with register_hooker(self), report_guard(self.report):
+        if self.step % self.dump_freq == 0:
+            with register_hooker(self), report_guard(self.report):
+                return self.model(*args, **kwargs)
+        else:
             return self.model(*args, **kwargs)
 
     def backward(self, loss):
-        with register_hooker(self), report_guard(self.report):
+        if self.step % self.dump_freq == 0:
+            with register_hooker(self), report_guard(self.report):
+                return loss.backward()
+        else:
             return loss.backward()
 
     """
@@ -110,11 +123,19 @@ class ProxyModel:
     def update_unassigned_weights_list(self, layers, mode="self"):
         self.marker.update_unassigned_weights_list(layers, mode)
 
-    def update_black_list_with_class(self, layer_class, recursively=True):
-        pass
+    def update_black_list_with_class(self, layer_class, mode="self"):
+        all_sub_layers = []
+        for sub_layer in self.submodels():
+            if isinstance(sub_layer.model, layer_class):
+                all_sub_layers.append(sub_layer.model)
+        self.update_black_list(all_sub_layers, mode)
 
-    def update_white_list_with_class(self, layer_class, recursively=False):
-        pass
+    def update_white_list_with_class(self, layer_class, mode="self"):
+        all_sub_layers = []
+        for sub_layer in self.submodels():
+            if isinstance(sub_layer.model, layer_class):
+                all_sub_layers.append(sub_layer.model)
+        self.update_white_list(all_sub_layers, mode)
 
     def set_layer_map(self, layers):
         self.marker.set_layer_map(layers)
@@ -129,10 +150,10 @@ class ProxyModel:
     def clear_report(self):
         self.report = Report(self.marker)
 
-    def try_dump(self, per_step, dump_path=None):
-        if dump_path is None:
-            dump_path = f"{self.dump_path}/step_{self.step}"
-        if self.step % per_step == 0:
+    def try_dump(self, dump_path=None):
+        if self.step % self.dump_freq == 0:
+            if dump_path is None:
+                dump_path = f"{self.dump_path}/step_{self.step}/rank_{paddle.distributed.get_rank()}"
             reset_dir(dump_path)
             self.dump_params(dump_path)
             self.dump_report(dump_path)
@@ -141,22 +162,22 @@ class ProxyModel:
 
     def dump_report(self, dump_path=None):
         if dump_path is None:
-            dump_path = f"{self.dump_path}"
+            dump_path = f"{self.dump_path}/rank_{paddle.distributed.get_rank()}"
         dump_report(self, dump_path)
 
     def dump_params(self, dump_path=None):
         if dump_path is None:
-            dump_path = f"{self.dump_path}"
+            dump_path = f"{self.dump_path}/rank_{paddle.distributed.get_rank()}"
         dump_params(self, dump_path)
 
     def dump_weights(self, dump_path=None):
         if dump_path is None:
-            dump_path = f"{self.dump_path}"
+            dump_path = f"{self.dump_path}/rank_{paddle.distributed.get_rank()}"
         dump_weights(self, dump_path)
 
     def dump_grads(self, dump_path=None):
         if dump_path is None:
-            dump_path = f"{self.dump_path}"
+            dump_path = f"{self.dump_path}/rank_{paddle.distributed.get_rank()}"
         dump_grads(self, dump_path)
 
     """
@@ -200,8 +221,8 @@ class ProxyModel:
 
 
 class PaddleModel(ProxyModel):
-    def __init__(self, model, name):
-        super(PaddleModel, self).__init__(model, name, "paddle")
+    def __init__(self, model, name, dump_freq=1):
+        super(PaddleModel, self).__init__(model, name, "paddle", dump_freq)
 
     def parameters(self, recursively):
         origin_iter = self.model.parameters(include_sublayers=recursively)
@@ -244,10 +265,30 @@ class PaddleModel(ProxyModel):
     def register_forward_post_hook(self, hook):
         return self.model.register_forward_post_hook(hook)
 
+    def _prepare_training(self, data, optimizer, lr_scheduler):
+        # Only for Paddle's pipeline parallel used.
+        return self.model._prepare_training(data, optimizer, lr_scheduler)
+
+    def forward_backward_pipeline(self, data, scaler):
+        # Only for Paddle's pipeline parallel used.
+        if self.step % self.dump_freq == 0:
+            with register_hooker(self), report_guard(self.report):
+                return self.model.forward_backward_pipeline(data, scaler)
+        else:
+            return self.model.forward_backward_pipeline(data, scaler)
+
+    def train_batch(self, data, optimizer, lr_scheduler=None, scaler=None):
+        # Only for Paddle's pipeline parallel used.
+        if self.step % self.dump_freq == 0:
+            with register_hooker(self), report_guard(self.report):
+                return self.model.train_batch(data, optimizer, lr_scheduler, scaler)
+        else:
+            return self.model.train_batch(data, optimizer, lr_scheduler, scaler)
+
 
 class TorchModel(ProxyModel):
-    def __init__(self, model, name):
-        super(TorchModel, self).__init__(model, name, "torch")
+    def __init__(self, model, name, dump_freq=1):
+        super(TorchModel, self).__init__(model, name, "torch", dump_freq)
 
     def parameters(self, recursively):
         origin_iter = self.model.parameters(recurse=recursively)

@@ -39,6 +39,28 @@
 3.   文件结构
      每一次dump都会生成一个json文件，json文件中记录各类meta信息以及树状结构，tensor信息被保存为npy文件，其文件路径记录在json文件中。
 
+```
+|-- root_path
+    |-- model_name
+        |-- step_a
+            |-- rank_x
+                |-- grads
+                    |-- xxx.npy
+                |-- tensors
+                    |-- xxx.npy
+                |-- weights
+                    |-- xxx.npy
+                |-- params.json
+                |-- report.json
+            |-- rank_y
+            |-- rank_z
+        |-- step_b
+        |-- step_c
+```
+
+### 设置dump路径
+通过调用`set_dump_root_path(path)`接口来设置PaDiff进行dump的root_path信息。
+
 ### 创建proxy_model
 
 ```py
@@ -53,9 +75,10 @@ class SimpleLayer(paddle.nn.Layer):
         x = self.linear(x)
         return x
 
-model = create_model(SimpleLayer(), name="Simple")    # name 是可选的
+model = create_model(SimpleLayer(), name="Simple", dump_freq=2)    # name, dump_freq 是可选的
 ```
 
+`dump_freq`用来指定保存中间变量的间隔（默认值为1，即每步都保存），需要保存的那一步会运行的非常缓慢（存在大量的cpu<--->gpu之间的copy）。
 
 
 ### 运行前反向逻辑
@@ -75,8 +98,9 @@ optimizer.step()
 
 ### try_dump接口
 
--   try_dump有一个内置的计数，当调用try_dump per_step次后，才会真正地触发dump，否则清空当前的report
--   这个接口实际会调用 dump_report 和 dump_params （见下文）
+- try_dump有一个内置的计数，当且仅当内部计数器可以整除create_model时传入的dump_freq时，才会真正地触发dump
+- 在无需进行dump的step中，仍需要调用try_dump接口，以保证计数器的正确性
+- 这个接口实际会调用 dump_report 和 dump_params （见下文）
 
 ```py
 model = create_model(SimpleLayer(), name="Simple")
@@ -86,7 +110,7 @@ for data in dataloader():
     loss = loss_fn(output)
     model.backward(loss)
 
-    model.try_dump(per_step=10, dir_path)        # dir_path 可选项，try_dump 提供默认值
+    model.try_dump(dir_path)        # dir_path 可选项，try_dump 提供默认值
 ```
 
 
@@ -119,17 +143,22 @@ for idx, data in enumerate(dataloader()):
 
 黑白名单将影响模型dump哪些部分的数据
 
--   白名单的优先级高于黑名单，当设置白名单后，黑名单将失效
--   设置黑白名单的接口需要提供 "mode" 参数:
+- 白名单的优先级高于黑名单，当设置白名单后，黑名单将失效
+- `update_black_list`与`update_white_list`需要传递一个实例列表来指定特定的实例，只有在列表中的实例会被加入到名单，与列表中实例属于同一类的其他实例不会被自动加入到名单中
+- `update_black_list_with_class`与`update_white_list_with_class`需要传递一个类名，所有属于该类的实例会被自动加入名单中
+- 设置黑白名单的接口需要提供 "mode" 参数:
     -   mode = "self"，仅将目标加入黑名单/白名单
     -   mode = "sublayers"，仅将目标的 sublayer 加入黑名单/白名单
     -   mode = "all"，将目标及其 sublayer 加入黑名单/白名单
+- 对于大模型，如果不设置白名单，则会dump模型所有的中间变量与所有的参数以及相应的梯度，对于内存与磁盘空间的消耗非常的大。建议在大模型精度对齐的过程中进行白名单的配置。
 
 ```py
 model = create_model(SimpleLayer(), name="Simple")
 
 model.update_black_list([component0， component1], "all")
 model.update_white_list([component2], "self")
+model.update_black_list_with_class(paddle.nn.Linear, "sublayers")
+model.update_white_list_with_class(MultiHeadAttention, "sublayers")
 ```
 
 
@@ -155,7 +184,7 @@ model1.set_layer_map([model1.model.linear1, model1.model.linear2])
 
 ### 调用原模型的接口
 
-ProxyModel 的 model 成员即为原模型
+ProxyModel 的 model 成员即为原模型。若需要调用源模型的`[named_]parameters()`，`[named_]children()`，`[named_]sublayers()`等方法时，请通过`model.model.xxx()`方式进行，不要对create_model返回的model进行方法调用。
 
 ```py
 model = create_model(SimpleLayer(), name="Simple")
@@ -166,7 +195,7 @@ model.model.XXX
 
 ## 二、离线对齐工具
 
-为不同的dump接口提供了不同的离线对齐工具：
+为不同的dump接口提供了不同的离线对齐工具。若提供的路径下所有的文件均以`step_`开头，则对齐工具会自动遍历检测所有的step文件夹，否则只检测当前文件夹。若当前检测文件夹（可能是用户提供的路径，也可能是扩展了`step_`信息的路径）下的所有文件均以`rank_`开头，则对齐工具会自动遍历检测所有的rank文件夹，否则只检测当前文件夹：
 
 -   check_report
 -   check_params
@@ -179,9 +208,85 @@ model.model.XXX
 
 -   report_path_0、report_path_1：待对齐的文件路径，这个路径与调用dump时的路径保持一致即可（即json文件所在文件夹的路径）
 -   cfg：一个字典，记录了用于对齐的参数
-    -   "atol"：绝对精度误差上限，默认值为  `1e-4`
-    -   "rtol"：相对精度误差上限，默认值为  `1e-7`
+    -   "atol"：绝对精度误差上限，默认值为  `0`  （与numpy.testing.assert_allclose的atol默认值相同）
+    -   "rtol"：相对精度误差上限，默认值为  `1e-7`（与numpy.testing.assert_allclose的rtol默认值相同）
     -   "compare_mode"：比较模式设定，可选 `"mean"|"strict"`  默认为  `"mean"`。  `"mean"`  表示使用Tensor间误差的均值作为对齐标准；  `"strict"`  表示对Tensor进行逐数据（Elementwise）的对齐检查。
+
+### check_report的报错信息
+
+当检测出diff的时候，PaDiff会在终端输出包含以下报错信息的内容：
+
+```text
+[AutoDiff] FAILED !!!
+[AutoDiff]     Diff found in Forward Stage
+[AutoDiff]     Type of layer is: ColumnParallelLinear vs ColumnParallelLinear
+[AutoDiff]     Route: PipelineParallel._layers.1.self_attn.qkv_proj
+[AutoDiff]            PipelineParallel._layers.1.self_attn.qkv_proj
+
+AssertionError:
+Not equal to tolerance rtol=1e-07, atol=0.0001
+
+Mismatched elements: 1 / 1 (100%)
+Max absolute difference: 0.0007679
+Max relative difference: 0.46532965
+ x: array(0.000882, dtype=float32)
+ y: array(0.00165, dtype=float32)
+
+[AutoDiff] Check model struct:
+Logs: <padiff_log_root_path>/report_PipelineParallel_step_0.log
+      <padiff_log_root_path>/report_PipelineParallel_step_0.log
+
+[AutoDiff] The forward stage comparing failed !!!
+```
+
+同时，PaDiff会在padiff_log文件夹下生成一个对比log，显示的指出第一次模型出现diff的位置：
+
+```text
+PipelineParallel
+========================================
+    MultiHeadAttention
+     |--- ColumnParallelLinear    <---  *** HERE ***
+     +--- RowParallelLinear
+    MultiHeadAttention
+     |--- ColumnParallelLinear
+     +--- RowParallelLinear
+    MultiHeadAttention
+     |--- ColumnParallelLinear
+     +--- RowParallelLinear
+```
+
+### 其余接口的报错信息
+
+当检测出diff的时候，PaDiff会在终端输出包含以下PaDiff报错信息的内容：
+
+```text
+[AutoDiff] Diff found when compare weights, please check report
+        <padiff_log_root_path>/weights_diff_step_0.log
+[AutoDiff] Diff found when compare grads, please check report
+        <padiff_log_root_path>/grads_diff_step_0.log
+```
+
+log中的信息为：
+```text
+=========================
+weights value is different.
+between base_model: ColumnParallelLinear()
+        raw_model:  ColumnParallelLinear()
+
+base_model param path:
+    PipelineParallel._layers.1.self_attn.qkv_proj.weight
+raw_model param path:
+    PipelineParallel._layers.13.self_attn.qkv_proj.weight
+
+AssertionError:
+Not equal to tolerance rtol=0, atol=0
+
+Mismatched elements: 1 / 1 (100%)
+Max absolute difference: 1.46e-05
+Max relative difference: 1.541
+ x: array(-5.1e-06, dtype=float16)
+ y: array(9.5e-06, dtype=float16)
+```
 
 ## 三、`auto_diff` 接口参数
 

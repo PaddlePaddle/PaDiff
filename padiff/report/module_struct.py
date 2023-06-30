@@ -19,7 +19,7 @@ class LayerStack(object):
     def __init__(self):
         super(LayerStack, self).__init__()
         self.stack = []
-        self.root = None
+        self.root = []
 
     def _push(self, value):
         self.stack.append(value)
@@ -41,10 +41,7 @@ class LayerStack(object):
             net.father = self._top()
             self._top().children.append(net)
         else:
-            if self.root is None:
-                self.root = net
-            else:
-                raise RuntimeError("Found multy root layers! This err might caused by torch.utils.checkpoint.")
+            self.root.append(net)
         self._push(net)
 
     def pop_layer(self, module):

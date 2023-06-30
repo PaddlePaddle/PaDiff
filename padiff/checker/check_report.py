@@ -19,31 +19,49 @@ from .checker_utils import (
     print_report_info,
     reorder_and_match_sublayers,
     load_json,
-    global_compare_configs,
+    parse_cfg,
     check_layer_map,
+    get_all_valid_path,
 )
 from ..utils import log
 
 
 def check_report(report_path_0, report_path_1, cfg=None):
-    if cfg == None:
-        cfg = global_compare_configs
+    cfg = parse_cfg(cfg)
+    log(f"check cfg {cfg}")
+
+    final_rst = True
+    all_ranks_path_0, all_ranks_path_1 = get_all_valid_path(report_path_0, report_path_1)
+    for path_0, path_1 in zip(all_ranks_path_0, all_ranks_path_1):
+        log(f"Checking report in {path_0} and {path_1}")
+        final_rst = final_rst and _check_report_impl(path_0, path_1, cfg)
+    return final_rst
+
+
+def _check_report_impl(report_path_0, report_path_1, cfg=None):
     reports = [load_json(report_path_0, "report.json"), load_json(report_path_1, "report.json")]
-    roots = [clone_dict_tree(rep["tree"]) for rep in reports]
+    trees = [rep["tree"] for rep in reports]
+
+    assert len(trees) == 2
+    assert len(trees[0]) == len(trees[1])
+
+    roots = [[clone_dict_tree(root) for root in trees[i]] for i in range(2)]
 
     check_layer_map(reports)
 
-    # forward check
-    res = check_forward(roots, reports, cfg)
-    if res == False:
-        return False
-    log("forward stage compared.")
+    for root_0, root_1 in zip(roots[0], roots[1]):
+        root_pair = [root_0, root_1]
+        # forward check
+        res = check_forward(root_pair, reports, cfg)
+        if res == False:
+            log("The forward stage comparing failed !!!")
+            return False
 
-    # backward check
-    res = check_backward(roots, reports, cfg)
-    if res == False:
-        return False
-    log("backward stage compared.")
+        # backward check
+        res = check_backward(root_pair, reports, cfg)
+        if res == False:
+            log("The backward stage comparing failed !!!")
+            return False
 
     return True
 

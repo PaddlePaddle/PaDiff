@@ -50,11 +50,15 @@ class TestAmpApi(unittest.TestCase):
         self.input = paddle.randn((self.batch_size, self.input_size))
 
         # init model and dataloader
-        self.proxy_layer_amp = create_model(SimpleLayer(self.input_size), name="layer_amp")
+        self.proxy_layer_amp = create_model(
+            SimpleLayer(self.input_size), name="layer_amp", dump_freq=self.dump_per_step
+        )
         self.optimizer_amp = paddle.optimizer.SGD(
             learning_rate=0.01, parameters=self.proxy_layer_amp.model.parameters()
         )
-        self.proxy_layer_naive = create_model(SimpleLayer(self.input_size), name="layer_naive")
+        self.proxy_layer_naive = create_model(
+            SimpleLayer(self.input_size), name="layer_naive", dump_freq=self.dump_per_step
+        )
         self.optimizer_naive = paddle.optimizer.SGD(
             learning_rate=0.01, parameters=self.proxy_layer_naive.model.parameters()
         )
@@ -75,7 +79,7 @@ class TestCheckSuccess(TestAmpApi):
                 loss = out.mean()
             self.proxy_layer_amp.backward(loss)
 
-            self.proxy_layer_amp.try_dump(self.dump_per_step)
+            self.proxy_layer_amp.try_dump()
 
             self.optimizer_amp.step()
             self.optimizer_amp.clear_grad()
@@ -85,7 +89,7 @@ class TestCheckSuccess(TestAmpApi):
             loss = out.mean()
             self.proxy_layer_naive.backward(loss)
 
-            self.proxy_layer_naive.try_dump(self.dump_per_step)
+            self.proxy_layer_naive.try_dump()
 
             self.optimizer_naive.step()
             self.optimizer_naive.clear_grad()
@@ -117,7 +121,7 @@ class TestCheckFail(TestAmpApi):
                 loss = out.mean()
             self.proxy_layer_amp.backward(loss)
 
-            self.proxy_layer_amp.try_dump(self.dump_per_step)
+            self.proxy_layer_amp.try_dump()
 
             self.optimizer_amp.step()
             self.optimizer_amp.clear_grad()
@@ -127,7 +131,7 @@ class TestCheckFail(TestAmpApi):
             loss = out.mean()
             self.proxy_layer_naive.backward(loss)
 
-            self.proxy_layer_naive.try_dump(self.dump_per_step)
+            self.proxy_layer_naive.try_dump()
 
             self.optimizer_naive.step()
             self.optimizer_naive.clear_grad()
