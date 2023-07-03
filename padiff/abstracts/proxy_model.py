@@ -107,6 +107,9 @@ class ProxyModel:
     def update_white_list(self, layers, mode="self"):
         self.marker.update_white_list(layers, mode)
 
+    def update_unassigned_weights_list(self, layers, mode="self"):
+        self.marker.update_unassigned_weights_list(layers, mode)
+
     def update_black_list_with_class(self, layer_class, recursively=True):
         pass
 
