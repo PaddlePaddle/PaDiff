@@ -115,7 +115,7 @@ def dump_param_prototype(model, dump_fn, file_path):
             param_info["children"].append(dump_param_with_fn(child, fn, target_models))
         return param_info
 
-    target_models = [layer.model for layer in model.marker.traversal_for_assign_weight()]
+    target_models = [layer.model for layer in model.marker.traversal_layers()]
     param_info = dump_param_with_fn(model, dump_fn, target_models)
 
     model_info = {

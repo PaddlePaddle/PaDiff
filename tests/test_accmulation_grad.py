@@ -17,7 +17,7 @@ import unittest
 import paddle
 import torch
 
-# paddle下的模型
+
 class SimpleLayer(paddle.nn.Layer):
     def __init__(self):
         super(SimpleLayer, self).__init__()
