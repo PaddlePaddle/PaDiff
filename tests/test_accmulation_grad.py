@@ -50,7 +50,7 @@ class SimpleModule(torch.nn.Module):
         return x
 
 
-class TestCaseName(unittest.TestCase):
+class TestGradAccumulation(unittest.TestCase):
     def test_check_success(self):
         layer = SimpleLayer()
         layer = create_model(layer)
