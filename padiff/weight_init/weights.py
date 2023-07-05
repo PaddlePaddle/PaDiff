@@ -29,7 +29,7 @@ def assign_weight_(base_model, raw_model):
 
     models = (base_model, raw_model)
     for model in models:
-        for mod in model.marker.traversal_layers():
+        for mod in model.marker.traversal_for_assign_weight():
             setattr(mod.model, "need_init", True)
 
     for base_submodel, raw_submodel in zip(base_model.marker.layer_map, raw_model.marker.layer_map):
@@ -72,8 +72,8 @@ def assign_weight_(base_model, raw_model):
 
 
 def process_each_weight(process, models):
-    submodels_0 = models[0].marker.traversal_layers()
-    submodels_1 = models[1].marker.traversal_layers()
+    submodels_0 = models[0].marker.traversal_for_assign_weight()
+    submodels_1 = models[1].marker.traversal_for_assign_weight()
 
     for submodel_0, submodel_1 in zip_longest(submodels_0, submodels_1, fillvalue=None):
         if submodel_0 is None or submodel_1 is None:

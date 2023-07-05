@@ -27,7 +27,8 @@ class Marker:
         self.white_list = set()
         self.white_list_recursively = set()
         self.use_white_list = False
-
+        self.unassigned_weights_list = set()
+        self.unassigned_weights_list_recursively = set()
         self.layer_map = []
 
     def update_black_list(self, layers, mode="all"):
@@ -49,11 +50,20 @@ class Marker:
             self.white_list_recursively.update(set(layers))
         self.use_white_list = True
 
+    def update_unassigned_weights_list(self, layers, mode="all"):
+        assert mode in ("self", "sublayers", "all")
+        if isinstance(layers, (paddle.nn.Layer, torch.nn.Module)):
+            layers = [layers]
+        if mode in ("self", "all"):
+            self.unassigned_weights_list.update(set(layers))
+        if mode in ("sublayers", "all"):
+            self.unassigned_weights_list_recursively.update(set(layers))
+
     def set_layer_map(self, layer_map):
         _layer_map = []
-        for layer in self.traversal_layers():
+        for layer in self.traversal_for_assign_weight():
             if layer.model in layer_map:
-                self.black_list_recursively.add(layer.model)
+                self.unassigned_weights_list_recursively.add(layer.model)
                 _layer_map.append(layer)
 
         self.layer_map = _layer_map
@@ -68,11 +78,11 @@ class Marker:
         registered = init_pool.registered_base_models if model_place == "base" else init_pool.registered_raw_models
 
         log("Auto set layer_map start searching...")
-        for layer in self.traversal_layers():
+        for layer in self.traversal_for_assign_weight():
             if layer.fullname in registered:
                 print(f"++++    {model_place}_model found `{layer.fullname}` add to layer_map   ++++")
                 _layer_map.append(layer)
-                self.black_list_recursively.add(layer.model)
+                self.unassigned_weights_list_recursively.add(layer.model)
         print()
         return True
 
@@ -88,6 +98,10 @@ class Marker:
 
     def traversal_for_hook(self):
         for model in traversal_for_hook(self.proxy_model, self):
+            yield model
+
+    def traversal_for_assign_weight(self):
+        for model in traversal_for_assign_weight(self.proxy_model, self):
             yield model
 
 
@@ -116,6 +130,10 @@ traversal_with_black_list = traversal_prototype(
 traversal_layers_for_model_struct = traversal_prototype(
     fn0=lambda model, marker: model.model not in marker.black_list or model.model in marker.black_list_recursively,
     fn1=lambda model, marker: model.model not in marker.black_list_recursively,
+)
+traversal_layers_assign_weight = traversal_prototype(
+    fn0=lambda model, marker: model.model not in marker.unassigned_weights_list,
+    fn1=lambda model, marker: model.model not in marker.unassigned_weights_list_recursively,
 )
 
 
@@ -150,3 +168,9 @@ def traversal_for_hook(model, marker):
     else:
         for mod in traversal_layers_for_model_struct(model, marker):
             yield mod
+
+
+def traversal_for_assign_weight(model, marker):
+    yield model
+    for mod in traversal_layers_assign_weight(model, marker):
+        yield mod
