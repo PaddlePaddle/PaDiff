@@ -73,12 +73,11 @@ class TestSingleStep(unittest.TestCase):
     def test_success(self):
         layer = create_model(SimpleLayer())
         module = create_model(SimpleModule())
+        assign_weight(module, layer)
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
         atol = 1e-5
-        want_True = auto_diff(layer, module, inp, atol=atol, single_step=True)
-        if want_True is not True:
-            print("err atol too small")
+        assert auto_diff(layer, module, inp, atol=atol, single_step=True)
 
     def test_failed(self):
         layer = create_model(SimpleLayerDiff())

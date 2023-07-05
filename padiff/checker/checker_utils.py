@@ -22,14 +22,19 @@ import json
 
 
 global_compare_configs = {
-    "atol": 1e-4,
+    "atol": 0,
     "rtol": 1e-7,
     "compare_mode": "mean",
 }
 
 
 def update_configs(cfg):
+    global global_compare_configs
+    assert isinstance(cfg, dict)
+    for k in cfg.keys():
+        assert k in global_compare_configs
     global_compare_configs.update(cfg)
+    return global_compare_configs
 
 
 def clone_dict_tree(root):
@@ -43,9 +48,44 @@ def clone_dict_tree(root):
     return new_root
 
 
+def _get_all_rank_path(path):
+    all_files = sorted(os.listdir(path))
+    all_files_check = ["rank_" in file for file in all_files]
+    if all(all_files_check):
+        return [os.path.join(path, file) for file in all_files]
+    else:
+        return [path]
+
+
+def _get_all_step_path(path):
+    all_files = sorted(os.listdir(path))
+    all_files_check = ["step_" in file for file in all_files]
+    if all(all_files_check):
+        return [os.path.join(path, file) for file in all_files]
+    else:
+        return [path]
+
+
+def get_all_valid_path(report_path_0, report_path_1):
+    all_steps_path_0 = _get_all_step_path(report_path_0)
+    all_steps_path_1 = _get_all_step_path(report_path_1)
+    assert len(all_steps_path_0) == len(all_steps_path_1)
+    for step_path_0, step_path_1 in zip(all_steps_path_0, all_steps_path_1):
+        all_ranks_path_0 = _get_all_rank_path(step_path_0)
+        all_ranks_path_1 = _get_all_rank_path(step_path_1)
+        assert len(all_ranks_path_0) == len(all_ranks_path_1)
+        return all_ranks_path_0, all_ranks_path_1
+    raise ValueError("reach illegal code, concat the developer")
+
+
+def parse_cfg(cfg):
+    global global_compare_configs
+    if cfg is None:
+        return global_compare_configs
+    return update_configs(cfg)
+
+
 def print_report_info(nodes, reports, exc, stage, msg=None):
-    step_idx = [node["metas"]["fwd_step"] if stage == "Forward" else node["metas"]["bwd_step"] for node in nodes]
-    net_id = [node["metas"]["net_id"] for node in nodes]
 
     log("FAILED !!!")
 
@@ -53,9 +93,7 @@ def print_report_info(nodes, reports, exc, stage, msg=None):
         log("ADDITIONAL MESSAGE:")
         print(msg + "\n")
         log("DIFF DETAILS:")
-    log(
-        f"    Diff found in {stage} Stage in step: {step_idx[0]} vs {step_idx[1]}, net_id is {net_id[0]} vs {net_id[1]}"
-    )
+    log(f"    Diff found in {stage} Stage")
     log(f"    Type of layer is: {nodes[0]['name']} vs {nodes[1]['name']}")
     log(f"    Route: {nodes[0]['route']}")
     log(f"           {nodes[1]['route']}\n")
@@ -75,7 +113,9 @@ def struct_info_log(reports, nodes, file_prefix):
         file_name = build_file_name(report, file_prefix + "_" + report["model_name"])
         file_names.append(file_name)
         title = f"{report['model_name']}\n" + "=" * 40 + "\n"
-        retval = tree_print(report["tree"], mark=node, prefix=[" " * 4])
+        retval = []
+        for tree in report["tree"]:
+            retval.extend(tree_print(tree, mark=node, prefix=[" " * 4]))
         info = title + "\n".join(retval)
         log_file(file_name, "w", info)
 

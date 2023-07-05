@@ -23,11 +23,14 @@ import paddle
 import torch
 
 
-def create_model(model, name=None):
-    retval = ProxyModel.create_from(model, name)
+def create_model(model, name=None, dump_freq=1):
+    retval = ProxyModel.create_from(model, name, dump_freq)
     init_route(retval)
-    reset_dir(retval.dump_path)
+    if retval.framework == "paddle" and paddle.distributed.get_rank() % 8 == 0:
+        # Only reset the root path once for each machine, here we assume each machine has 8 GPUs
+        reset_dir(retval.dump_path)
     if retval.framework == "torch":
+        reset_dir(retval.dump_path)
         remove_inplace(retval)
     return retval
 

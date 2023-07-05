@@ -255,5 +255,6 @@ __all__ = [
     "auto_diff",
     "check_dataloader",
     "set_dump_root_path",
+    "get_dump_root_path",
     "add_special_init",
 ]

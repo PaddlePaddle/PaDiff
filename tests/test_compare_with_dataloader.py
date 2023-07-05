@@ -77,9 +77,9 @@ class TestDataloaderApi(unittest.TestCase):
 
         # init model and dataloader
         self.layer = SimpleLayer()
-        self.layer = create_model(self.layer)
+        self.layer = create_model(self.layer, dump_freq=self.dump_per_step)
         self.module = SimpleModule()
-        self.module = create_model(self.module)
+        self.module = create_model(self.module, dump_freq=self.dump_per_step)
         self.dataset = RandomDataset(self.dataset_size)
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, drop_last=True)
 
@@ -94,7 +94,7 @@ class TestCheckSuccess(TestDataloaderApi):
             out = self.layer(paddle_input)
             loss = out.mean()
             self.layer.backward(loss)
-            self.layer.try_dump(self.dump_per_step)
+            self.layer.try_dump()
 
         for i, data in enumerate(self.dataloader()):
             # convert paddle tensor to torch tensor
@@ -102,11 +102,15 @@ class TestCheckSuccess(TestDataloaderApi):
             out = self.module(torch_input)
             loss = out.mean()
             self.module.backward(loss)
-            self.module.try_dump(self.dump_per_step)
+            self.module.try_dump()
 
         for i in range(0, len(self.dataloader), self.dump_per_step * self.batch_size):
-            assert check_report(self.layer.dump_path + f"/step_{i}", self.module.dump_path + f"/step_{i}") == True
-            assert check_params(self.layer.dump_path + f"/step_{i}", self.module.dump_path + f"/step_{i}") == True
+            assert check_report(
+                self.layer.dump_path + f"/step_{i}", self.module.dump_path + f"/step_{i}", cfg={"atol": 1e-4}
+            )
+            assert check_params(
+                self.layer.dump_path + f"/step_{i}", self.module.dump_path + f"/step_{i}", cfg={"atol": 1e-4}
+            )
 
 
 class TestCheckFail(TestDataloaderApi):
@@ -118,7 +122,7 @@ class TestCheckFail(TestDataloaderApi):
             out = self.layer(paddle_input)
             loss = out.mean()
             self.layer.backward(loss)
-            self.layer.try_dump(self.dump_per_step)
+            self.layer.try_dump()
 
         for i, data in enumerate(self.dataloader()):
             # convert paddle tensor to torch tensor
@@ -126,11 +130,21 @@ class TestCheckFail(TestDataloaderApi):
             out = self.module(torch_input)
             loss = out.mean()
             self.module.backward(loss)
-            self.module.try_dump(self.dump_per_step)
+            self.module.try_dump()
 
         for i in range(0, len(self.dataloader), self.dump_per_step * self.batch_size):
-            assert check_report(self.layer.dump_path + f"/step_{i}", self.module.dump_path + f"/step_{i}") == False
-            assert check_params(self.layer.dump_path + f"/step_{i}", self.module.dump_path + f"/step_{i}") == False
+            assert (
+                check_report(
+                    self.layer.dump_path + f"/step_{i}", self.module.dump_path + f"/step_{i}", cfg={"atol": 1e-4}
+                )
+                == False
+            )
+            assert (
+                check_params(
+                    self.layer.dump_path + f"/step_{i}", self.module.dump_path + f"/step_{i}", cfg={"atol": 1e-4}
+                )
+                == False
+            )
 
 
 if __name__ == "__main__":

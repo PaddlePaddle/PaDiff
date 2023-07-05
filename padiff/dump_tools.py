@@ -26,6 +26,10 @@ def set_dump_root_path(path):
     dump_root_path = path
 
 
+def get_dump_root_path():
+    return dump_root_path
+
+
 def numpy_dumper(path, prefix):
     reset_dir(path)
     counter = Counter()
@@ -56,7 +60,7 @@ def dump_report(model, dump_path):
             "route": [mod.route for mod in model.marker.layer_map],
             "fullname": [mod.fullname for mod in model.marker.layer_map],
         },
-        "tree": dump_report_node(report.stack.root, tensor_dumper),
+        "tree": [dump_report_node(root, tensor_dumper) for root in report.stack.root],
     }
     with open(f"{dump_path}/report.json", "w") as fp:
         json.dump(report_info, fp, indent=4)
@@ -135,7 +139,10 @@ def dump_params(model, path):
     def _dump(param_name, param, param_info):
         file_name = weight_dumper(param.numpy())
         param_info["weights"][param_name] = file_name
-        if param.grad() is not None:
+        if param.main_grad() is not None:
+            file_name = grad_dumper(param.main_grad())
+            param_info["grads"][param_name] = file_name
+        elif param.grad() is not None:
             file_name = grad_dumper(param.grad())
             param_info["grads"][param_name] = file_name
         else:
@@ -158,7 +165,10 @@ def dump_grads(model, path):
     grad_dumper = numpy_dumper(path + "/grads", "grads")
 
     def _dump(param_name, param, param_info):
-        if param.grad() is not None:
+        if param.main_grad() is not None:
+            file_name = grad_dumper(param.main_grad())
+            param_info["grads"][param_name] = file_name
+        elif param.grad() is not None:
             file_name = grad_dumper(param.grad())
             param_info["grads"][param_name] = file_name
         else:

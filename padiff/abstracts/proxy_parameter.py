@@ -44,6 +44,9 @@ class ProxyParam:
     def grad(self):
         raise NotImplementedError()
 
+    def main_grad(self):
+        raise NotImplementedError()
+
 
 class PaddleParam(ProxyParam):
     def __init__(self, param):
@@ -61,6 +64,13 @@ class PaddleParam(ProxyParam):
     def grad(self):
         if self.param.grad is not None:
             return self.param.grad.numpy()
+        else:
+            return None
+
+    def main_grad(self):
+        if hasattr(self.param, "main_grad") and self.param.main_grad is not None:
+            assert self.param.grad is None
+            return self.param.main_grad.numpy()
         else:
             return None
 
@@ -83,3 +93,6 @@ class TorchParam(ProxyParam):
             return self.param.grad.data.detach().cpu().numpy()
         else:
             return None
+
+    def main_grad(self):
+        return None

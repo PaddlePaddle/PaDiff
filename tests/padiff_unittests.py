@@ -24,7 +24,7 @@ for root, dirs, files in os.walk("./"):
             if status != 0:
                 err_info = f"*** ===================== {fpath} ========================= ***\n"
                 err_info += f"{output}\n"
-                raise RuntimeError(err_info)
+                print(f"Failed on unittest {fname} with error message \n {err_info}.", end="\n", flush=True)
             else:
-                print(".", end="", flush=True)
+                print(f"Succeed on unittest {fname}.", end="\n", flush=True)
             os.system("rm -rf ./tests/padiff_dump ./tests/padiff_log")

@@ -60,7 +60,7 @@ class TestCaseName(unittest.TestCase):
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         inp = ({"x": paddle.to_tensor(inp)}, {"x": torch.as_tensor(inp)})
-        assert auto_diff(layer, module, inp, diff_phase="forward") is True, "Failed. expected success."
+        assert auto_diff(layer, module, inp, diff_phase="forward", atol=1e-4) is True, "Failed. expected success."
 
         for param in module.parameters(recursively=True):
             assert param.grad() is None

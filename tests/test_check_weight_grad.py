@@ -81,8 +81,8 @@ class TestCaseName(unittest.TestCase):
         dump_grads(layer, layer.dump_path)
         dump_grads(module, module.dump_path)
 
-        weight_check = check_weights(layer.dump_path, module.dump_path)
-        grad_check = check_grads(layer.dump_path, module.dump_path)
+        weight_check = check_weights(layer.dump_path, module.dump_path, cfg={"atol": 1e-4})
+        grad_check = check_grads(layer.dump_path, module.dump_path, cfg={"atol": 1e-4})
 
         assert weight_check is True, "Weight params should be same"
         assert grad_check is False, "Grad should be different"
@@ -111,8 +111,8 @@ class TestCaseName(unittest.TestCase):
         dump_grads(layer, layer.dump_path)
         dump_grads(module, module.dump_path)
 
-        grad_check = check_grads(layer.dump_path, module.dump_path)
-        weight_check = check_weights(layer.dump_path, module.dump_path)
+        grad_check = check_grads(layer.dump_path, module.dump_path, cfg={"atol": 1e-4})
+        weight_check = check_weights(layer.dump_path, module.dump_path, cfg={"atol": 1e-4})
 
         assert weight_check is False, "Weight params should be different"
         assert grad_check is True, "Grad should be same"

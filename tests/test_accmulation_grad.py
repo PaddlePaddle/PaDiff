@@ -53,9 +53,9 @@ class SimpleModule(torch.nn.Module):
 class TestGradAccumulation(unittest.TestCase):
     def test_check_success(self):
         layer = SimpleLayer()
-        layer = create_model(layer)
+        layer = create_model(layer, dump_freq=2)
         module = SimpleModule()
-        module = create_model(module)
+        module = create_model(module, dump_freq=2)
         assign_weight(module, layer)
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         paddle_opt = paddle.optimizer.Adam(learning_rate=0.001, parameters=layer.model.parameters())
@@ -66,24 +66,28 @@ class TestGradAccumulation(unittest.TestCase):
             layer.backward(loss)
             if i % 2 == 0:
                 paddle_opt.step()
-            layer.try_dump(2)
+            layer.try_dump()
 
             out = module(torch.as_tensor(inp))
             loss = out.mean()
             module.backward(loss)
             if i % 2 == 0:
                 torch_opt.step()
-            module.try_dump(2)
+            module.try_dump()
 
             if i % 2 == 0:
-                assert check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == True
-                assert check_params(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == True
+                assert check_report(
+                    layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}", cfg={"atol": 1e-4}
+                )
+                assert check_params(
+                    layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}", cfg={"atol": 1e-4}
+                )
 
     def test_check_fail(self):
         layer = SimpleLayer()
-        layer = create_model(layer)
+        layer = create_model(layer, dump_freq=2)
         module = SimpleModule()
-        module = create_model(module)
+        module = create_model(module, dump_freq=2)
         assign_weight(module, layer)
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         paddle_opt = paddle.optimizer.Adam(learning_rate=0.001, parameters=layer.model.parameters())
@@ -94,17 +98,23 @@ class TestGradAccumulation(unittest.TestCase):
             layer.backward(loss)
             if i % 2 == 0:
                 paddle_opt.step()
-            layer.try_dump(2)
+            layer.try_dump()
 
             out = module(torch.as_tensor(inp))
             loss = out.mean()
             module.backward(loss)
             torch_opt.step()
-            module.try_dump(2)
+            module.try_dump()
 
             if i > 0 and i % 2 == 0:
-                assert check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == False
-                assert check_params(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}") == False
+                assert (
+                    check_report(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}", cfg={"atol": 1e-4})
+                    == False
+                )
+                assert (
+                    check_params(layer.dump_path + f"/step_{i}", module.dump_path + f"/step_{i}", cfg={"atol": 1e-4})
+                    == False
+                )
 
 
 if __name__ == "__main__":

@@ -70,7 +70,9 @@ class TestWhiteBlackList(unittest.TestCase):
         inp = paddle.rand((100, 100)).numpy()
         inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
         assert auto_diff(module, layer, inp, atol=1e-4) is True, "Failed. expected success."
-        assert check_report(layer.dump_path + f"/auto_diff", module.dump_path + f"/auto_diff") == True
+        assert (
+            check_report(layer.dump_path + f"/auto_diff", module.dump_path + f"/auto_diff", cfg={"atol": 1e-4}) == True
+        )
 
 
 if __name__ == "__main__":
