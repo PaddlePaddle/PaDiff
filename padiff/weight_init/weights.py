@@ -43,7 +43,7 @@ def assign_weight_(base_model, raw_model):
                 )
             )
             log("    Checkout the parameters are inited by yourself,")
-            log("    or call `add_special_init` toregister your init logic!")
+            log("    or call `add_special_init` to register your init logic!")
         else:
             try:
                 init_pool.funcs[key_name](base_submodel.model, raw_submodel.model)
@@ -134,7 +134,7 @@ def fail_init_weight_log(models, submodels):
     retval += "       cases like param <=> buffer, param <=> embedding are not allowed.\n"
     retval += "    3. If can not change model codes, try to use a `LayerMap`\n"
     retval += "       which can solve most problems.\n"
-    retval += "    4. (skip) means this layer is skipped because it is under black_list, or it has no param."
+    retval += "    4. (skip) means this layer is skipped because it is under black_list, or it has no param.\n"
     retval += "    0. Visit `https://github.com/PaddlePaddle/PaDiff` to find more infomation.\n"
 
     return retval
