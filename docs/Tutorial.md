@@ -1,4 +1,4 @@
-- [Tutorial](#tutorial)
+- [auto\_diff 接口 Tutorial](#auto_diff-接口-tutorial)
   - [一、 使用方法](#一-使用方法)
   - [二、阅读输出信息](#二阅读输出信息)
     - [2.1 正确对齐时的输出信息](#21-正确对齐时的输出信息)
@@ -9,15 +9,18 @@
     - [3.1 使用loss](#31-使用loss)
     - [3.2 使用optimizer](#32-使用optimizer)
   - [四、使用assign\_weight](#四使用assign_weight)
-  - [五、 使用API级别的对齐检查](#五-使用api级别的对齐检查)
+- [全局变量开关](#全局变量开关)
+    - [API 级别的对齐检查](#api-级别的对齐检查)
+    - [略过 wrap\_layer](#略过-wrap_layer)
+    - [在前反向对齐时，打印子模型python路径](#在前反向对齐时打印子模型python路径)
 
-# Tutorial
+# auto_diff 接口 Tutorial
 
 ## 一、 使用方法
 
 > `auto_diff` 详细参数解释详见：[接口信息](Interfaces.md)
 
-使用 `padiff` 进行模型对齐检查有几个基本的步骤：- [Tutorial](#tutorial)
+使用 `padiff` 进行模型对齐检查有几个基本的步骤：
 
 1.   分别构造两个待对齐的 paddle 或 torch 模型
 2.   分别构造两个模型的输入数据
@@ -103,17 +106,19 @@ padiff 的工作可以分为几个阶段，在发生错误时，需要首先判�
 [AutoDiff] Your options:
 {
   atol: `0.0001`
-  rtol: `1e-07`
-  diff_phase: `both`
-  compare_mode: `mean`
+  auto_init: `True`
   single_step: `False`
+  use_loss: `False`
+  use_opt: `False`
+  rtol: `1e-07`
+  compare_mode: `mean`
 }
 [AutoDiff] Assign weight success !!!
-[AutoDiff] =================Train Step 0=================
-[AutoDiff] Max elementwise output diff is 4.172325134277344e-07
-[AutoDiff] forward stage compared.
-[AutoDiff] backward stage compared.
-[AutoDiff] weight and grad compared.
+[AutoDiff] check cfg {'atol': 0.0001, 'rtol': 1e-07, 'compare_mode': 'mean'}
+[AutoDiff] Checking report in /workspace/PaDiff/padiff_dump/SimpleModule(base_model)/auto_diff and /workspace/PaDiff/padiff_dump/SimpleLayer(raw_model)/auto_diff
+[AutoDiff] Check grads cfg: {'atol': 0.0001, 'rtol': 1e-07, 'compare_mode': 'mean'}
+[AutoDiff] Checking grads in /workspace/PaDiff/padiff_dump/SimpleModule(base_model)/auto_diff and /workspace/PaDiff/padiff_dump/SimpleLayer(raw_model)/auto_diff
+[AutoDiff] grads compared.
 [AutoDiff] SUCCESS !!!
 ```
 
@@ -129,59 +134,62 @@ padiff 的工作可以分为几个阶段，在发生错误时，需要首先判�
 [AutoDiff] Your options:
 {
   atol: `0.0001`
-  compare_mode: `strict`
-  single_step: `False`
-  rtol: `1e-07`
   auto_init: `True`
-  steps: `1`
+  single_step: `False`
   use_loss: `False`
   use_opt: `False`
+  rtol: `1e-07`
+  compare_mode: `mean`
 }
-[AutoDiff] Model_names not found, use default names instead:
-             `SimpleModule(base_model)`
-             `SimpleLayer(raw_model)`
 [AutoDiff] Assign weight Failed !!!
 
-RuntimeError:  Error occured between:
-    base_model: `Linear(in_features=100, out_features=100, bias=True)`
-                `SimpleModule(base_model).linear2.weight`
-    raw_model: `Linear(in_features=100, out_features=10, dtype=None)`
-               `SimpleLayer(raw_model).linear2.weight`
-AssertionError:  Shape of param `weight` in torch::Linear (from base_model) and param `weight` in paddle::Linear (from raw_model) is not the same. [100, 100] vs [10, 100]
+RuntimeError:  Error occured when trying init weights, between:
+    base_model: `Linear(in_features=100, out_features=4, bias=True)`
+                `SimpleModule(base_model).linear1.weight`
+    raw_model: `Linear(in_features=100, out_features=10, dtype=float32)`
+               `SimpleLayer(raw_model).linear1.weight`
+AssertionError:  Shape of param `weight` in torch::Linear and param `weight` in paddle::Linear is not the same. [4, 100] vs [10, 100]
 
-SimpleModule
-========================================
-    SimpleModule  (skip)
-     |--- Linear
-     |--- Linear    <---  *** HERE ***
-     +--- ReLU  (skip)
-SimpleLayer
-========================================
-    SimpleLayer  (skip)
-     |--- Linear
-     |--- Linear    <---  *** HERE ***
-     +--- ReLU  (skip)
+Weight init log saved to
+    /workspace/PaDiff/padiff_log/weight_init_SimpleModule(base_model).log
+    /workspace/PaDiff/padiff_log/weight_init_SimpleLayer(raw_model).log
 
-NOTICE: submodel will be marked with `(skip)` because:
-    1. This submodel is contained by layer_map.
-    2. This submodel has no parameter, so padiff think it is a wrap layer.
-
+Please view the reports and checkout the layer marked with `<---  *** HERE ***` !
 Hint:
-    1. Check the definition order of params in submodel is the same.
+    1. Check the definition order of params is same in submodels.
     2. Check the corresponding submodel have the same style:
        param <=> param, buffer <=> buffer, embedding <=> embedding ...
        cases like param <=> buffer, param <=> embedding are not allowed.
     3. If can not change model codes, try to use a `LayerMap`
        which can solve most problems.
+    4. (skip) means this layer is skipped because it is under black_list, or it has no param.
     0. Visit `https://github.com/PaddlePaddle/PaDiff` to find more infomation.
+```
+
+其中打印的 log 信息为：
+```
+# /workspace/PaDiff/padiff_log/weight_init_SimpleModule(base_model).log
+
+SimpleModule(base_model)
+========================================
+    SimpleModule
+     +--- Linear    <---  *** HERE ***
+```
+```
+# /workspace/PaDiff/padiff_log/weight_init_SimpleLayer(raw_model).log
+
+SimpleLayer(raw_model)
+========================================
+    SimpleLayer
+     +--- Linear    <---  *** HERE ***
 ```
 
 可能的问题有：
 
-1.   子模型/权重定义顺序不对齐 => 修改代码对齐，或使用 `LayerMap` 指定
+1.   子模型/权重定义顺序不对齐 => 修改代码对齐，或使用 `LayerMap` 指定，
 2.   子模型的 paddle 与 torch 实现方式不一致（权重等对不齐）=> 使用 `LayerMap` 指定
 
-> 注：LayerMap 的使用方式详见：[LayerMap使用说明](LayerMap.md)
+> 注：LayerMap 的使用方式详见：[LayerMap使用说明](SpecialInit.md)
 
 若不使用 padiff 的权重初始化功能，可以避免此类错误，但在权重与梯度检查时会遇见同样的问题
 
@@ -190,8 +198,7 @@ Hint:
 
 1.   指明 diff 出现的阶段：`Forward Stage` or `Backward Stage`，该信息出现在日志的开头
 2.   打印出现精度 diff 时的比较信息，包括绝对误差和相对误差数值
-3.   打印模型结构，并用括号标注结点类型，用`<---  *** HERE ***`指示出现diff的位置（log过长时将输出到文件中）
-4.   打印调用栈信息，帮助定位到具体的代码位置
+3.   打印模型结构，并用括号标注结点类型，用`<---  *** HERE ***`指示出现diff的位置（log将输出到文件中）
 
 定位精度误差位置后，可进行验证排查：
 
@@ -199,78 +206,55 @@ Hint:
 [AutoDiff] Your options:
 {
   atol: `0.0001`
-  compare_mode: `strict`
-  single_step: `False`
   auto_init: `False`
-  rtol: `1e-07`
-  steps: `1`
+  single_step: `False`
   use_loss: `False`
   use_opt: `False`
+  rtol: `1e-07`
+  compare_mode: `mean`
 }
-[AutoDiff] Model_names not found, use default names instead:
-             `SimpleModule(base_model)`
-             `SimpleLayer(raw_model)`
-[AutoDiff] =================Train Step 0=================
-[AutoDiff] Max elementwise output diff is 3.452063798904419
+[AutoDiff] check cfg {'atol': 0.0001, 'rtol': 1e-07, 'compare_mode': 'mean'}
+[AutoDiff] Checking report in /workspace/PaDiff/padiff_dump/SimpleModule(base_model)/auto_diff and /workspace/PaDiff/padiff_dump/SimpleLayer(raw_model)/auto_diff
 [AutoDiff] FAILED !!!
-[AutoDiff]     Diff found in `Forward  Stage` in step: 0, net_id is -1 vs -1
-[AutoDiff]     Type of layer is: torch.nn.functional.linear vs paddle.nn.functional.linear
+[AutoDiff]     Diff found in Forward Stage
+[AutoDiff]     Type of layer is: Linear vs Linear
+[AutoDiff]     Route: SimpleModule(base_model).linear1
+[AutoDiff]            SimpleLayer(raw_model).linear1
 
+AssertionError:
 Not equal to tolerance rtol=1e-07, atol=0.0001
 
-Mismatched elements: 10000 / 10000 (100%)
-Max absolute difference: 2.1811357
-Max relative difference: 10647.999
- x: array([[-0.772737,  0.729183,  0.330304, ...,  0.801885, -0.363179,
-        -0.276256],
-       [-0.051828,  0.477333,  0.359336, ...,  0.135331, -0.306563,...
- y: array([[-0.246796,  0.469149, -0.026594, ...,  0.675754, -0.806643,
-         0.185347],
-       [ 0.558665,  0.319165,  0.536251, ..., -0.211322, -0.295726,...
-
+Mismatched elements: 1 / 1 (100%)
+Max absolute difference: 0.2241705
+Max relative difference: 0.8343468
+ x: array(0.044507, dtype=float32)
+ y: array(0.268678, dtype=float32)
 
 [AutoDiff] Check model struct:
-SimpleModule(base_model)
-========================================
-    (net) SimpleModule
-     |--- (net) Linear
-     |     +--- (api) torch.nn.functional.linear    <---  *** HERE ***
-     |--- (api) torch.nn.functional.relu
-     |--- (api) torch.Tensor.__add__
-     +--- (net) Linear
-           +--- (api) torch.nn.functional.linear
-SimpleLayer(raw_model)
-========================================
-    (net) SimpleLayer
-     |--- (net) Linear
-     |     +--- (api) paddle.nn.functional.linear    <---  *** HERE ***
-     |--- (api) paddle.nn.functional.relu
-     |--- (api) paddle.Tensor.__add__
-     +--- (net) Linear
-           +--- (api) paddle.nn.functional.linear
+Logs: /workspace/PaDiff/padiff_log/report_SimpleModule(base_model)
+      /workspace/PaDiff/padiff_log/report_SimpleLayer(raw_model)
 
-
-SimpleModule(base_model) Stacks:
-=========================
-         ...
-         File /workspace/env/env3.8/lib/python3.8/site-packages/torch/nn/modules/linear.py: 114    forward
-                return F.linear(input, self.weight, self.bias)
-         File /workspace/env/env3.8/lib/python3.8/site-packages/torch/nn/modules/module.py: 1538    _call_impl
-                result = forward_call(*args, **kwargs)
-         ...
-SimpleLayer(raw_model) Stacks:
-=========================
-         ...
-         File /workspace/env/env3.8/lib/python3.8/site-packages/paddle/nn/layer/common.py: 174    forward
-                out = F.linear(
-         File /workspace/env/env3.8/lib/python3.8/site-packages/paddle/nn/layer/layers.py: 1235    _dygraph_call_func
-                outputs = self.forward(*inputs, **kwargs)
-         ...
-
+[AutoDiff] The forward stage comparing failed !!!
 [AutoDiff] FAILED !!!
 ```
 
+```
+# /workspace/PaDiff/padiff_log/report_SimpleModule(base_model)
 
+SimpleModule(base_model)
+========================================
+    SimpleModule
+     +--- Linear    <---  *** HERE ***
+```
+
+```
+# /workspace/PaDiff/padiff_log/report_SimpleLayer(raw_model)
+
+SimpleLayer(raw_model)
+========================================
+    SimpleLayer
+     +--- Linear    <---  *** HERE ***
+```
 
 ### 2.4 模型weight/grad对齐失败的报错信息
 
@@ -280,23 +264,20 @@ SimpleLayer(raw_model) Stacks:
 [AutoDiff] Your options:
 {
   atol: `0.0001`
-  rtol: `1e-07`
-  auto_init: `True`
-  compare_mode: `mean`
+  auto_init: `False`
+  use_opt: `True`
   single_step: `False`
-  steps: `1`
   use_loss: `False`
-  use_opt: `False`
+  rtol: `1e-07`
+  compare_mode: `mean`
 }
-[AutoDiff] Model_names not found, use default names instead:
-             `SimpleLayerDiff(base_model)`
-             `SimpleModule(raw_model)`
-[AutoDiff] Assign weight success !!!
-[AutoDiff] =================Train Step 0=================
-[AutoDiff] Max elementwise output diff is 1.9073486328125e-06
-[AutoDiff] forward stage compared.
-[AutoDiff] backward stage compared.
-[AutoDiff] Diff found in model grad after backward, check report `/workspace/PaDiff/tests/diff_log/grad_diff.log`.
+[AutoDiff] Check grads cfg: {'atol': 0.0001, 'rtol': 1e-07, 'compare_mode': 'mean'}
+[AutoDiff] Checking grads in /workspace/PaDiff/padiff_dump/SimpleModule(base_model)/auto_diff and /workspace/PaDiff/padiff_dump/SimpleLayer(raw_model)/auto_diff
+[AutoDiff] grads compared.
+[AutoDiff] Check weights cfg: {'atol': 0.0001, 'rtol': 1e-07, 'compare_mode': 'mean'}
+[AutoDiff] Checking weights in /workspace/PaDiff/padiff_dump/SimpleModule(base_model)/auto_diff and /workspace/PaDiff/padiff_dump/SimpleLayer(raw_model)/auto_diff
+[AutoDiff] Diff found when compare weights, please check report
+        /workspace/PaDiff/padiff_log/weights_diff
 [AutoDiff] FAILED !!!
 ```
 
@@ -305,21 +286,24 @@ SimpleLayer(raw_model) Stacks:
 -   当检查到weight或grad存在diff，可能是反向计算出现问题，也可能是Loss function 或 optimizer出现问题（若传入了loss以及optimizer）
 
 ```
-After training, weight value is different.
-between base_model: `Linear(in_features=100, out_features=100, dtype=None)`, raw_model: `Linear(in_features=100, out_features=100, bias=True)`
+=========================
+weights value is different.
+between base_model: Linear(in_features=100, out_features=10, bias=True)
+        raw_model:  Linear(in_features=100, out_features=10, dtype=float32)
 
-SimpleLayer param path:
-    SimpleLayer(base_model).linear1.weight
-SimpleModule param path:
-    SimpleModule(raw_model).linear1.weight
+base_model param path:
+    SimpleModule(base_model).linear1.weight
+raw_model param path:
+    SimpleLayer(raw_model).linear1.weight
+
 AssertionError:
 Not equal to tolerance rtol=1e-07, atol=0.0001
 
 Mismatched elements: 1 / 1 (100%)
-Max absolute difference: 0.00024328
-Max relative difference: 0.5
- x: array(-0.000243, dtype=float32)
- y: array(-0.000487, dtype=float32)
+Max absolute difference: 0.00137274
+Max relative difference: 0.72396755
+ x: array(-0.000523, dtype=float32)
+ y: array(-0.001896, dtype=float32)
 ```
 
 
@@ -361,18 +345,18 @@ def torch_loss(inp, label):
     label = torch.tensor(label)
     return inp.mean() - label.mean()
 
-auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, loss_fn=[
-     partial(paddle_loss, label=label),
-     partial(torch_loss, label=label)
+auto_diff(module, layer, inp, auto_init=True, atol=1e-4, loss_fn=[
+    partial(torch_loss, label=label)
+    partial(paddle_loss, label=label),
 ])
 
 # 使用 paddle 和 torch 提供的损失函数时，使用方法一致
 paddle_mse = paddle.nn.MSELoss()
 torch_mse = torch.nn.MSELoss()
 
-auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, loss_fn=[
-     partial(paddle_mse, label=paddle.to_tensor(label)),
-     partial(torch_mse, target=torch.tensor(label))
+auto_diff(module, layer, inp, auto_init=True, atol=1e-4, loss_fn=[
+    partial(torch_mse, target=torch.tensor(label))
+    partial(paddle_mse, label=paddle.to_tensor(label)),
 ])
 ```
 
@@ -380,15 +364,14 @@ auto_diff(layer, module, inp, auto_weights=True, options={"atol": 1e-4}, loss_fn
 
 ### 3.2 使用optimizer
 
-能够向 padiff 工具传入 `optimizer`，在多 step 对齐下，将使用 `optimizer` 更新模型
+能够向 padiff 工具传入 `optimizers`，在多 step 对齐下，将使用 `optimizers` 更新模型
 
 须知：
 
-1.   `optimizer` 是可选的，若不传入，padiff 并不提供默认的 `optimzer` ，将跳过权重更新的步骤
-2.   若需要进行多 step 对齐，必须传入 `optimizer`（若不传入，step 会被自动重置为1）
-3.   padiff 不会检查 `optimizer` 内部是否对齐，但在多 step 下会检查模型权重（受 `optimizer` 影响）
-4.   `optimizer` 有两种使用方式：
-     - 依次传入一组 `paddle.optimizer.Optimizer` 和 `torch.optim.Optimizer`
+1.   `optimizers` 是可选的，若不传入，padiff 并不提供默认的 `optimzers` ，将跳过权重更新的步骤
+2.   padiff 不会检查 `optimizers` 内部是否对齐，但是会检查 step 后的 grad 是否对齐
+3.   `optimizer` 有两种使用方式：
+     - 依次传入一组 `paddle.optimizer.Optimizer` 或 `torch.optim.Optimizer` 类型的 optimizers
      - 依次传入两个**无输入的 lambda**，分别负责 paddle 模型与 torch 模型的权重更新，可在其中实现自定义操作
 
 ```py
@@ -407,13 +390,12 @@ paddle_opt = paddle.optimizer.Adam(learning_rate=0.001, parameters=layer.paramet
 torch_opt = torch.optim.Adam(lr=0.001, params=module.parameters())
 
 auto_diff(
-    layer,
     module,
+    layer,
     inp,
-    auto_weights=True,
-    steps=10,
-    options={"atol": 1e-4},
-    optimizer=[paddle_opt, torch_opt],
+    auto_init=True,
+    atol=1e-4,
+    optimizers=[torch_opt, paddle_opt],
 )
 ```
 
@@ -421,14 +403,13 @@ auto_diff(
 
 ## 四、使用assign_weight
 
-`assign_weight` 用于复制 torch 模型的权重到 paddle 模型，具体接口参数信息见：[接口信息](Interfaces.md)
+`assign_weight` 用于复制 torch 模型的权重到 paddle 模型，具体接口参数信息见：[接口信息](Interfaces.md)，关于权重初始化的高级设置见 [特殊初始化](SpecialInit.md)
 
 `assign_weight` 的逻辑以及报错信息与 `auto_diff` 开启 `auto_weight` 选项是一致的，因此可以参考上文
 
 须知：
 
-1.   如果 `assign_weight` 失败，则函数的返回值为 `False`（不会抛出异常）
-2.   如果只使用 `assign weight` 接口，不使用 `auto_diff` 接口，请设置环境变量 `export PADIFF_API_CHECK=OFF`
+-    如果 `assign_weight` 失败，则函数的返回值为 `False`（不会抛出异常）
 
 ```py
 import os
@@ -440,16 +421,30 @@ import paddle
 
 layer = SimpleLayer()
 module = SimpleModule()
-layer_map = LayerMap()
 
-assign_weight(layer, module, layer_map)
+assign_weight(layer, module)
 ```
 
 
 
 
-## 五、 使用API级别的对齐检查
+# 全局变量开关
 
-目前 PaDiff 工具已默认开启 API 级别的对齐检查
+### API 级别的对齐检查
 
-设置环境变量可以关闭该功能： `export PADIFF_API_CHECK=OFF`
+目前 PaDiff 工具默认关闭 API 级别的对齐检查
+
+设置环境变量可以打开该功能： `export PADIFF_API_CHECK=ON`
+
+### 略过 wrap_layer
+
+`export PADIFF_SIKP_WRAP_LAYER=TRUE`
+
+可以略过没有 parameter 的 sublayer，默认是不会略过的
+
+### 在前反向对齐时，打印子模型python路径
+
+`export PADIFF_PATH_LOG=ON`
+
+可以在打印的日志信息中，额外打印 python 路径，例如 Model.submodel.linear1
+为了日志信息的简洁，这个开关默认关闭

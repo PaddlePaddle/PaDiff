@@ -1,6 +1,7 @@
 - [Interfaces](#interfaces)
   - [一、单模型运行及文件dump](#一单模型运行及文件dump)
     - [关于可dump的信息](#关于可dump的信息)
+    - [设置dump路径](#设置dump路径)
     - [创建proxy\_model](#创建proxy_model)
     - [运行前反向逻辑](#运行前反向逻辑)
     - [try\_dump接口](#try_dump接口)
@@ -9,6 +10,8 @@
     - [设置 layer\_map](#设置-layer_map)
     - [调用原模型的接口](#调用原模型的接口)
   - [二、离线对齐工具](#二离线对齐工具)
+    - [check\_report的报错信息](#check_report的报错信息)
+    - [其余接口的报错信息](#其余接口的报错信息)
   - [三、`auto_diff` 接口参数](#三auto_diff-接口参数)
     - [接口函数签名](#接口函数签名)
     - [必要参数](#必要参数)
@@ -166,11 +169,12 @@ model.update_white_list_with_class(MultiHeadAttention, "sublayers")
 ### 设置 layer_map
 
 -   该功能用于指定两个模型中的某些组件的对应关系，它的主要作用是：
-    -   对齐顶层接口对齐，但内部实现不同的组件（使用黑名单可以达到同样效果）
-    -   调整模型对齐的顺序（例如有两个结构上平行的sublayer，但它们实际的调用顺序不一致，这不影响逻辑但影响对齐）
-    -   在需要使用 padiff 工具初始化模型权重时，配合自定义特殊初始化逻辑使用（见[LayerMap使用说明](LayerMap.md)）
+    1.   对齐顶层接口对齐，但内部实现不同的组件（使用黑名单可以达到同样效果）
+    2.   调整模型对齐的顺序（例如有两个结构上平行的sublayer，但它们实际的调用顺序不一致，这不影响逻辑但影响对齐，可以使用 layer_map 功能进行对应）
+    3.   在需要使用 padiff 工具初始化模型权重时，配合自定义特殊初始化逻辑使用（见[特殊初始化功能](SpecialInit.md)）
 -   设置layer_map的同时会自动调用 `model.update_black_list(layer_map, "sublayers")`
 -   指定layer_map后，在离线对齐时，会根据layer_map的顺序调整对齐顺序
+-   可以使用 auto_layer_map 接口进行自动搜索 （需传入 "base" 或 "raw" 指定对齐时的定位）
 
 ```py
 model0 = create_model(SimpleLayer0(), name="Simple0")
@@ -178,6 +182,9 @@ model1 = create_model(SimpleLayer1(), name="Simple1")
 
 model0.set_layer_map([model0.model.linear1, model0.model.linear2])
 model1.set_layer_map([model1.model.linear1, model1.model.linear2])
+
+model0.auto_layer_map("base")
+model1.auto_layer_map("raw")
 ```
 
 

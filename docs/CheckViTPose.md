@@ -2,13 +2,13 @@
   - [0. 准备工作](#0-准备工作)
   - [1. 单 step 的前向对齐](#1-单-step-的前向对齐)
     - [关于输入数据](#关于输入数据)
-    - [关于 LayerMap](#关于-layermap)
+    - [关于黑白名单和 layer\_map](#关于黑白名单和-layer_map)
     - [关于参数设置](#关于参数设置)
     - [示例代码](#示例代码)
   - [2. 损失函数精度验证](#2-损失函数精度验证)
     - [关于参数设置](#关于参数设置-1)
     - [示例代码](#示例代码-1)
-  - [3.  多 step 对齐检查（以及 optimizer 精度验证）](#3--多-step-对齐检查以及-optimizer-精度验证)
+  - [3. 带 optimizer 的精度对齐](#3-带-optimizer-的精度对齐)
     - [工具逻辑说明：关于 optimizer 的精度检查](#工具逻辑说明关于-optimizer-的精度检查)
     - [关于参数设置](#关于参数设置-2)
     - [示例代码](#示例代码-2)
@@ -218,17 +218,16 @@ def build_paddle_data_pipeline():
 
 注意保证传入的输入数据是对应的。
 
-### 关于 LayerMap
+### 关于黑白名单和 layer_map
 
-可以通过工具提供的 LayerMap 类的 "auto" 成员函数自动搜索需要的信息。
-
-在调用 auto 接口时，将在终端打印具体的对应情况，若 auto 接口提供的映射不正确，则仍需要手动编写 [LayerMap](LayerMap.md)。同时，也可能需要[自定义初始化函数](SpecialInit.md)来正确初始化模型权重。
+必要时可以为模型设置黑白名单和 layer_map ，从而客服模型实现的部分差异，达到对齐的目的。
+方法详见 [接口说明](Interfaces.md) 和 [layer_map以及特殊初始化](SpecialInit.md)。
 
 ### 关于参数设置
 
 除了必需的输入之外，可以注意以下几个参数的设置：
 
-1.   auto_weights
+1.   auto_init
 
      在下方示例代码中，需要对不同的数据进行单 step 对齐检查，不需要重复进行权重初始化行为。因此设置为 False
 
@@ -262,11 +261,13 @@ def test_forward():
     paddle_dataset,paddle_dataloader = build_paddle_data_pipeline()
 
     # step 3: 构造 layer_map
-    layer_map = LayerMap()
-    layer_map.auto(paddle_model, torch_model)
+    torch_model = create_model(torch_model)
+    torch_model.auto_layer_map("base")
+    paddle_model = create_model(paddle_model)
+    paddle_model.auto_layer_map("raw")
 
     # step 4: 使用工具接口初始化 paddle 模型权重 （复制torch权重到paddle模型）
-    assign_weight(paddle_model, torch_model, layer_map)
+    assign_weight(paddle_model, torch_model)
 
     # step 5: 取得对应的输入数据
     for idx, (paddle_batch, torch_batch
@@ -277,17 +278,14 @@ def test_forward():
 
         # step 6: 调用 auto_diff 接口
         result = auto_diff(
-            paddle_model,
             torch_model,
+            paddle_model,
             inp,
-            auto_weights=False,
-            layer_map=layer_map,
-            options={
-                'atol':0.0,
-                'rtol':1e-5,
-                'single_step':False,
-                'diff_phase':'forward',
-            }
+            auto_init=False,
+            atol=0.0,
+            rtol=1e-5,
+            single_step=False,
+            diff_phase='forward',
         )
 
         if result == False:
@@ -333,8 +331,10 @@ def test_forward():
     paddle_dataset,paddle_dataloader = build_paddle_data_pipeline()
 
     # step 3: 构造 layer_map
-    layer_map = LayerMap()
-    layer_map.auto(paddle_model, torch_model)
+    torch_model = create_model(torch_model)
+    torch_model.auto_layer_map("base")
+    paddle_model = create_model(paddle_model)
+    paddle_model.auto_layer_map("raw")
 
     # step 4: 使用工具接口初始化 paddle 模型权重 （复制torch权重到paddle模型）
     assign_weight(paddle_model, torch_model, layer_map)
@@ -355,17 +355,14 @@ def test_forward():
 
         # step 7: 调用 auto_diff 接口
         result = auto_diff(
-            paddle_model,
             torch_model,
+            paddle_model,
             inp,
-            auto_weights=False,
-            layer_map=layer_map,
-            options={
-            'atol':0.0,
-                'rtol':1e-5,
-                'single_step':False,
-                'diff_phase':'forward',
-            },
+            auto_init=False,
+            atol=0.0,
+            rtol=1e-5,
+            single_step=False,
+            diff_phase='forward',
             loss_fn=[                                # 传入 loss 函数
                 paddle_loss,
                 torch_loss,
@@ -378,7 +375,7 @@ def test_forward():
 
 
 
-## 3.  多 step 对齐检查（以及 optimizer 精度验证）
+## 3. 带 optimizer 的精度对齐
 
 多 step 的对齐检查意味着需要在每一个 step 间更新模型权重，然后进行下一个step 的对齐，相对于单 step 的模型对齐检查更复杂 。auto_diff 接口支持传入指定的 optimizer 参与对齐，传入的 optimizer 可以是一个 optimizer 实例，也可以是一个 lambda 函数。
 
@@ -397,19 +394,13 @@ optimizer 参数的具体的使用方法详见 [Tutorial](Tutorial.md)，以下�
 
 ### 关于参数设置
 
-1.   auto_weights
+1.   auto_init
 
-     由于在多 step 对齐检查中，需要更新权重，因此 auto_weights 必须设置为 False，否则在每一个 step 前都会触发权重的拷贝。
+     由于在多 step 对齐检查中，需要更新权重，因此 auto_init 必须设置为 False，否则在每一个 step 前都会触发权重的拷贝。
 
 2.   optimizer
 
      进行多 step 的对齐检查时必须显式地提供 optimizer ，否则工具将不知道如何更新模型权重。关于 optimizer 的设置和使用。
-
-3.   steps
-
-     auto_diff 接口允许设置 steps 参数，在 steps > 1 的情况下，auto_diff 将使用相同的输入数据进行多 step 的对齐检查。使用这个参数可以方便地进行快速检查。
-
-     若准备了数据集进行训练，则不能设置 steps 参数。
 
 ### 示例代码
 
@@ -438,8 +429,10 @@ def test_forward():
     paddle_dataset,paddle_dataloader = build_paddle_data_pipeline()
 
     # step 3: 构造 layer_map
-    layer_map = LayerMap()
-    layer_map.auto(paddle_model, torch_model)
+    torch_model = create_model(torch_model)
+    torch_model.auto_layer_map("base")
+    paddle_model = create_model(paddle_model)
+    paddle_model.auto_layer_map("raw")
 
     # step 4: 使用工具接口初始化 paddle 模型权重 （复制torch权重到paddle模型）
     assign_weight(paddle_model, torch_model, layer_map)
@@ -453,17 +446,14 @@ def test_forward():
 
         # step 6: 调用 auto_diff 接口，提供对应的 optimizer
         result = auto_diff(
-            paddle_model,
             torch_model,
+            paddle_model,
             inp,
-            auto_weights=False,
-            layer_map=layer_map,
-            options={
-            'atol':0.0,
-                'rtol':1e-5,
-                'single_step':False,
-                'diff_phase':'both',
-            }
+            auto_init=False,
+            atol=0.0,
+            rtol=1e-5,
+            single_step=False,
+            diff_phase='both',
             optimizer=[paddle_opt, torch_opt]
         )
 
@@ -493,31 +483,28 @@ def test_forward():
            {'x': torch_batch['img']})
 
     # step 3: 构造 layer_map
-    layer_map = LayerMap()
-    layer_map.auto(paddle_model, torch_model)
+    torch_model = create_model(torch_model)
+    torch_model.auto_layer_map("base")
+    paddle_model = create_model(paddle_model)
+    paddle_model.auto_layer_map("raw")
 
     # step 4: 使用工具接口初始化 paddle 模型权重 （复制torch权重到paddle模型）
     assign_weight(paddle_model, torch_model, layer_map)
 
     # step 5: 调用 auto_diff 接口 (使用 steps 参数)
     result = auto_diff(
-        paddle_model,
         torch_model,
+        paddle_model,
         inp,
-        auto_weights=False,
-        layer_map=layer_map,
-        options={
-            'atol':0.0,
-            'rtol':1e-5,
-            'single_step':False,
-            'diff_phase':'both',
-        }
+        auto_init=False,
+        atol=0.0,
+        rtol=1e-5,
+        single_step=False,
+        diff_phase='both',
         optimizer=[paddle_opt, torch_opt],
         steps=10,
     )
 ```
-
-
 
 
 
@@ -552,13 +539,10 @@ def test_forward():
         paddle_model,
         torch_model,
         inp,
-        auto_weights=False,
-        layer_map=layer_map,
-        options={
-            'atol':0.0,
-            'rtol':1e-5,
-            'single_step':False,
-            'diff_phase':'both',
-        }
+        auto_init=False,
+        atol=0.0,
+        rtol=1e-5,
+        single_step=True,
+        diff_phase='both',
     )
 ```

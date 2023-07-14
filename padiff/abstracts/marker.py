@@ -14,6 +14,7 @@
 
 import paddle
 import torch
+import os
 from ..utils import log
 from ..weight_init.special_init.special_init_pool import global_special_init_pool as init_pool
 
@@ -92,16 +93,18 @@ class Marker:
     def update_white_list_with_class(self, layer_class, recursively=False):
         pass
 
-    def traversal_layers(self, include_self=True):
-        for model in traversal_layers(self.proxy_model, self, include_self):
-            yield model
-
     def traversal_for_hook(self):
+        yield self.proxy_model
         for model in traversal_for_hook(self.proxy_model, self):
+            if os.getenv("PADIFF_SIKP_WRAP_LAYER") == "OFF" and len(list(model.parameters(recursively=False))) == 0:
+                continue
             yield model
 
     def traversal_for_assign_weight(self):
+        yield self.proxy_model
         for model in traversal_for_assign_weight(self.proxy_model, self):
+            if len(list(model.parameters(recursively=False))) == 0:
+                continue
             yield model
 
 
@@ -149,19 +152,7 @@ def traversal_with_white_list(model, marker):
                 yield sublayer
 
 
-def traversal_layers(model, marker, include_self=True):
-    if include_self:
-        yield model
-    if marker.use_white_list:
-        for mod in traversal_with_white_list(model, marker):
-            yield mod
-    else:
-        for mod in traversal_with_black_list(model, marker):
-            yield mod
-
-
 def traversal_for_hook(model, marker):
-    yield model
     if marker.use_white_list:
         for mod in traversal_with_white_list(model, marker):
             yield mod
@@ -171,6 +162,5 @@ def traversal_for_hook(model, marker):
 
 
 def traversal_for_assign_weight(model, marker):
-    yield model
     for mod in traversal_layers_assign_weight(model, marker):
         yield mod

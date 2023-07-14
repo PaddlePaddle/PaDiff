@@ -101,6 +101,11 @@ def info_hook(model, input, output, net_id):
     if report.stack._top().net in report.marker.black_list_recursively and hasattr(model, "__api__"):
         return None
 
+    # if this api is called under layer/module provided by framework, skip it
+    python_module = report.stack._top().net.__module__
+    if hasattr(model, "__api__") and (python_module.startswith("paddle.") or python_module.startswith("torch.")):
+        return None
+
     __in_info_hook__ = True
 
     # if current model is an api layer, we do not want to hold it
