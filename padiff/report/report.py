@@ -14,7 +14,7 @@
 
 import contextlib
 
-from ..utils import Counter, for_each_grad_tensor
+from ..utils import Counter, for_each_grad_tensor, for_each_tensor
 from .module_struct import LayerStack
 
 
@@ -84,7 +84,7 @@ class ReportItem:
 
     def tensors_for_compare(self):
         if self.type == "forward":
-            return [t for (t,) in for_each_grad_tensor(self.output)]
+            return [t for (t,) in for_each_tensor(self.output)]
         if self.type == "backward":
             return [t for (t,) in for_each_grad_tensor(self.input_grads)]
 
