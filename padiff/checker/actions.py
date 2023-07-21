@@ -64,6 +64,9 @@ class EqualAction(Action):
         return 0
 
     def __call__(self, file_list_0, file_list_1, cfg):
+        assert len(file_list_0) == len(
+            file_list_1
+        ), f"number of tensors for compare is not equal, {len(file_list_0)} vs {len(file_list_1)}"
         for path_0, path_1 in zip(file_list_0, file_list_1):
             tensor_0 = load_numpy(path_0)
             tensor_1 = load_numpy(path_1)
