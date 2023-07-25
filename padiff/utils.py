@@ -121,9 +121,9 @@ def assert_tensor_equal(tensor1, tensor2, cfg):
     """
     return None or raise Error.
     """
-    atol = cfg["atol"]
-    rtol = cfg["rtol"]
-    compare_mode = cfg["compare_mode"]
+    atol = cfg.get("atol", 0)
+    rtol = cfg.get("rtol", 1e-7)
+    compare_mode = cfg.get("compare_mode", "mean")
 
     if compare_mode == "mean":
         np.testing.assert_allclose(tensor1.mean(), tensor2.mean(), atol=atol, rtol=rtol)
@@ -131,6 +131,8 @@ def assert_tensor_equal(tensor1, tensor2, cfg):
         np.testing.assert_allclose(tensor1, tensor2, atol=atol, rtol=rtol)
     elif compare_mode == "abs_mean":
         np.testing.assert_allclose(abs(tensor1).mean(), abs(tensor2).mean(), atol=atol, rtol=rtol)
+    else:
+        raise RuntimeError(f"Invalid compare_mode {compare_mode}")
 
 
 """
