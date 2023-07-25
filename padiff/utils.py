@@ -129,6 +129,8 @@ def assert_tensor_equal(tensor1, tensor2, cfg):
         np.testing.assert_allclose(tensor1.mean(), tensor2.mean(), atol=atol, rtol=rtol)
     elif compare_mode == "strict":
         np.testing.assert_allclose(tensor1, tensor2, atol=atol, rtol=rtol)
+    elif compare_mode == "abs_mean":
+        np.testing.assert_allclose(abs(tensor1).mean(), abs(tensor2).mean(), atol=atol, rtol=rtol)
 
 
 """
