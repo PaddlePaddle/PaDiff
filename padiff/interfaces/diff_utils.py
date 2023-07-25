@@ -52,7 +52,7 @@ def single_step_pipeline(models, inputs, loss_fns, optimizers, options, cfg):
             models[1](**inputs[1])
             dump_report(models[1], auto_diff_paths[1])
             models[1].clear_report()
-            retval = check_report(auto_diff_paths[0], auto_diff_paths[1], cfg)
+            retval = check_report(auto_diff_paths[0], auto_diff_paths[1], cfg, "forward")
             if retval == False:
                 log("In single step mode, diff found at forward stage!")
                 return False
@@ -61,7 +61,7 @@ def single_step_pipeline(models, inputs, loss_fns, optimizers, options, cfg):
         run_and_dump(models[0], inputs[0], loss_fns[0], optimizers[0], options, auto_diff_paths[0])
         with SyncStepGuard("backward", auto_diff_paths[0]):
             run_and_dump(models[1], inputs[1], loss_fns[1], optimizers[1], options, auto_diff_paths[1])
-            retval = check_report(auto_diff_paths[0], auto_diff_paths[1], cfg)
+            retval = check_report(auto_diff_paths[0], auto_diff_paths[1], cfg, "backward")
             if options["diff_phase"] != "forward":
                 retval = retval and check_grads(auto_diff_paths[0], auto_diff_paths[1], cfg)
                 if options["use_opt"]:

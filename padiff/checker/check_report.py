@@ -26,7 +26,9 @@ from .checker_utils import (
 from ..utils import log
 
 
-def check_report(report_path_0, report_path_1, cfg=None):
+def check_report(report_path_0, report_path_1, cfg=None, diff_phase="both"):
+    assert diff_phase in ("forward", "backward", "both"), f"Illegal diff_phase {diff_phase}"
+
     cfg = parse_cfg(cfg)
     log(f"check cfg {cfg}")
 
@@ -34,11 +36,11 @@ def check_report(report_path_0, report_path_1, cfg=None):
     all_ranks_path_0, all_ranks_path_1 = get_all_valid_path(report_path_0, report_path_1)
     for path_0, path_1 in zip(all_ranks_path_0, all_ranks_path_1):
         log(f"Checking report in {path_0} and {path_1}")
-        final_rst = final_rst and _check_report_impl(path_0, path_1, cfg)
+        final_rst = final_rst and _check_report_impl(path_0, path_1, cfg, diff_phase)
     return final_rst
 
 
-def _check_report_impl(report_path_0, report_path_1, cfg=None):
+def _check_report_impl(report_path_0, report_path_1, cfg=None, diff_phase="both"):
     reports = [load_json(report_path_0, "report.json"), load_json(report_path_1, "report.json")]
     trees = [rep["tree"] for rep in reports]
 
@@ -51,17 +53,20 @@ def _check_report_impl(report_path_0, report_path_1, cfg=None):
 
     for root_0, root_1 in zip(roots[0], roots[1]):
         root_pair = [root_0, root_1]
-        # forward check
-        res = check_forward(root_pair, reports, cfg)
-        if res == False:
-            log("The forward stage comparing failed !!!")
-            return False
 
-        # backward check
-        res = check_backward(root_pair, reports, cfg)
-        if res == False:
-            log("The backward stage comparing failed !!!")
-            return False
+        if diff_phase in ("forward", "both"):
+            # forward check
+            res = check_forward(root_pair, reports, cfg)
+            if res == False:
+                log("The forward stage comparing failed !!!")
+                return False
+
+        if diff_phase in ("backward", "both"):
+            # backward check
+            res = check_backward(root_pair, reports, cfg)
+            if res == False:
+                log("The backward stage comparing failed !!!")
+                return False
 
     return True
 

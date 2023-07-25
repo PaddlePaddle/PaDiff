@@ -126,7 +126,7 @@ def info_hook(model, input, output, net_id):
         t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i, net_id=net_id))
 
     # if under single step forward guard
-    if single_step_state == "forward" and net_id != -1:
+    if single_step_state() == "forward" and net_id != -1:
         # two report_item with same id, the step_idx should be corresponded
         step_idx = len(list(filter(lambda x: x.type == "forward" and x.net_id == net_id, report.items))) - 1
         base_report_node = find_base_report_node(net_id, step_idx)
@@ -148,7 +148,7 @@ def tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
     new_grad = clone_tensors(x_grad)
     bwd_item.set_input_grads(nth_tensor, new_grad[0])
 
-    if single_step_state == "backward" and net_id != -1:
+    if single_step_state() == "backward" and net_id != -1:
         report = current_report()
         step_idx = (
             list(filter(lambda x: x.type == "backward" and x.net_id == net_id, report.items)).index(bwd_item) - 1
@@ -159,7 +159,7 @@ def tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
         if isinstance(x_grad, paddle.Tensor):
             return paddle.to_tensor(value)
         else:
-            return torch.as_tensor(value)
+            return torch.as_tensor(value, device=x_grad.device)
 
     return x_grad
 
@@ -203,6 +203,8 @@ def SyncStepGuard(diff_phase, report_path):
 
         with open(report_path + "/" + "report.json", "r") as report_file:
             report = json.load(report_file)
+
+        single_step_phase = diff_phase
         single_step_base = split_by_net_id(report)
 
         yield
@@ -258,7 +260,7 @@ def replace_forward_output(node):
             if isinstance(input_, paddle.Tensor):
                 return paddle.to_tensor(value)
             else:
-                return torch.as_tensor(value)
+                return torch.as_tensor(value, device=input_.device)
         else:
             return input_
 
