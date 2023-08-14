@@ -21,10 +21,7 @@ import paddle
 import torch
 
 
-try:
-    from paddle.fluid.layers.utils import flatten, pack_sequence_as, map_structure
-except:
-    from paddle.utils import flatten, pack_sequence_as, map_structure
+from paddle.utils import flatten, pack_sequence_as, map_structure
 
 
 """

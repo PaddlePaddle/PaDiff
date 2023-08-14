@@ -25,7 +25,7 @@ class ProxyParam:
     def create_from(param):
         if isinstance(param, ProxyParam):
             return param
-        elif isinstance(param, paddle.fluid.framework.EagerParamBase):
+        elif isinstance(param, paddle.framework.io.EagerParamBase):
             return PaddleParam(param)
         elif isinstance(param, torch.nn.parameter.Parameter):
             return TorchParam(param)
