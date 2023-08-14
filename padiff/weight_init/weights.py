@@ -72,6 +72,7 @@ def assign_weight_(base_model, raw_model):
 
 
 def process_each_weight(process, models):
+    breakpoint()
     submodels_0 = models[0].marker.traversal_for_assign_weight()
     submodels_1 = models[1].marker.traversal_for_assign_weight()
 
