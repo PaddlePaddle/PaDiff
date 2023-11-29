@@ -1,0 +1,2 @@
+pygraphviz==1.11
+graphviz==0.20.1
