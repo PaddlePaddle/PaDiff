@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from lib2to3.pytree import Node
 import graphviz
 import pygraphviz as pgv
-from utils import retry
+from .utils import retry
 
 
 @retry(max_times=1)

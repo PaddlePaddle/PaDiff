@@ -9,20 +9,18 @@
 **example**
 ```python
 import os
-from analyze import auto_diff
-from env import Env
+from padiff import cinn_diff
 
 
 def run(run_script, base_env, cinn_env):
-    run_env = Env(run_script, base_env, cinn_env)
+    run_env = cinn_diff.Env(run_script, base_env, cinn_env)
     run_env.run_base_model() #可以注释掉选择不运行base model
     run_env.run_cinn_model() #也可以注释掉选择不运行cinn model
-    auto_diff(run_env.base_path, run_env.cinn_path, rtol=1e-3, atol=1e-3)
+    cinn_diff.auto_diff(run_env.base_path, run_env.cinn_path, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == '__main__':
-    run_script = "/root/dev/PaddleNLP/model_zoo/bert/run_bert.sh"
-    run_script = "/root/dev/PaddleClas/run_resnet.sh"
+    run_script = "/root/workspace/PaddleNLP/model_zoo/bert/run_bert.sh"
     run(run_script, None, None)
 ```
 **run_script**
@@ -128,9 +126,5 @@ python run_pretrain.py \
 ## 运行结果
 ![运行结果图](./img/run_ret.png)
 
-
-## 功能扩展
-1. 【开发中】参数式启动
-2. 【开发中】中间变量读取展示接口
 
 更多功能正在研发中...

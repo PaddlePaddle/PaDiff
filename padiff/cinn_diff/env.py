@@ -41,7 +41,7 @@ class Env:
         }
         self._cinn_env = {
             "FLAGS_use_cinn": "1",
-            "FLAGS_deny_cinn_ops": "reduce_sum",
+            "FLAGS_deny_cinn_ops": "",
             "FLAGS_use_reduce_split_pass": "1",
             "FLAGS_nvrtc_compile_to_cubin": "0",
             "FLAGS_cinn_use_op_fusion": "1",

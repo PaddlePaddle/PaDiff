@@ -14,7 +14,7 @@
 
 import os
 
-from graph import Graph, Node, Cluster, Group, Pass, construct_graph_by_dot
+from .graph import Graph, Node, Cluster, Group, Pass, construct_graph_by_dot
 
 import collections
 

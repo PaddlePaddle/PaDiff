@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from read_file import read_all
-from compare_utils import Comparator
+from .read_file import read_all
+from .compare_utils import Comparator
 
 # 需要优化
 def back_track_group(base, compare, cluster, cmp, graph, node):
