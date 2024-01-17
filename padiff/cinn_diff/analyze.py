@@ -116,6 +116,7 @@ def auto_diff(base_path, compare_path, rtol=1e-6, atol=1e-6):
 
 
 if __name__ == "__main__":
+    # test code, you can simple use cinn_diff.auto_diff this way
     base_path = "/root/dev/PaddleClas/base"
     compare_path = "/root/dev/PaddleClas/cinn"
     auto_diff(base_path, compare_path, atol=0, rtol=0)
