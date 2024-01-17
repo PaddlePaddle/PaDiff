@@ -49,7 +49,7 @@ class Logger(object):
         return self.logger
 
 
-logger = Logger(os.path.join(sys.path[0], "cinn_diff_log.log")).loggerImp()
+logger = Logger(os.path.join(sys.path[0], "cinn_diff.log")).loggerImp()
 
 
 def log_init(file_name):
