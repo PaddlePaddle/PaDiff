@@ -89,6 +89,7 @@ class Env:
 
     def run_base_model(self):
         self.init_base_env()
+        root_path = os.getcwd()
         os.chdir(self.script_path)
         run_env = self.base_env.copy()
         logger.info(run_env)
@@ -96,9 +97,11 @@ class Env:
         base_log = open("base.log", "w")
         self.run_model(run_env, base_log)
         base_log.close()
+        os.chdir(root_path)
 
     def run_cinn_model(self):
         self.init_cinn_env()
+        root_path = os.getcwd()
         os.chdir(self.script_path)
         run_env = self.cinn_env.copy()
         base_env = self.base_env.copy()
@@ -110,3 +113,4 @@ class Env:
         cinn_log = open("cinn.log", "w")
         self.run_model(run_env, cinn_log)
         cinn_log.close()
+        os.chdir(root_path)
