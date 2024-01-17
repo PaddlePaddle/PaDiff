@@ -15,6 +15,7 @@
 import os
 
 from .graph import Graph, Node, Cluster, Group, Pass, construct_graph_by_dot
+from .logs import logger
 
 import collections
 
@@ -138,13 +139,13 @@ def read_cinn_pass(path):
     def read_graphviz_dot(path):
         passes = os.listdir(path)
         idx = path.split("_")[-1]
-        # print("group idx: " + str(idx))
+        # logger.info("group idx: " + str(idx))
         all_passes = {}
         for pass_path in passes:
-            # print("pass_path: " + pass_path)
-            # print(pass_path.split("_"))
+            # logger.info("pass_path: " + pass_path)
+            # logger.info(pass_path.split("_"))
             pass_idx = int(pass_path.split("_")[1])
-            # print("pass_idx: " + str(pass_idx))
+            # logger.info("pass_idx: " + str(pass_idx))
             if pass_idx not in all_passes:
                 all_passes[pass_idx] = Pass(pass_idx)
             pass_name = pass_path.split("_")[2]
@@ -162,7 +163,7 @@ def read_cinn_pass(path):
             else:
                 raise ValueError(type + "not support")
         max_pass_id = max(all_passes.keys())
-        # print("lass_pass_id: " + str(max_pass_id))
+        # logger.info("lass_pass_id: " + str(max_pass_id))
         group_cc = Group(idx, all_passes, max_pass_id)
         all_groups[idx] = group_cc
 
@@ -216,10 +217,10 @@ def set_clusters_group(clusters, groups, cinn_graphs):
             graph_outputs = graph.graph_outputs()
             if not graph_inputs and not graph_outputs:
                 raise ValueError(f"{graph} does not have inputs or outputs")
-            # print(graph_inputs)
-            # print(inputs)
+            # logger.info(graph_inputs)
+            # logger.info(inputs)
             if not set(inputs).difference(graph_inputs) and not set(outputs).difference(graph_outputs):
-                print(f"group_{idx} belongs to Cluster_{cluster.idx}")
+                logger.info(f"group_{idx} belongs to Cluster_{cluster.idx}")
                 cluster.cinn_group = groups[idx]
 
 

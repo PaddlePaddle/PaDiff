@@ -15,6 +15,7 @@
 import graphviz
 import pygraphviz as pgv
 from .utils import retry
+from .logs import logger
 
 
 @retry(max_times=1)
@@ -23,7 +24,7 @@ def get_graph(dot_path):
 
 
 def construct_graph_by_dot(dot_path, sep="\\n"):
-    # print("dot_path:" + dot_path)
+    # logger.info("dot_path:" + dot_path)
     graph_source = get_graph(dot_path)
     # ['color', 'label', 'style']
     all_nodes = []
@@ -282,4 +283,4 @@ class Cluster:
 
     def print_varmaps(self):
         for paddle_name, cinn_name in self.varmaps.items():
-            print({"graph_key": self.graph_key, "paddle_name": paddle_name, "cinn_name": cinn_name})
+            logger.info({"graph_key": self.graph_key, "paddle_name": paddle_name, "cinn_name": cinn_name})

@@ -14,6 +14,7 @@
 
 from .read_file import read_all
 from .compare_utils import Comparator
+from .logs import logger
 
 # 需要优化
 def back_track_group(base, compare, cluster, cmp, graph, node):
@@ -25,7 +26,7 @@ def back_track_group(base, compare, cluster, cmp, graph, node):
         tmp = input
         paddle_name = cur_cluster_cinn2paddle.get(tmp.name, "")
         if not paddle_name:
-            print(f"can't find {node.name}'s paddle name")
+            logger.info(f"can't find {node.name}'s paddle name")
             diff_ret = {
                 "cluster": cluster.idx,
                 "group": cluster.cinn_group,
@@ -63,7 +64,7 @@ def auto_diff(base_path, compare_path, rtol=1e-6, atol=1e-6):
 
     # step1: 确认cluster的输入输出是否对齐
     for cluster in compare.all_clusters:
-        # print(cluster.idx)
+        # logger.info(cluster.idx)
         input_equals_flag = True
         output_equals_flag = True
         for input in cluster.inputs:
@@ -86,7 +87,7 @@ def auto_diff(base_path, compare_path, rtol=1e-6, atol=1e-6):
                     # step3: 找到对不齐变量对应的group
                     output_cinn_var = cluster.varmaps.get(output, "")
                     if not output_cinn_var:
-                        print("can't find var " + output + " corresponding cinn var name")
+                        logger.info("can't find var " + output + " corresponding cinn var name")
                     else:
                         find_diff_group_flag = False
                         # step4 : 从对不齐的输出出发，找到第一次出现输出对不齐的group（输入能对齐，输出无法对齐）
@@ -104,13 +105,13 @@ def auto_diff(base_path, compare_path, rtol=1e-6, atol=1e-6):
 
                         if not find_diff_group_flag:
                             cmp.record_output_diff(cluster.idx, output, cluster.varmaps.get(output, ""))
-                            print("can't find diff group in cluster_" + cluster.idx + " but diff exsits")
+                            logger.info("can't find diff group in cluster_" + cluster.idx + " but diff exsits")
 
             if output_equals_flag:
-                print("cluster_" + cluster.idx + " has no diff")
+                logger.info("cluster_" + cluster.idx + " has no diff")
 
     for diff in cmp.record:
-        print(diff)
+        logger.info(diff)
     return cmp.record
 
 

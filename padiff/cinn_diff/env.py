@@ -14,6 +14,7 @@
 
 import os
 import subprocess
+from .logs import logger
 
 
 class Env:
@@ -59,7 +60,7 @@ class Env:
 
     def init_base_env(self):
         if os.path.exists(self.base_path):
-            print("base path exists, remove it")
+            logger.info("base path exists, remove it")
             os.system("rm -rf " + self.base_path)
         self.base_env["FLAGS_static_runtime_data_save_path"] = self.base_path
         self.base_env["FLAGS_save_static_runtime_data"] = "1"
@@ -70,7 +71,7 @@ class Env:
     def init_cinn_env(self):
         self.base_env["FLAGS_static_runtime_data_save_path"] = self.cinn_path
         if os.path.exists(self.cinn_path):
-            print("cinn path exists, remove it")
+            logger.info("cinn path exists, remove it")
             os.system("rm -rf " + self.cinn_path)
         self.cinn_env["FLAGS_cinn_pass_visualize_dir"] = os.path.join(self.cinn_path, self.cinn_pass_dir)
         self.cinn_env["FLAGS_cinn_subgraph_graphviz_dir"] = os.path.join(self.cinn_path, self.cinn_graph_dir)
@@ -82,15 +83,15 @@ class Env:
         self.script = name
 
     def run_model(self, run_env, log):
-        print(self.script)
+        logger.info(self.script)
         ret = subprocess.run(["sh", self.script_name], env=run_env, stdout=log, stderr=log)
-        print(ret)
+        logger.info(ret)
 
     def run_base_model(self):
         self.init_base_env()
         os.chdir(self.script_path)
         run_env = self.base_env.copy()
-        print(run_env)
+        logger.info(run_env)
         run_env.update(self.os_env)
         base_log = open("base.log", "w")
         self.run_model(run_env, base_log)
@@ -101,7 +102,7 @@ class Env:
         os.chdir(self.script_path)
         run_env = self.cinn_env.copy()
         run_env.update(self.base_env)
-        print(run_env)
+        logger.info(run_env)
         run_env.update(self.os_env)
         cinn_log = open("cinn.log", "w")
         self.run_model(run_env, cinn_log)

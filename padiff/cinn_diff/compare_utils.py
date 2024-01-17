@@ -42,8 +42,8 @@ class Comparator:
 
     def record_diff(self, diff, type):
         diff = {
-            "event": diff,
             "type": type,
+            "event": diff,
         }
         self.record.append(diff)
 
