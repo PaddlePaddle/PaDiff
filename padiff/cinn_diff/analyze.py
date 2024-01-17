@@ -16,7 +16,7 @@ from .read_file import read_all
 from .compare_utils import Comparator
 from .logs import logger
 
-# Needs optimization in the future
+# TODO(GGBond8488): Needs optimization in the future
 def back_track_group(base, compare, cluster, cmp, graph, node):
     inputs = graph.inputs()
     all_inputs_equal = True
