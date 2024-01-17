@@ -101,7 +101,10 @@ class Env:
         self.init_cinn_env()
         os.chdir(self.script_path)
         run_env = self.cinn_env.copy()
-        run_env.update(self.base_env)
+        base_env = self.base_env.copy()
+        for key in base_env:
+            if key not in run_env:
+                run_env[key] = base_env[key]
         logger.info(run_env)
         run_env.update(self.os_env)
         cinn_log = open("cinn.log", "w")
