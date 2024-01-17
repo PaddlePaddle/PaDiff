@@ -14,10 +14,11 @@
 
 import os
 
+import collections
+
 from .graph import Graph, Node, Cluster, Group, Pass, construct_graph_by_dot
 from .logs import logger
 
-import collections
 
 INPUTS_NAME = "cluster_inputs.txt"
 OUTPUTS_NAME = "cluster_outputs.txt"
@@ -139,18 +140,14 @@ def read_cinn_pass(path):
     def read_graphviz_dot(path):
         passes = os.listdir(path)
         idx = path.split("_")[-1]
-        # logger.info("group idx: " + str(idx))
         all_passes = {}
         for pass_path in passes:
-            # logger.info("pass_path: " + pass_path)
-            # logger.info(pass_path.split("_"))
             pass_idx = int(pass_path.split("_")[1])
-            # logger.info("pass_idx: " + str(pass_idx))
             if pass_idx not in all_passes:
                 all_passes[pass_idx] = Pass(pass_idx)
             pass_name = pass_path.split("_")[2]
             all_passes[pass_idx].set_pass_name(pass_name)
-            type = pass_path.split("_")[3]  # after.txt
+            type = pass_path.split("_")[3]
             record_path = os.path.join(path, pass_path)
             if type == "after.txt":
                 all_passes[pass_idx].set_after_txt(record_path)
@@ -163,7 +160,6 @@ def read_cinn_pass(path):
             else:
                 raise ValueError(type + "not support")
         max_pass_id = max(all_passes.keys())
-        # logger.info("lass_pass_id: " + str(max_pass_id))
         group_cc = Group(idx, all_passes, max_pass_id)
         all_groups[idx] = group_cc
 
@@ -217,8 +213,7 @@ def set_clusters_group(clusters, groups, cinn_graphs):
             graph_outputs = graph.graph_outputs()
             if not graph_inputs and not graph_outputs:
                 raise ValueError(f"{graph} does not have inputs or outputs")
-            # logger.info(graph_inputs)
-            # logger.info(inputs)
+
             if not set(inputs).difference(graph_inputs) and not set(outputs).difference(graph_outputs):
                 logger.info(f"group_{idx} belongs to Cluster_{cluster.idx}")
                 cluster.cinn_group = groups[idx]
@@ -233,7 +228,7 @@ def read_all(root_path="", type="cinn"):
     all_vars_paths = {}
     all_cinn_groups = {}
     all_cinn_graphs = {}
-    # exsist some bug
+
     cinn2paddle_varmaps = {}
 
     allinone = collections.namedtuple(

@@ -18,7 +18,7 @@ import json
 
 def run(run_script, base_env, cinn_env):
     run_env = cinn_diff.Env(run_script, base_env, cinn_env)
-    run_env.run_base_model()  # 可以提供选项选择不运行base model
+    run_env.run_base_model()
     run_env.run_cinn_model()
     ret = cinn_diff.auto_diff(run_env.base_path, run_env.cinn_path, rtol=0, atol=0)
     with open("./cmp_ret.json", "w") as jsonf:

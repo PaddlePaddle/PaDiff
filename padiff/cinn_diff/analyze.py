@@ -16,7 +16,7 @@ from .read_file import read_all
 from .compare_utils import Comparator
 from .logs import logger
 
-# 需要优化
+# Needs optimization in the future
 def back_track_group(base, compare, cluster, cmp, graph, node):
     inputs = graph.inputs()
     all_inputs_equal = True
@@ -62,9 +62,8 @@ def auto_diff(base_path, compare_path, rtol=1e-6, atol=1e-6):
     compare = read_all(compare_path)
     cmp = Comparator(rtol=rtol, atol=atol)
 
-    # step1: 确认cluster的输入输出是否对齐
+    # step1: Confirm whether the input and output of the cluster are aligned
     for cluster in compare.all_clusters:
-        # logger.info(cluster.idx)
         input_equals_flag = True
         output_equals_flag = True
         for input in cluster.inputs:
@@ -77,27 +76,28 @@ def auto_diff(base_path, compare_path, rtol=1e-6, atol=1e-6):
                 continue
 
         if input_equals_flag:
-            # step2: 找到cluster内部对不齐的点
+            # step2: Find the misaligned output of the cluster
             for output in cluster.outputs:
                 base_var_path = base.all_vars_paths[output]
                 compare_var_path = compare.all_vars_paths[output]
                 ret = cmp.allclose(base_var_path, compare_var_path)
                 if not ret:
                     output_equals_flag = False
-                    # step3: 找到对不齐变量对应的group
+                    # step3: Find the group corresponding to the misaligned output
                     output_cinn_var = cluster.varmaps.get(output, "")
                     if not output_cinn_var:
                         logger.info("can't find var " + output + " corresponding cinn var name")
                     else:
                         find_diff_group_flag = False
-                        # step4 : 从对不齐的输出出发，找到第一次出现输出对不齐的group（输入能对齐，输出无法对齐）
+                        # step4 : Starting from the misaligned output, find the group where the output misalignment
+                        # occurs for the first time (the input can be aligned, but the output cannot be aligned)
                         group = cluster.cinn_group
                         for graph in group.subgraphs:
                             node = graph.find(output_cinn_var)
                             if node and not graph.is_input(node):
-                                # 找到对不齐的第一个输出，开始回溯
+                                # Find the first misaligned output and start backtracking
                                 diff_ret = back_track_group(base, compare, cluster, cmp, graph, node)
-                                if diff_ret:  # 输入能对齐，输出无法对齐
+                                if diff_ret:  # Input can be aligned, but output cannot be aligned
                                     diff_ret["output"] = output
                                     cmp.record_group_output_diff(diff_ret)
                                 find_diff_group_flag = True

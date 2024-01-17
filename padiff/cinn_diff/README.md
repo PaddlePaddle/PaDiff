@@ -14,8 +14,8 @@ from padiff import cinn_diff
 
 def run(run_script, base_env, cinn_env):
     run_env = cinn_diff.Env(run_script, base_env, cinn_env)
-    run_env.run_base_model() #可以注释掉选择不运行base model
-    run_env.run_cinn_model() #也可以注释掉选择不运行cinn model
+    run_env.run_base_model()
+    run_env.run_cinn_model()
     cinn_diff.auto_diff(run_env.base_path, run_env.cinn_path, rtol=1e-3, atol=1e-3)
 
 

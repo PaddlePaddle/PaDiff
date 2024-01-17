@@ -49,9 +49,9 @@ def construct_graph_by_dot(dot_path, sep="\\n"):
         start, end = edge
         if start not in idx2nodes.keys() or end not in idx2nodes.keys():
             continue
-        # 输出边
+        # Output edge
         idx2nodes[start].add_output(idx2nodes[end])
-        # 输入边
+        # Input edge
         idx2nodes[end].add_input(idx2nodes[start])
 
     return all_nodes, ret_subgraphs
@@ -87,7 +87,7 @@ class Graph:
                 inputs.append(node.outputs[0])
             if not node.inputs:
                 inputs.append(node)
-            # 输入在另一个子图中，也算作当前子图的输入
+            # Inputs in another subgraph are also counted as inputs to the current subgraph.
             for node in node.inputs:
                 if node not in self.nodes:
                     inputs.append(node)
@@ -110,7 +110,7 @@ class Graph:
                 outputs.append(node.inputs[0])
             if not node.outputs:
                 outputs.append(node)
-            # 输出在另一个子图中，也算作当前子图的输出
+            # The output is in another subgraph and is also counted as the output of the current subgraph.
             for node in node.outputs:
                 if node not in self.nodes:
                     outputs.append(node)

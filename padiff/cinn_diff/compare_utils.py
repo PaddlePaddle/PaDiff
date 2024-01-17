@@ -76,6 +76,7 @@ class Comparator:
 
 
 if __name__ == "__main__":
+    # test code， intermediate variables can be read this way
     cmp = Comparator()
     base = cmp.load_var("/root/dev/PaddleClas/base/saved_tensors/batch_norm_grad-input-batch_norm_0.tmp_3@GRAD")
     cinn = cmp.load_var("/root/dev/PaddleClas/cinn/saved_tensors/batch_norm_grad-input-batch_norm_0.tmp_3@GRAD")
