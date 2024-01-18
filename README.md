@@ -148,7 +148,25 @@ for i in range(6):
         assert check_params(f"./torch/step_{i}", f"./paddle/step_{i}") == True
 ```
 
+### 框架与编译器对齐
+使用文档 [CINN](padiff/cinn_diff/README.md)
 
+```python
+import os
+from padiff import cinn_diff
+
+
+def run(run_script, base_env, cinn_env):
+    run_env = cinn_diff.Env(run_script, base_env, cinn_env)
+    run_env.run_base_model() #可以注释掉选择不运行base model
+    run_env.run_cinn_model() #也可以注释掉选择不运行cinn model
+    cinn_diff.auto_diff(run_env.base_path, run_env.cinn_path, rtol=1e-3, atol=1e-3)
+
+
+if __name__ == '__main__':
+    run_script = "/root/workspace/PaddleNLP/model_zoo/bert/run_bert.sh"
+    run(run_script, None, None)
+```
 
 ## 已支持 `Special Init` 的组件
 
