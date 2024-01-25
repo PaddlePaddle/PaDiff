@@ -436,6 +436,14 @@ assign_weight(layer, module)
 
 设置环境变量可以打开该功能： `export PADIFF_API_CHECK=ON`
 
+### 添加自定义算子
+
+当`PADIFF_API_CHECK`开启时，可以添加PD_BUILD_OP方式注册的自定义算子，该功能通过`PADDLE_THIRDPARTY_API`环境变量开启
+
+设置时，需将自定义算子的module、api名写全，多个算子之间用逗号分隔，如：
+
+`export PADDLE_THIRDPARTY_API=paddle3d.ops.iou3d_nms,paddle3d.ops.hard_voxelize,paddle_xpu_nn.xpu_rms_norm`
+
 ### 略过 wrap_layer
 
 `export PADIFF_SIKP_WRAP_LAYER=TRUE`
