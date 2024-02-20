@@ -27,7 +27,8 @@ from importlib.machinery import SourceFileLoader, ExtensionFileLoader, PathFinde
 
 from .report.hooks import info_hook
 from .datas import global_json_laoder as jsons
-from . import cinn_diff
+
+# from . import cinn_diff
 
 
 def module_filter(name):
@@ -134,7 +135,7 @@ def wrap_method(method_fullname, method):
                     self.__api__ = True
 
                 def forward(self, *args, **kwargs):
-                    return self._method(tensor_obj, *args, **kwargs)
+                    return self._method(*args, **kwargs)
 
                 def __str__(self):
                     return self.__name__
@@ -152,7 +153,7 @@ def wrap_method(method_fullname, method):
                     self.__api__ = True
 
                 def forward(self, *args, **kwargs):
-                    return self._method(tensor_obj, *args, **kwargs)
+                    return self._method(*args, **kwargs)
 
                 def __str__(self):
                     return self.__name__
@@ -163,7 +164,7 @@ def wrap_method(method_fullname, method):
         else:
             raise RuntimeError("Required module_type is in [paddle, torch], but received {}".format(method_fullname))
 
-        out = layer(*args, **kwargs)
+        out = layer(tensor_obj, *args, **kwargs)
 
         handle.remove()
 

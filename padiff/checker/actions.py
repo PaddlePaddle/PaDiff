@@ -67,9 +67,9 @@ class EqualAction(Action):
         assert len(file_list_0) == len(
             file_list_1
         ), f"number of tensors for compare is not equal, {len(file_list_0)} vs {len(file_list_1)}"
-        for path_0, path_1 in zip(file_list_0, file_list_1):
-            tensor_0 = load_numpy(path_0)
-            tensor_1 = load_numpy(path_1)
+        for info_0, info_1 in zip(file_list_0, file_list_1):
+            tensor_0 = load_numpy(info_0["path"])
+            tensor_1 = load_numpy(info_1["path"])
             if tensor_0.size == 0 or tensor_1.size == 0:
                 if tensor_0.size != tensor_1.size:
                     raise RuntimeError("size of tensors is not equal")
