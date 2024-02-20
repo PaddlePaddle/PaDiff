@@ -7,3 +7,4 @@ pytest-cov
 regex
 pytest-xdist
 torchvision
+graphviz

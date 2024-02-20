@@ -15,7 +15,8 @@
 import json
 import os, sys
 import numpy
-from .utils import Counter, reset_dir
+import paddle
+from .utils import Counter, frames_to_string, reset_dir
 
 
 dump_root_path = os.path.join(sys.path[0], "padiff_dump")
@@ -79,14 +80,31 @@ def dump_report_node(wrap_node, tensor_dumper):
             "net_id": wrap_node.fwd_report.net_id,
         },
         "children": [],
+        "stack": frames_to_string(wrap_node.fwd_report.frames),
     }
     for tensor in wrap_node.fwd_report.tensors_for_compare():
         file_name = tensor_dumper(tensor.detach().numpy())
-        node_info["fwd_outputs"].append(file_name)
+        node_info["fwd_outputs"].append(
+            {
+                "path": file_name,
+                "shape": str(tensor.shape),
+                "dtype": str(tensor.dtype),
+                "place": str(tensor.place) if isinstance(tensor, paddle.Tensor) else str(tensor.device),
+                "layout": str(tensor.layout),
+            }
+        )
 
     for tensor in wrap_node.bwd_report.tensors_for_compare():
         file_name = tensor_dumper(tensor.detach().numpy())
-        node_info["bwd_grads"].append(file_name)
+        node_info["bwd_grads"].append(
+            {
+                "path": file_name,
+                "shape": str(tensor.shape),
+                "dtype": str(tensor.dtype),
+                "place": str(tensor.place) if isinstance(tensor, paddle.Tensor) else str(tensor.device),
+                "layout": str(tensor.layout),
+            }
+        )
 
     for child in wrap_node.children:
         child_info = dump_report_node(child, tensor_dumper)

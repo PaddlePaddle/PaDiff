@@ -20,6 +20,7 @@ from ..utils import (
     map_structure_and_replace_key,
     flatten,
     for_each_grad_tensor,
+    extract_frame_summary,
 )
 import json
 import numpy
@@ -114,10 +115,12 @@ def info_hook(model, input, output, net_id):
     else:
         _model = model
 
+    _, frames = extract_frame_summary()
+
     new_in = clone_tensors(input)
     new_out = clone_tensors(output)
-    fwd_item = report.put_item("forward", new_in, new_out, _model, net_id)
-    bwd_item = report.put_item("backward", new_in, new_out, _model, net_id)
+    fwd_item = report.put_item("forward", new_in, new_out, _model, net_id, frames)
+    bwd_item = report.put_item("backward", new_in, new_out, _model, net_id, frames)
     bwd_item.set_forward(fwd_item)
 
     report.stack.push_api(_model, fwd_item, bwd_item)

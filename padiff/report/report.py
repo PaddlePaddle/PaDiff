@@ -25,7 +25,7 @@ class Report:
         self.marker = marker
         self.stack = LayerStack()
 
-    def put_item(self, type_, input_, output, net, net_id):
+    def put_item(self, type_, input_, output, net, net_id, frames):
         step = self.counter.get_id()
         self.items.append(
             ReportItem(
@@ -35,6 +35,7 @@ class Report:
                 output=output,
                 net=net,
                 net_id=net_id,  # traversal order of sublayers
+                frames=frames,
             )
         )
         return self.items[-1]
@@ -49,7 +50,7 @@ class Report:
 
 
 class ReportItem:
-    def __init__(self, type_, step, input_, output, net, net_id):
+    def __init__(self, type_, step, input_, output, net, net_id, frames):
         assert type_ in [
             "forward",
             "backward",
@@ -65,6 +66,7 @@ class ReportItem:
         self.fwd_item = None  # bound to another reportitem, if self.type is "backward"
         self.bwd_item = None  # bound to another reportitem, if self.type is "forward"
         self.input_grads = self._gen_input_grads()
+        self.frames = frames
 
     def set_forward(self, fwd):
         assert self.type == "backward", "can't set forward for non-backward item."
