@@ -27,7 +27,11 @@ from importlib.machinery import SourceFileLoader, ExtensionFileLoader, PathFinde
 
 from .report.hooks import info_hook
 from .datas import global_json_laoder as jsons
-from . import cinn_diff
+
+try:
+    from . import cinn_diff
+except:
+    pass
 
 
 def module_filter(name):
