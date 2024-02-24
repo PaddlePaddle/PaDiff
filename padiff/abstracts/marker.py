@@ -68,7 +68,6 @@ class Marker:
                 _layer_map.append(layer)
 
         self.layer_map = _layer_map
-        self._marked_layer = set(model.model for model in self.layer_map)
 
     def auto_layer_map(self, model_place):
         """
