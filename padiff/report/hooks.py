@@ -21,8 +21,8 @@ from ..utils import (
     flatten,
     for_each_grad_tensor,
     extract_frame_summary,
-    to_sequence,
 )
+from paddle.utils import to_sequence
 import json
 import numpy
 import paddle
