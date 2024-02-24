@@ -21,7 +21,7 @@ import paddle
 import torch
 
 
-from paddle.utils import flatten, pack_sequence_as, map_structure
+from paddle.utils import flatten, map_structure, pack_sequence_as
 
 
 """

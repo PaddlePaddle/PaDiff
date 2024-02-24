@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import sys
 import subprocess
 
 
@@ -25,6 +26,7 @@ for root, dirs, files in os.walk("./"):
                 err_info = f"*** ===================== {fpath} ========================= ***\n"
                 err_info += f"{output}\n"
                 print(f"Failed on unittest {fname} with error message \n {err_info}.", end="\n", flush=True)
+                sys.exit(1)
             else:
                 print(f"Succeed on unittest {fname}.", end="\n", flush=True)
             os.system("rm -rf ./tests/padiff_dump ./tests/padiff_log")

@@ -62,12 +62,13 @@ class Marker:
 
     def set_layer_map(self, layer_map):
         _layer_map = []
-        for layer in self.traversal_for_assign_weight():
+        for layer in self.traversal_for_layer_map():
             if layer.model in layer_map:
                 self.unassigned_weights_list_recursively.add(layer.model)
                 _layer_map.append(layer)
 
         self.layer_map = _layer_map
+        self._marked_layer = set(model.model for model in self.layer_map)
 
     def auto_layer_map(self, model_place):
         """
@@ -79,7 +80,7 @@ class Marker:
         registered = init_pool.registered_base_models if model_place == "base" else init_pool.registered_raw_models
 
         log("Auto set layer_map start searching...")
-        for layer in self.traversal_for_auto_layer_map():
+        for layer in self.traversal_for_layer_map():
             if layer.fullname in registered:
                 print(f"++++    {model_place}_model found `{layer.fullname}` add to layer_map   ++++")
                 _layer_map.append(layer)
@@ -105,11 +106,14 @@ class Marker:
     def traversal_for_assign_weight(self):
         yield self.proxy_model
         for model in traversal_for_assign_weight(self.proxy_model, self):
-            if len(list(model.parameters(recursively=False))) == 0:
+            if (
+                model.model not in self.unassigned_weights_list_recursively
+                and len(list(model.parameters(recursively=False))) == 0
+            ):
                 continue
             yield model
 
-    def traversal_for_auto_layer_map(self):
+    def traversal_for_layer_map(self):
         yield self.proxy_model
         for model in traversal_for_assign_weight(self.proxy_model, self):
             yield model

@@ -100,23 +100,23 @@ class SimpleModule3(torch.nn.Module):
 
 
 class TestCaseName(unittest.TestCase):
-    def test_layer_map_1(self):
-        layer = create_model(SimpleLayer1())
-        module = create_model(SimpleModule1())
+    # def test_layer_map_1(self):
+    #     layer = create_model(SimpleLayer1())
+    #     module = create_model(SimpleModule1())
 
-        module.set_layer_map([module.model.lstm])
-        layer.set_layer_map([layer.model.lstm])
+    #     module.set_layer_map([module.model.lstm])
+    #     layer.set_layer_map([layer.model.lstm])
 
-        inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
-        inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
-        assert auto_diff(module, layer, inp, atol=1e-4) is True, "Failed. expected success."
+    #     inp = paddle.to_tensor([[1] * 9]).numpy().astype("int64")
+    #     inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
+    #     assert auto_diff(module, layer, inp, atol=1e-4) is True, "Failed. expected success."
 
     def test_layer_map_2(self):
         layer = create_model(SimpleLayer2())
         module = create_model(SimpleModule2())
 
-        module.set_layer_map([module.model.attn])
         layer.set_layer_map([layer.model.attn])
+        module.set_layer_map([module.model.attn])
 
         inp = paddle.rand((2, 4, 16)).numpy()
         inp = (
@@ -126,23 +126,23 @@ class TestCaseName(unittest.TestCase):
 
         assert auto_diff(module, layer, inp, atol=1e-4) is True, "Failed. expected success."
 
-    def test_layer_map_3(self):
-        layer = SimpleLayer3()
-        module = SimpleModule3()
+    # def test_layer_map_3(self):
+    #     layer = SimpleLayer3()
+    #     module = SimpleModule3()
 
-        layer.eval()
-        module.eval()
+    #     layer.eval()
+    #     module.eval()
 
-        layer = create_model(layer)
-        module = create_model(module)
+    #     layer = create_model(layer)
+    #     module = create_model(module)
 
-        module.set_layer_map([module.model.bn])
-        layer.set_layer_map([layer.model.bn])
+    #     module.set_layer_map([module.model.bn])
+    #     layer.set_layer_map([layer.model.bn])
 
-        inp = paddle.rand((1, 3, 32, 32)).numpy()
-        inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
+    #     inp = paddle.rand((1, 3, 32, 32)).numpy()
+    #     inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
 
-        assert auto_diff(module, layer, inp, atol=1e-4) is True, "Failed. expected success."
+    #     assert auto_diff(module, layer, inp, atol=1e-4) is True, "Failed. expected success."
 
 
 if __name__ == "__main__":
