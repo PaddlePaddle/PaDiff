@@ -228,11 +228,32 @@ class PaDiffLoader(Loader):
         return None
 
 
+def add_thirdparty_apis(thirdparty_apis):
+    # Exp. 1:
+    #   thirdparty_apis = "paddle3d.ops.iou3d_nms,paddle3d.ops.hard_voxelize,paddle_xpu_nn.xpu_rms_norm"
+    #   json.THIRD_PARTY = {"paddle3d.ops": {"iou3d_nms", "hard_voxelize"}, "paddle_xpu_nn": {"xpu_rms_norm"}}
+    thirdparty_apis = thirdparty_api.replace(" ", "").split(",")
+    json.THIRD_PARTY = {}
+    for fullname in thirdparty_apis:
+        module = fullname.rpartition(".")[0]
+        api = fullname.rpartition(".")[2]
+        if not module in json.THIRD_PARTY:
+            json.THIRD_PARTY[module] = {api}
+        else:
+            json.THIRD_PARTY[module].add(api)
+
+    self.paddle_apis.update(self.THIRD_PARTY)
+
+
 if os.getenv("PADIFF_API_CHECK") == "ON":
     for name in jsons.TORCH_PATH:
         if name in sys.modules.keys():
             module = sys.modules[name]
             wrap_api_method(module)
+
+    thirdparty_apis = os.getenv("PADDLE_THIRDPARTY_API")
+    if thirdparty_apis is not None:
+        add_thirdparty_apis(thirdparty_apis)
 
     for name in jsons.PADDLE_PATH:
         if name in sys.modules.keys():
