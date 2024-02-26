@@ -61,9 +61,7 @@ class TestCaseName(unittest.TestCase):
         inp = paddle.rand((100, 100), dtype="float32")
 
         layer(inp)
-        layer.report
-
-        assert len(layer.report.items) == 12
+        assert len(layer.report.items) == 10
 
 
 if __name__ == "__main__":

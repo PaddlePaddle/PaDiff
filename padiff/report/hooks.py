@@ -22,6 +22,7 @@ from ..utils import (
     for_each_grad_tensor,
     extract_frame_summary,
 )
+from paddle.utils import to_sequence
 import json
 import numpy
 import paddle
@@ -133,8 +134,7 @@ def info_hook(model, input, output, net_id):
         # two report_item with same id, the step_idx should be corresponded
         step_idx = len(list(filter(lambda x: x.type == "forward" and x.net_id == net_id, report.items))) - 1
         base_report_node = find_base_report_node(net_id, step_idx)
-
-        retval = map_structure_and_replace_key(replace_forward_output(base_report_node), output, output)
+        retval = map_structure_and_replace_key(replace_forward_output(base_report_node), to_sequence(output), output)
         __in_info_hook__ = False
         return retval
     else:
@@ -158,7 +158,7 @@ def tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
         )
         base_report_node = find_base_report_node(net_id, step_idx)
 
-        value = numpy.load(base_report_node["bwd_grads"][nth_tensor])
+        value = numpy.load(base_report_node["bwd_grads"][nth_tensor]["path"])
         if isinstance(x_grad, paddle.Tensor):
             return paddle.to_tensor(value)
         else:
@@ -259,7 +259,7 @@ def replace_forward_output(node):
                 raise RuntimeError(
                     "In single step mode, try to replace tensor by dumpped numpy value, but the number of tensors and numpy is not equal. Maybe the models are not corresponded."
                 )
-            value = numpy.load(numpy_file_list[cur_idx])
+            value = numpy.load(numpy_file_list[cur_idx]["path"])
             if isinstance(input_, paddle.Tensor):
                 return paddle.to_tensor(value)
             else:
