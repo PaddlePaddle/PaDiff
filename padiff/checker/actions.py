@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..utils import assert_tensor_equal
+from ..utils import assert_tensor_equal, log
 from .checker_utils import load_numpy
 
 import warnings
@@ -75,4 +75,9 @@ class EqualAction(Action):
                     raise RuntimeError("size of tensors is not equal")
                 warnings.warn("Found nparray.size == 0, compare skipped!")
                 continue
-            assert_tensor_equal(tensor_0, tensor_1, cfg)
+            try:
+                assert_tensor_equal(tensor_0, tensor_1, cfg)
+            except Exception as e:
+                raise RuntimeError(
+                    "Compare Tensor: " + info_0["path"] + ", " + info_1["path"] + "\n"
+                     + str(e))

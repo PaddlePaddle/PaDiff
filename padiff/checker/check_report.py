@@ -82,6 +82,7 @@ def check_forward(nodes, reports, cfg):
             print_report_info(nodes, reports, e, "Forward")
             return False
 
+    log("Parent Node Check Failed, Analysing Children Nodes !!!")
     # reorder current level
     try:
         if not nodes[1]["reordered"]:
