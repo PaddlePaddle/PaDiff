@@ -25,6 +25,7 @@ global_compare_configs = {
     "atol": 0,
     "rtol": 1e-7,
     "compare_mode": "mean",
+    "act_name": "equal",
 }
 
 

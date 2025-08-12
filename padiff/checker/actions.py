@@ -20,16 +20,33 @@ import warnings
 
 class ActionPool:
     def __init__(self):
-        self.pool = []
+        self.pool = {}
+        self._ordered_pool = []
 
-    def register(self, cls):
-        name = cls.__name__
-        self.pool.append(cls())
-        sorted(self.pool, key=lambda x: x.priority, reverse=True)  # high -> low
-        return cls
+    def register(self, name=None):
+        def decorator(cls):
+            final_name = cls.__name__ if name is None else name
+            self.pool[final_name] = cls()
+            self._ordered_pool = sorted(self.pool.values(), key=lambda x: x.priority, reverse=True)  # high -> low
+            return cls
 
-    def find_actions(self, report_0, node_0, report_1, node_1):
-        for act in self.pool:
+        if callable(name):
+            cls = name
+            name = None
+            return decorator(cls)
+        else:
+            return decorator
+
+    def get_action_by_name(self, name):
+        if name not in self.pool:
+            raise ValueError(f"Action '{name}' not registered. Available: {list(self.pool.keys())}")
+        return self.pool[name]
+
+    def find_actions(self, report_0, node_0, report_1, node_1, name=None):
+        if name is not None:
+            return self.get_action_by_name(name)
+
+        for act in self._ordered_pool:
             if act.match(report_0, node_0, report_1, node_1):
                 return act
         raise RuntimeError("No action is matched, not expected.")
@@ -54,7 +71,7 @@ class Action:
         raise NotImplementedError("")
 
 
-@global_actions.register
+@global_actions.register("equal")
 class EqualAction(Action):
     def match(self, report_0, node_0, report_1, node_1):
         return True
@@ -68,6 +85,33 @@ class EqualAction(Action):
             file_list_1
         ), f"number of tensors for compare is not equal, {len(file_list_0)} vs {len(file_list_1)}"
         for info_0, info_1 in zip(file_list_0, file_list_1):
+            tensor_0 = load_numpy(info_0["path"])
+            tensor_1 = load_numpy(info_1["path"])
+            if tensor_0.size == 0 or tensor_1.size == 0:
+                if tensor_0.size != tensor_1.size:
+                    raise RuntimeError("size of tensors is not equal")
+                warnings.warn("Found nparray.size == 0, compare skipped!")
+                continue
+            assert_tensor_equal(tensor_0, tensor_1, cfg)
+
+
+@global_actions.register("loose_equal")
+class LooseEqualAction(Action):
+    def match(self, report_0, node_0, report_1, node_1):
+        return True
+
+    @property
+    def priority(self):
+        return 1
+
+    def __call__(self, file_list_0, file_list_1, cfg):
+        len_fl_0, len_fl_1 = len(file_list_0), len(file_list_1)
+        if len_fl_0 != len_fl_1:
+            warnings.warn(f"number of tensors for compare is not equal, {len_fl_0} vs {len_fl_1}")
+
+        min_len = min(len_fl_0, len_fl_1)
+
+        for info_0, info_1 in zip(file_list_0[:min_len], file_list_1[:min_len]):
             tensor_0 = load_numpy(info_0["path"])
             tensor_1 = load_numpy(info_1["path"])
             if tensor_0.size == 0 or tensor_1.size == 0:
