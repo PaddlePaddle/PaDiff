@@ -16,6 +16,7 @@ import json
 import os, sys
 import numpy
 import paddle
+import torch
 from .utils import Counter, frames_to_string, reset_dir
 
 
@@ -83,7 +84,11 @@ def dump_report_node(wrap_node, tensor_dumper):
         "stack": frames_to_string(wrap_node.fwd_report.frames),
     }
     for tensor in wrap_node.fwd_report.tensors_for_compare():
-        file_name = tensor_dumper(tensor.detach().numpy())
+        if tensor.dtype == torch.bfloat16:
+            np_array = tensor.detach().float().numpy()
+        else:
+            np_array = tensor.detach().numpy()
+        file_name = tensor_dumper(np_array)
         node_info["fwd_outputs"].append(
             {
                 "path": file_name,
