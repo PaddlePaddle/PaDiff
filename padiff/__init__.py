@@ -270,6 +270,8 @@ paddle.set_printoptions(precision=10)
 torch.set_printoptions(precision=10)
 
 from .interfaces import *
+from .report import *
+from .dump_tools import dump_report
 
 __all__ = [
     "create_model",
@@ -283,4 +285,7 @@ __all__ = [
     "set_dump_root_path",
     "get_dump_root_path",
     "add_special_init",
+    "register_hooker",
+    "report_guard",
+    "dump_report",
 ]
