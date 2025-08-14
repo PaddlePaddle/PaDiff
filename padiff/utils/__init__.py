@@ -1,4 +1,4 @@
-# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2025 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,5 +14,5 @@
 
 # this folder is just used to support assign_weight interface
 
-from .weights import assign_weight_, yamls, check_shape
-from .load_weights import load_init_weights_from_dump
+from .load_files import load_first_input_from_dump
+from .utils import *

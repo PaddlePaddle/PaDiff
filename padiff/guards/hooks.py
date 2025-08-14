@@ -14,7 +14,6 @@
 
 import contextlib
 from functools import partial
-from .report import current_report
 from ..utils import (
     clone_tensors,
     map_structure_and_replace_key,
@@ -22,8 +21,8 @@ from ..utils import (
     for_each_grad_tensor,
     extract_frame_summary,
 )
+from .core import single_step_state, find_base_report_node, current_report
 from paddle.utils import to_sequence
-import json
 import numpy
 import paddle
 import torch
@@ -38,6 +37,13 @@ def register_hooker(model):
     # traversal_for_hook includes layers which we need add pre and post hook
     # for model structure, but not info hook (they are in black list)
     models = list(marker.traversal_for_hook())
+
+    # register model-level hooks
+    handle_init = model.register_forward_pre_hook(partial(init_weights_hook))
+    handle_input = model.register_forward_pre_hook(partial(first_input_hook))
+    remove_handles.extend([handle_init, handle_input])
+
+    # register layer-level hooks
     for mod in models:
         pre_handle = mod.register_forward_pre_hook(partial(pre_structure_hook))
         if mod not in marker.black_list:
@@ -54,6 +60,41 @@ def register_hooker(model):
 """
     hooks used to build module structure
 """
+
+
+def init_weights_hook(model, input):
+    report = current_report()
+    if report is not None and not hasattr(report, "init_weights_saved"):
+        init_weights = {}
+        for name, param in model.named_parameters():
+            if isinstance(param, (paddle.Tensor, torch.Tensor)):
+                init_weights[name] = param.detach().cpu().numpy()
+        report.init_weights = init_weights
+        report.init_weights_saved = True
+    return None
+
+
+def first_input_hook(model, input):
+    report = current_report()
+    if report is not None and not hasattr(report, "first_input_captured"):
+
+        def serialize(x):
+            if isinstance(x, (paddle.Tensor, torch.Tensor)):
+                return ("Tensor", x.detach().cpu().numpy())
+            elif isinstance(x, dict):
+                return ("dict", {k: serialize(v) for k, v in x.items()})
+            elif isinstance(x, (list, tuple)):
+                return (type(x).__name__, [serialize(item) for item in x])
+            else:
+                return (type(x).__name__, str(x))
+
+        try:
+            serialized = [serialize(x) for x in to_sequence(input)]
+            report.first_input = serialized
+            report.first_input_captured = True
+        except Exception as e:
+            print(f"[Warning] Failed to capture first input: {e}")
+    return None
 
 
 def pre_structure_hook(layer, input):
@@ -191,62 +232,6 @@ class TorchModuleStr(torch.nn.Module):
         super(TorchModuleStr, self).__init__()
         self.__name__ = net.__name__
         self.__api__ = net.__api__
-
-
-single_step_phase = ""
-single_step_base = None
-
-
-@contextlib.contextmanager
-def SyncStepGuard(diff_phase, report_path):
-    global single_step_phase, single_step_base
-    try:
-        old_phase = single_step_phase
-        old_base = single_step_base
-
-        with open(report_path + "/" + "report.json", "r") as report_file:
-            report = json.load(report_file)
-
-        single_step_phase = diff_phase
-        single_step_base = split_by_net_id(report)
-
-        yield
-    finally:
-        single_step_phase = old_phase
-        single_step_base = old_base
-
-
-def split_by_net_id(report):
-    bucket = {}
-
-    def _traversal(node, bucket):
-        net_id = node["metas"]["net_id"]
-        if net_id == -1:
-            return
-        if net_id not in bucket:
-            bucket[net_id] = [node]
-        else:
-            bucket[net_id].append(node)
-
-        for child in node["children"]:
-            _traversal(child, bucket)
-
-    for tree in report["tree"]:
-        _traversal(tree, bucket)
-
-    for key in bucket:
-        bucket[key].sort(key=lambda x: x["metas"]["fwd_step"])
-
-    return bucket
-
-
-def single_step_state():
-    return single_step_phase
-
-
-def find_base_report_node(net_id, step_idx):
-    global single_step_base
-    return single_step_base[net_id][step_idx]
 
 
 def replace_forward_output(node):

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
 
 from ..utils import Counter, for_each_grad_tensor, for_each_tensor
 from .module_struct import LayerStack
@@ -99,21 +98,3 @@ class ReportItem:
         strings.append("    step_idx: {}".format(self.step))
         strings.append("    net: {}\n".format(self.net_str))
         return "\n".join(strings)
-
-
-global_report = None
-
-
-@contextlib.contextmanager
-def report_guard(report):
-    global global_report
-    old_report = global_report
-    try:
-        global_report = report
-        yield
-    finally:
-        global_report = old_report
-
-
-def current_report():
-    return global_report

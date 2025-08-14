@@ -1,4 +1,4 @@
-# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2025 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# this folder is just used to support assign_weight interface
+import contextlib
+from .core import AlignmentGuard, report_guard
+from .hooks import register_hooker
 
-from .weights import assign_weight_, yamls, check_shape
-from .load_weights import load_init_weights_from_dump
+
+@contextlib.contextmanager
+def PaDiffGuard(model, seed=42):
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(AlignmentGuard(model, seed=seed))
+        stack.enter_context(register_hooker(model))
+        stack.enter_context(report_guard(model.report))
+        yield model

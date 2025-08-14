@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from ..utils import for_each_tensor, log
-from ..report import SyncStepGuard
+from ..guards import SyncStepGuard
 from ..dump_tools import dump_report, dump_weights, dump_grads
 from ..checker import check_report, check_weights, check_grads, global_compare_configs
 
