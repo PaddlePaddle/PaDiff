@@ -72,7 +72,8 @@ def _check_report_impl(report_path_0, report_path_1, cfg=None, diff_phase="both"
 
 
 def check_forward(nodes, reports, cfg):
-    act = get_action(reports[0], nodes[0], reports[1], nodes[1])
+    act_name = cfg.pop("act_name", None)
+    act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=act_name)
     try:
         act(nodes[0]["fwd_outputs"], nodes[1]["fwd_outputs"], cfg)
         return True
@@ -106,7 +107,8 @@ def check_forward(nodes, reports, cfg):
 
 
 def check_backward(nodes, reports, cfg):
-    act = get_action(reports[0], nodes[0], reports[1], nodes[1])
+    act_name = cfg.pop("act_name", None)
+    act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=act_name)
     try:
         act(nodes[0]["bwd_grads"], nodes[1]["bwd_grads"], cfg)
         return True

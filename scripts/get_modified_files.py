@@ -16,7 +16,12 @@ import re
 import subprocess
 import sys
 
-modified_files = subprocess.check_output("git diff --name-only develop".split()).decode("utf-8").split()
+cmd = ["git", "diff", "--name-only", "origin/develop"]
+try:
+    modified_files = subprocess.check_output(cmd).decode("utf-8").split()
+except subprocess.CalledProcessError:
+    print("Failed to diff against origin/develop", file=sys.stderr)
+    modified_files = []
 
 valid_dirs = "|".join(sys.argv[1:])
 regex = re.compile(rf"^({valid_dirs}).*?\.py$")

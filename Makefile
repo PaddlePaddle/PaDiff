@@ -16,7 +16,7 @@ format:
 
 # # # # # # # # # # # # # # # Lint Block # # # # # # # # # # # # # # # 
 
-.PHONY: lint
+.PHONY: lint lint-all
 lint:
 	$(eval modified_py_files := $(shell python scripts/get_modified_files.py $(check_dirs)))
 	@if test -n "$(modified_py_files)"; then \
@@ -26,6 +26,9 @@ lint:
 		echo "No library .py files were modified"; \
 	fi	
 
+lint-all:
+	pre-commit run --all-files
+
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # # # # # # # # # # # # # # # Test Block # # # # # # # # # # # # # # # 
@@ -34,12 +37,20 @@ lint:
 test: unit-test
 
 unit-test:
-	PYTHONPATH=. python tests/padiff_unittests.py
+	@echo "Running unit tests with coverage..."
+	PYTHONPATH=. coverage run --source=. tests/padiff_unittests.py
+	@echo ""
+	@echo "Coverage Report:"
+	coverage report -m
+	@echo ""
+	@echo "Generating XML report for CI..."
+	coverage xml
+	@echo "Coverage report generated: coverage.xml"
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 .PHONY: install
 install:
-	pip install -r requirements-dev.txt
-	pip install -r requirements.txt
+	pip install --upgrade pip
+	pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
 	pre-commit install
