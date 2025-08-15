@@ -17,7 +17,7 @@ import os, sys
 import numpy
 import paddle
 import torch
-from .utils import Counter, frames_to_string, reset_dir
+from ..utils import Counter, frames_to_string, reset_dir
 
 
 dump_root_path = os.path.join(sys.path[0], "padiff_dump")

@@ -14,5 +14,4 @@
 
 # this folder is just used to support assign_weight interface
 
-from .load_files import load_first_input_from_dump
 from .utils import *

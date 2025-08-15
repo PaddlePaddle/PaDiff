@@ -12,6 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# this folder is just used to support assign_weight interface
+from .dump_tools import (
+    dump_report,
+    dump_params,
+    dump_weights,
+    dump_grads,
+    dump_init_weights,
+    dump_first_input,
+    get_dump_root_path,
+    set_dump_root_path,
+)
+from .load_tools import load_first_input_from_dump, load_init_weights_from_dump
 
-from .weights import assign_weight_
+
+__all__ = [
+    "dump_report",
+    "dump_params",
+    "dump_weights",
+    "dump_grads",
+    "dump_init_weights",
+    "dump_first_input",
+    "load_first_input_from_dump",
+    "load_init_weights_from_dump",
+    "get_dump_root_path",
+    "set_dump_root_path",
+]

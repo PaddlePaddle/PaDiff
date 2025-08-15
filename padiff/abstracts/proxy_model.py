@@ -23,7 +23,7 @@ from .marker import Marker
 from ..report import Report
 from ..guards import report_guard, register_hooker
 from ..utils import reset_dir, log
-from ..dump_tools import dump_report, dump_params, dump_weights, dump_grads, get_dump_root_path
+from ..tools import dump_report, dump_params, dump_weights, dump_grads, get_dump_root_path
 
 
 class ProxyModel:

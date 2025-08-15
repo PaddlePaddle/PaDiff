@@ -272,9 +272,7 @@ torch.set_printoptions(precision=10)
 from .interfaces import *
 from .report import *
 from .guards import *
-from .dump_tools import dump_report, dump_init_weights
-from .utils import load_first_input_from_dump
-from .weight_init import load_init_weights_from_dump
+from .tools import *
 
 __all__ = [
     "create_model",
