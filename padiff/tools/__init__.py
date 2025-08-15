@@ -12,9 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# this folder is used for support user interfaces
+from .dump_tools import (
+    dump_report,
+    dump_params,
+    dump_weights,
+    dump_grads,
+    dump_init_weights,
+    dump_first_input,
+    get_dump_root_path,
+    set_dump_root_path,
+)
+from .load_tools import load_first_input_from_dump, load_init_weights_from_dump
 
-from .interfaces import create_model, assign_weight, auto_diff, check_dataloader
-from ..checker import check_report, check_params, check_grads, check_weights
-from ..tools import set_dump_root_path, get_dump_root_path
-from ..weight_init.special_init import add_special_init
+
+__all__ = [
+    "dump_report",
+    "dump_params",
+    "dump_weights",
+    "dump_grads",
+    "dump_init_weights",
+    "dump_first_input",
+    "load_first_input_from_dump",
+    "load_init_weights_from_dump",
+    "get_dump_root_path",
+    "set_dump_root_path",
+]

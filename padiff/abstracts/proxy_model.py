@@ -20,9 +20,10 @@ from .proxy_parameter import ProxyParam
 from .proxy_utils import deco_iter
 from .marker import Marker
 
-from ..report import Report, report_guard, register_hooker
+from ..report import Report
+from ..guards import report_guard, register_hooker
 from ..utils import reset_dir, log
-from ..dump_tools import dump_report, dump_params, dump_weights, dump_grads, get_dump_root_path
+from ..tools import dump_report, dump_params, dump_weights, dump_grads, get_dump_root_path
 
 
 class ProxyModel:
@@ -108,6 +109,12 @@ class ProxyModel:
                 return loss.backward()
         else:
             return loss.backward()
+
+    def toggle_dropout(self, enable=False):
+        mode = "train" if enable else "eval"
+        for submodel in self.marker.traversal_for_hook():
+            if "Dropout" in submodel.class_name:
+                getattr(submodel.model, mode)()
 
     """
         black_list and white_list
@@ -228,7 +235,7 @@ class PaddleModel(ProxyModel):
         origin_iter = self.model.parameters(include_sublayers=recursively)
         return deco_iter(origin_iter, ProxyParam.create_from)
 
-    def named_parameters(self, recursively):
+    def named_parameters(self, recursively=True):
         origin_iter = self.model.named_parameters(include_sublayers=recursively)
         return deco_iter(origin_iter, ProxyParam.create_from)
 
@@ -294,7 +301,7 @@ class TorchModel(ProxyModel):
         origin_iter = self.model.parameters(recurse=recursively)
         return deco_iter(origin_iter, ProxyParam.create_from)
 
-    def named_parameters(self, recursively):
+    def named_parameters(self, recursively=True):
         origin_iter = self.model.named_parameters(recurse=recursively)
         return deco_iter(origin_iter, ProxyParam.create_from)
 

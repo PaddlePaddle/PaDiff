@@ -17,7 +17,7 @@ import os, sys
 import numpy
 import paddle
 import torch
-from .utils import Counter, frames_to_string, reset_dir
+from ..utils import Counter, frames_to_string, reset_dir
 
 
 dump_root_path = os.path.join(sys.path[0], "padiff_dump")
@@ -54,6 +54,10 @@ def dump_report(model, dump_path):
     report = model.report
     tensor_path = dump_path + "/tensors"
     tensor_dumper = numpy_dumper(tensor_path, "tensor")
+
+    init_weights_info = dump_init_weights(report, dump_path)
+    first_input_info = dump_first_input(report, dump_path)
+
     report_info = {
         "model_name": model.name,
         "framework": model.framework,
@@ -63,6 +67,8 @@ def dump_report(model, dump_path):
             "fullname": [mod.fullname for mod in model.marker.layer_map],
         },
         "tree": [dump_report_node(root, tensor_dumper) for root in report.stack.root],
+        **init_weights_info,
+        **first_input_info,
     }
     with open(f"{dump_path}/report.json", "w") as fp:
         json.dump(report_info, fp, indent=4)
@@ -198,3 +204,53 @@ def dump_grads(model, path):
             param_info["grads"][param_name] = None
 
     dump_param_prototype(model, _dump, f"{path}/grads.json")
+
+
+def dump_init_weights(report, path):
+    """
+    Dump the initial weights captured by init_weights_hook.
+    Saved to: {path}/init_weights/*.npy
+    """
+    init_weights = getattr(report, "init_weights", None)
+    if init_weights is None:
+        return {"has_init_weights": False}
+
+    init_weights_path = os.path.join(path, "init_weights")
+    os.makedirs(init_weights_path, exist_ok=True)
+
+    for name, arr in init_weights.items():
+        numpy.save(os.path.join(init_weights_path, f"{name}.npy"), arr)
+
+    return {"has_init_weights": True, "init_weights_dir": "init_weights"}
+
+
+def dump_first_input(report, path):
+    """
+    Dump the first forward input captured by input_hook.
+    Tensor inputs saved as .npy; others saved as .json.
+    """
+    first_input = getattr(report, "first_input", None)
+    if first_input is None:
+        return {"has_first_input": False}
+
+    first_input_path = os.path.join(path, "first_input")
+    os.makedirs(first_input_path, exist_ok=True)
+
+    input_idx = 0
+    for i, (typ, data) in enumerate(first_input):
+        if typ == "Tensor" and isinstance(data, numpy.ndarray):
+            numpy.save(os.path.join(first_input_path, f"input_{input_idx}.npy"), data)
+        else:
+            meta_file = os.path.join(first_input_path, f"input_{input_idx}.json")
+            try:
+                json.dump({"type": typ, "data": data}, open(meta_file, "w"), indent=2, default=str)
+            except Exception as e:
+                with open(meta_file, "w") as f:
+                    f.write(f"type: {typ}\nvalue: {str(data)}")
+        input_idx += 1
+
+    return {
+        "has_first_input": True,
+        "first_input_dir": "first_input",
+        "first_input_count": input_idx,
+    }

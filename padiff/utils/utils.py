@@ -24,6 +24,14 @@ import torch
 from paddle.utils import flatten, map_structure, pack_sequence_as
 
 
+def set_seed(seed=42):
+    np.random.seed(seed)
+    paddle.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 """
     clone tensor
 """

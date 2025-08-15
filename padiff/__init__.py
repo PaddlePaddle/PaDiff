@@ -25,7 +25,7 @@ from functools import partial
 from importlib.abc import MetaPathFinder, Loader
 from importlib.machinery import SourceFileLoader, ExtensionFileLoader, PathFinder
 
-from .report.hooks import info_hook
+from .guards.hooks import info_hook
 from .datas import global_json_laoder as jsons
 
 try:
@@ -271,7 +271,8 @@ torch.set_printoptions(precision=10)
 
 from .interfaces import *
 from .report import *
-from .dump_tools import dump_report
+from .guards import *
+from .tools import *
 
 __all__ = [
     "create_model",
@@ -288,4 +289,9 @@ __all__ = [
     "register_hooker",
     "report_guard",
     "dump_report",
+    "load_first_input_from_dump",
+    "load_init_weights_from_dump",
+    "dump_init_weights",
+    "AlignmentGuard",
+    "PaDiffGuard",
 ]
