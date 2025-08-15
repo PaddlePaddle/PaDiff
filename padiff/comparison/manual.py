@@ -11,12 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# this folder is just used to support assign_weight interface
-
-from .data_structures import *
-from .decorators import *
-from .io import *
-from .data_structures import *
-from .utils import *
-from .log import *

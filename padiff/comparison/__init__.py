@@ -1,4 +1,4 @@
-# Copyright (c) 2025 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,11 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# this folder is just used to support assign_weight interface
+# this folder is used for support user interfaces
 
-from .data_structures import *
-from .decorators import *
-from .io import *
-from .data_structures import *
-from .utils import *
-from .log import *
+from .checker import check_grads, check_params, check_report, check_weights, check_dataloader
+from .auto import assign_weight, auto_diff, create_model

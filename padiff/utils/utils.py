@@ -12,15 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import sys
-import shutil
+import json
 
 import numpy as np
 import paddle
 import torch
-
-
 from paddle.utils import flatten, map_structure, pack_sequence_as
 
 
@@ -96,8 +92,7 @@ def for_each_tensor(*structure):
     flat_structure = [flatten(s) for s in structure]
     entries = zip(*flat_structure)
     entries = filter(lambda x: is_tensors(*x), entries)
-    for tensors in entries:
-        yield tensors
+    yield from entries
 
 
 def for_each_grad_tensor(*structure):
@@ -138,54 +133,6 @@ def assert_tensor_equal(tensor1, tensor2, cfg):
         np.testing.assert_allclose(abs(tensor1).mean(), abs(tensor2).mean(), atol=atol, rtol=rtol)
     else:
         raise RuntimeError(f"Invalid compare_mode {compare_mode}")
-
-
-"""
-    process files
-"""
-
-
-def reset_dir(path):
-    if os.path.exists(path):
-        shutil.rmtree(path)
-    os.makedirs(path)
-
-
-"""
-    log utils
-"""
-log_path = os.path.join(sys.path[0], "padiff_log")
-__reset_log_dir__ = False  # reset log_path only once
-
-
-def log_file(filename, mode, info):
-    global __reset_log_dir__
-    if not __reset_log_dir__:
-        reset_dir(log_path)
-        __reset_log_dir__ = True
-
-    filepath = os.path.join(log_path, filename)
-    with open(filepath, mode) as f:
-        f.write(info)
-
-    return filepath
-
-
-def log(*args):
-    print("[AutoDiff]", *args)
-
-
-class Counter:
-    def __init__(self):
-        self.clear()
-
-    def clear(self):
-        self.id = 0
-
-    def get_id(self):
-        ret = self.id
-        self.id += 1
-        return ret
 
 
 """
@@ -236,7 +183,22 @@ def frames_to_string(frames, indent=0):
     indent = " " * indent
     lines = []
     for f in frames:
-        lines.append(
-            "{}File {}: {}    {}\n{}{}{}".format(indent, f.filename, f.lineno, f.name, indent, indent, f.line)
-        )
+        lines.append(f"{indent}File {f.filename}: {f.lineno}    {f.name}\n{indent}{indent}{f.line}")
     return "\n".join(lines)
+
+
+"""
+    load tools
+"""
+
+
+def load_numpy(path):
+    if path is None:
+        return None
+    return np.load(path)
+
+
+def load_json(path, report_name):
+    with open(path + "/" + report_name) as f:
+        retval = json.load(f)
+    return retval

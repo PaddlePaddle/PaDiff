@@ -1,4 +1,4 @@
-# Copyright (c) 2025 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,11 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# this folder is just used to support assign_weight interface
+import importlib
+import os
 
-from .data_structures import *
-from .decorators import *
-from .io import *
-from .data_structures import *
-from .utils import *
-from .log import *
+from .special_init_pool import add_special_init, build_name, global_special_init_pool
+
+cur_dir = os.path.split(os.path.realpath(__file__))[0]
+for filename in os.listdir(cur_dir):
+    if filename.startswith("init_") and filename.endswith(".py"):
+        module_name = filename.rpartition(".")[0]
+        importlib.import_module(__name__ + "." + module_name)
+
+__all__ = [
+    "global_special_init_pool",
+    "add_special_init",
+    "build_name",
+]

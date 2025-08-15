@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import paddle
 import torch
-import os
+
 from ..utils import log
-from ..weight_init.special_init.special_init_pool import global_special_init_pool as init_pool
+from .special_init import global_special_init_pool as init_pool
 
 
 class Marker:
@@ -114,8 +116,7 @@ class Marker:
 
     def traversal_for_layer_map(self):
         yield self.proxy_model
-        for model in traversal_for_assign_weight(self.proxy_model, self):
-            yield model
+        yield from traversal_for_assign_weight(self.proxy_model, self)
 
 
 def traversal_prototype(fn0, fn1):
@@ -126,8 +127,7 @@ def traversal_prototype(fn0, fn1):
             if fn0(child, marker):
                 yield child
             if fn1(child, marker):
-                for sublayer in inner(child, marker):
-                    yield sublayer
+                yield from inner(child, marker)
 
     return inner
 
@@ -155,22 +155,17 @@ def traversal_with_white_list(model, marker):
         if child.model in marker.white_list:
             yield child
         if child.model in marker.white_list_recursively:
-            for sublayer in traversal_all(child, marker):
-                yield sublayer
+            yield from traversal_all(child, marker)
         else:
-            for sublayer in traversal_with_white_list(child, marker):
-                yield sublayer
+            yield from traversal_with_white_list(child, marker)
 
 
 def traversal_for_hook(model, marker):
     if marker.use_white_list:
-        for mod in traversal_with_white_list(model, marker):
-            yield mod
+        yield from traversal_with_white_list(model, marker)
     else:
-        for mod in traversal_layers_for_model_struct(model, marker):
-            yield mod
+        yield from traversal_layers_for_model_struct(model, marker)
 
 
 def traversal_for_assign_weight(model, marker):
-    for mod in traversal_layers_assign_weight(model, marker):
-        yield mod
+    yield from traversal_layers_assign_weight(model, marker)
