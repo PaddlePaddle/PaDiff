@@ -59,7 +59,11 @@ def warpped_fn(model, x):
 
 
 def run_paddle(warpped=False):
-    """ """
+    """
+    model = SimpleTorch()
+    inp = paddle.rand((100, 100))
+    out = model(inp)
+    """
     model = SimplePaddle()
     pd_model = create_model(model, name=f"model_PD")
     inp = paddle.rand((100, 100))
