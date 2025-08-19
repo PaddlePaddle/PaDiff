@@ -26,6 +26,7 @@ from ...utils import (
     flatten,
     for_each_grad_tensor,
     map_structure_and_replace_key,
+    logger,
 )
 from .base import current_report, find_base_report_node, single_step_state
 
@@ -60,7 +61,7 @@ def register_hooker(model):
 
 
 """
-    hooks used to build module structure
+    hooks for catching data
 """
 
 
@@ -78,7 +79,16 @@ def init_weights_hook(model, input):
 
 def first_input_hook(model, input):
     report = current_report()
-    if report is not None and not hasattr(report, "first_input_captured"):
+    if report is None:
+        return None
+
+    if hasattr(report, "_loaded_inputs") and report._loaded_inputs is not None:
+        loaded_inputs = report._loaded_inputs
+        if isinstance(loaded_inputs, list):
+            return tuple(loaded_inputs)
+        return loaded_inputs
+
+    if not hasattr(report, "first_input_captured"):
 
         def serialize(x):
             if isinstance(x, (paddle.Tensor, torch.Tensor)):
@@ -95,8 +105,13 @@ def first_input_hook(model, input):
             report.first_input = serialized
             report.first_input_captured = True
         except Exception as e:
-            print(f"[Warning] Failed to capture first input: {e}")
+            logger.warning(f"Failed to capture first input: {e}")
     return None
+
+
+"""
+    hooks used to build module structure
+"""
 
 
 def pre_structure_hook(layer, input):

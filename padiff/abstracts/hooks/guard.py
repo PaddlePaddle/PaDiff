@@ -18,6 +18,9 @@ import json
 from ...utils import set_seed
 from .base import _context, _current_report
 from .hook import register_hooker
+from ..proxy import create_model
+from ...tools import dump_report
+from ...utils import logger
 
 
 _global_report = None
@@ -65,10 +68,79 @@ def AlignmentGuard(model, seed=42):
         pass
 
 
+class _CallsComplete(Exception):
+    """A private exception used by PaDiffGuard to interrupt execution.
+
+    This exception is raised by the internal calls_hook when the maximum number
+    of calls (max_calls) has been reached. It is caught by PaDiffGuard
+    to exit the context manager gracefully.
+    """
+
+    pass
+
+
 @contextlib.contextmanager
-def PaDiffGuard(model, seed=42):
-    with contextlib.ExitStack() as stack:
-        stack.enter_context(AlignmentGuard(model, seed=seed))
-        stack.enter_context(report_guard(model.report))
-        stack.enter_context(register_hooker(model))
-        yield model
+def PaDiffGuard(
+    model,
+    name="model",
+    auto_dump=True,
+    load_weights_from=None,
+    load_inputs_from=None,
+    framework=None,
+    verbose=False,
+    seed=42,
+    max_calls=1,
+):
+    # create_model
+    if not hasattr(model, "report"):
+        proxy_model = create_model(model, name=name)
+    else:
+        proxy_model = model
+
+    # load init weights
+    if load_weights_from:
+        from ...tools import load_init_weights_from_dump
+
+        load_init_weights_from_dump(load_weights_from, proxy_model, verbose=verbose)
+
+    # load inputs
+    loaded_inputs = None
+    if load_inputs_from:
+        from ...tools import load_first_input_from_dump
+
+        assert framework is not None, "'framework' must be setted if 'load_inputs_from' is not None"
+        loaded_inputs = load_first_input_from_dump(load_inputs_from, framework)
+    report = proxy_model.report
+    report._loaded_inputs = loaded_inputs
+
+    # moniter number of calls
+    calls_count = 0
+
+    def calls_hook(m, input, output):
+        nonlocal calls_count
+        calls_count += 1
+        if calls_count >= max_calls:
+            raise _CallsComplete()
+
+    try:
+        # set hooks
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(AlignmentGuard(proxy_model, seed=seed))
+            stack.enter_context(report_guard(proxy_model.report))
+            stack.enter_context(register_hooker(proxy_model))
+
+            count_handle = proxy_model.register_forward_post_hook(calls_hook)
+            stack.callback(count_handle.remove)
+
+            # dump report
+            if auto_dump:
+                stack.callback(lambda: dump_report(proxy_model, proxy_model.dump_path))
+
+            yield model
+
+    except _CallsComplete:
+        logger.info(f"PaDiffGuard: calls completed ({calls_count}/{max_calls})")
+        # raise
+        import sys
+
+        sys.exit(0)

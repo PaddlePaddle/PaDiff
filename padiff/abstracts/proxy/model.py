@@ -17,7 +17,6 @@ import re
 import paddle
 import torch
 
-from ..hooks import register_hooker, report_guard
 from ..marker import Marker
 from ..report import Report
 from ...tools import dump_grads, dump_params, dump_report, dump_weights, get_dump_root_path
@@ -97,6 +96,8 @@ class ProxyModel:
 
     def __call__(self, *args, **kwargs):
         if self.step % self.dump_freq == 0:
+            from ..hooks import register_hooker, report_guard
+
             with register_hooker(self), report_guard(self.report):
                 return self.model(*args, **kwargs)
         else:
@@ -104,6 +105,8 @@ class ProxyModel:
 
     def backward(self, loss):
         if self.step % self.dump_freq == 0:
+            from ..hooks import register_hooker, report_guard
+
             with register_hooker(self), report_guard(self.report):
                 return loss.backward()
         else:

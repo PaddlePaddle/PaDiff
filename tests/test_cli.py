@@ -82,9 +82,9 @@ class TestPadiffCLI(unittest.TestCase):
             f"python {paddle_script}",
             "--log_dir",
             self.test_dir,
-            "--pd_model_name",
-            custom_log_dir,
             "--pt_model_name",
+            custom_log_dir,
+            "--pd_model_name",
             custom_log_dir,
         ]
 

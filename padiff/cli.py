@@ -21,7 +21,7 @@ from .utils import logger
 from .comparison import compare_dumps
 
 
-def run_with_padiff(cmd: str, framework: str, log_dir: str = "padiff_log"):
+def run_with_padiff(cmd: str, framework: str, src_model_name: str = "model", mode="base", alignment_dir=None):
     # parse command
     parts = cmd.split()
     if not parts or not parts[0].endswith("python"):
@@ -35,32 +35,41 @@ def run_with_padiff(cmd: str, framework: str, log_dir: str = "padiff_log"):
         sys.exit(1)
 
     # run injected script
-    injected_script = create_injected_script(script_path, framework, log_dir)
-    new_cmd = ["python", injected_script] + parts[2:]
+    injected_script = create_injected_script(script_path, framework, src_model_name, mode, alignment_dir)
+    injected_filename = os.path.basename(injected_script)
+
+    new_cmd = ["python", injected_filename] + parts[2:]
     logger.info(f"Running: {' '.join(new_cmd)}")
-    result = subprocess.run(new_cmd, text=True)
+    script_dir = os.path.dirname(os.path.abspath(script_path))
+    result = subprocess.run(new_cmd, text=True, cwd=script_dir)
+    dump_path = os.path.join(script_dir, "padiff_dump", f"model_{framework.lower()}")
 
     # error
     if result.returncode != 0:
         logger.error(f"{framework} command failed with code {result.returncode}")
         sys.exit(result.returncode)
+    return dump_path
 
 
 def main():
     parser = argparse.ArgumentParser(description="PaDiff: Paddle & PyTorch Model Diff Tool")
-    parser.add_argument("--pd_cmd", type=str, required=True, help='Paddle command, e.g., "python ./paddle_model.py"')
-    parser.add_argument("--pt_cmd", type=str, required=True, help='PyTorch command, e.g., "python ./torch_model.py"')
     parser.add_argument(
-        "--pd_model_name",
-        type=str,
-        default="model",
-        help="The model name that appears in the paddle script's code (default: 'model')",
+        "--pt_cmd", type=str, required=True, help='PyTorch command, e.g., "python /torch_dir/torch_model.py"'
+    )
+    parser.add_argument(
+        "--pd_cmd", type=str, required=True, help='Paddle command, e.g., "python /paddle_dir/paddle_model.py"'
     )
     parser.add_argument(
         "--pt_model_name",
         type=str,
         default="model",
         help="The model name that appears in the pytorch script's code (default: 'model')",
+    )
+    parser.add_argument(
+        "--pd_model_name",
+        type=str,
+        default="model",
+        help="The model name that appears in the paddle script's code (default: 'model')",
     )
     parser.add_argument(
         "--log_dir",
@@ -71,10 +80,8 @@ def main():
 
     args = parser.parse_args()
 
-    run_with_padiff(args.pt_cmd, "torch", args.log_dir)
-    run_with_padiff(args.pd_cmd, "paddle", args.log_dir)
-    pt_dump = f"{args.log_dir}/padiff_dump/model_torch"
-    pd_dump = f"{args.log_dir}/padiff_dump/model_paddle"
+    pt_dump = run_with_padiff(args.pt_cmd, "torch", args.pt_model_name)
+    pd_dump = run_with_padiff(args.pd_cmd, "paddle", args.pd_model_name, "align", pt_dump)
 
     logger.info("Running comparison...")
     try:

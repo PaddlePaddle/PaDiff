@@ -27,6 +27,7 @@ from ..utils import log
 def load_first_input_from_dump(report_path, tar_framework):
     report_json = json.load(open(os.path.join(report_path, "report.json")))
     if not report_json.get("has_first_input"):
+        log(f"No first_input found in {report_path}/report.json")
         return None
 
     input_dir = os.path.join(report_path, "first_input")
