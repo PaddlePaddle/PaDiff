@@ -1,12 +1,6 @@
-paddlepaddle-gpu
-torch
-pre-commit
-pytest
-parameterized
-pytest-cov
-regex
-pytest-xdist
-torchvision
 graphviz
 numpy
-coverage
+paddlepaddle_gpu>=3.0
+pygraphviz
+PyYAML
+torch>=2.6.0

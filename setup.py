@@ -15,13 +15,12 @@
 
 from setuptools import find_packages, setup
 
-import padiff
-
 
 def read_requirements_file(filepath):
-    with open(filepath) as fin:
-        requirements = fin.read()
-    return requirements
+    req_list = []
+    with open(filepath, "r") as f:
+        req_list = f.read().splitlines()
+    return req_list
 
 
 REQUIRED_PACKAGES = read_requirements_file("requirements.txt")
@@ -29,7 +28,6 @@ REQUIRED_PACKAGES = read_requirements_file("requirements.txt")
 
 setup(
     name="padiff",
-    version=padiff.__version__,
     description=("A tools to automatically diff precision between Paddle and Pytorch Model."),
     long_description="",
     url="https://github.com/PaddlePaddle/PaDiff",
@@ -41,7 +39,7 @@ setup(
     package_data={
         "padiff": ["datas/assign_weight.yaml", "datas/api_mapping.json"],
     },
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
         "Programming Language :: Python :: 3.8",
@@ -52,4 +50,11 @@ setup(
     ],
     license="Apache 2.0",
     keywords=("padiff automatically diff precision between paddle and pytorch model"),
+    entry_points={
+        "console_scripts": [
+            "padiff=padiff.cli:main",
+        ],
+    },
+    use_scm_version=True,
+    setup_requires=["setuptools-scm"],
 )

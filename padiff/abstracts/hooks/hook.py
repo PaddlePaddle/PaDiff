@@ -20,7 +20,13 @@ import paddle
 import torch
 from paddle.utils import to_sequence
 
-from ...utils import clone_tensors, extract_frame_summary, flatten, for_each_grad_tensor, map_structure_and_replace_key
+from ...utils import (
+    clone_tensors,
+    extract_frame_summary,
+    flatten,
+    for_each_grad_tensor,
+    map_structure_and_replace_key,
+)
 from .base import current_report, find_base_report_node, single_step_state
 
 

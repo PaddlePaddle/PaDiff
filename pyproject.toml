@@ -1,7 +1,47 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "padiff"
+dynamic = ["version", "dependencies"]
+description = "A tools to automatically diff precision between Paddle and Pytorch Model."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "PaddlePaddle" }]
+requires-python = ">=3.8"
+keywords = [
+    "automatically diff precision",
+    "PaddlePaddle",
+]
+classifiers=[
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/PaddlePaddle/PaDiff"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["padiff*"]
+exclude = [
+    "docs*",
+    "test*",
+    "tools*",
+]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
 [tool.black]
 line-length = 119
-target_version = ['py37', 'py38', 'py39', 'py310']
-exclude = ['.flake8']
+target_version = ["py38", "py39", "py310"]
+exclude = [".flake8"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

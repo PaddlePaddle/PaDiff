@@ -20,9 +20,8 @@ import torch
 
 
 from padiff import *
-from padiff.checker import check_grads, check_weights
-from padiff.dump_tools import dump_grads, dump_weights
-from padiff.interfaces.diff_utils import default_loss
+from padiff.tools import dump_grads, dump_weights
+from padiff.comparison.auto import default_loss
 
 
 class SimpleLayer(paddle.nn.Layer):

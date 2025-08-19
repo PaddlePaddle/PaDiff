@@ -22,11 +22,16 @@ from .hook import register_hooker
 
 @contextlib.contextmanager
 def report_guard(report):
+    global _global_report
+
     token = _current_report.set(report)
+    old_global_report = _global_report
+    _global_report = report
     try:
         yield
     finally:
         _current_report.reset(token)
+        _global_report = old_global_report
 
 
 @contextlib.contextmanager
@@ -61,6 +66,6 @@ def AlignmentGuard(model, seed=42):
 def PaDiffGuard(model, seed=42):
     with contextlib.ExitStack() as stack:
         stack.enter_context(AlignmentGuard(model, seed=seed))
-        stack.enter_context(register_hooker(model))
         stack.enter_context(report_guard(model.report))
+        stack.enter_context(register_hooker(model))
         yield model

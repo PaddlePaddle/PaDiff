@@ -53,6 +53,7 @@ _context = _SyncStepContext()
 
 
 _current_report = contextvars.ContextVar("current_report", default=None)
+_global_report = None
 
 
 # --- Public utility functions for external calls ---
@@ -60,7 +61,13 @@ _current_report = contextvars.ContextVar("current_report", default=None)
 
 
 def current_report():
-    return _current_report.get()
+    try:
+        ctx_report = _current_report.get()
+        if ctx_report is not None:
+            return ctx_report
+    except LookupError:
+        pass
+    return _global_report
 
 
 def single_step_state():

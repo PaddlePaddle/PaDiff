@@ -16,3 +16,4 @@
 
 from .checker import check_grads, check_params, check_report, check_weights, check_dataloader
 from .auto import assign_weight, auto_diff, create_model
+from .manual import compare_dumps

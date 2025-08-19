@@ -18,63 +18,91 @@ import paddle
 import torch
 
 
-class SimpleLayer(paddle.nn.Layer):
+class SimplePaddle(paddle.nn.Layer):
     def __init__(self):
-        super(SimpleLayer, self).__init__()
+        super().__init__()
         self.linear1 = paddle.nn.Linear(100, 100)
+        self.dropout = paddle.nn.Dropout(p=0.1)
         self.linear2 = paddle.nn.Linear(100, 10)
         self.act = paddle.nn.ReLU()
 
     def forward(self, x):
         resdual = x
         x = self.linear1(x)
+        x = self.dropout(x)
         x = self.act(x)
         x = x + resdual
         x = self.linear2(x)
         return x
 
 
-class SimpleModule(torch.nn.Module):
+class SimpleTorch(torch.nn.Module):
     def __init__(self):
-        super(SimpleModule, self).__init__()
+        super().__init__()
         self.linear1 = torch.nn.Linear(100, 100)
+        self.dropout = torch.nn.Dropout(p=0.1)
         self.linear2 = torch.nn.Linear(100, 10)
         self.act = torch.nn.ReLU()
 
     def forward(self, x):
         resdual = x
         x = self.linear1(x)
+        x = self.dropout(x)
         x = self.act(x)
         x = x + resdual
         x = self.linear2(x)
         return x
 
 
-class TestOfflineCompare(unittest.TestCase):
-    def test_check_success(self):
-        layer = SimpleLayer()
-        layer.eval()
-        layer = create_model(layer, "layer")
-        model = SimpleModule()
-        model.eval()
-        model = create_model(model, "model")
-        assign_weight(model, layer)
-        inp = paddle.rand((100, 100)).numpy()
-        inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp)})
-        assert auto_diff(model, layer, inp, atol=1e-4) is True, "Failed. expected success."
+def warpped_fn(model, x):
+    return model(x)
 
-    def test_check_fail(self):
-        layer = SimpleLayer()
-        layer.eval()
-        layer = create_model(layer, "layer")
-        model = SimpleModule()
-        model.eval()
-        model = create_model(model, "model")
-        assign_weight(model, layer)
-        inp = paddle.rand((100, 100)).numpy()
-        inp_err = paddle.rand((100, 100)).numpy()
-        inp = ({"x": torch.as_tensor(inp)}, {"x": paddle.to_tensor(inp_err)})
-        assert auto_diff(model, layer, inp, atol=1e-4) is False, "Success. expected failed."
+
+def run_paddle(warpped=False):
+    """ """
+    model = SimplePaddle()
+    pd_model = create_model(model, name=f"model_PD")
+    inp = paddle.rand((100, 100))
+    with PaDiffGuard(pd_model):
+        if warpped:
+            out = warpped_fn(model, inp)
+        else:
+            out = model(inp)
+    dump_report(pd_model, pd_model.dump_path)
+    return pd_model.dump_path
+
+
+def run_torch(weight_path, warpped=False):
+    """
+    model = SimpleTorch()
+    inp = torch.rand((100, 100))
+    out = model(inp)
+    """
+    model = SimpleTorch()
+    pt_model = create_model(model, name=f"model_PT")
+    load_init_weights_from_dump(weight_path, pt_model)
+    loaded_inputs = load_first_input_from_dump(weight_path, tar_framework="torch")
+    with PaDiffGuard(pt_model):
+        if warpped:
+            out = warpped_fn(model, *loaded_inputs)
+        else:
+            out = model(*loaded_inputs)
+    dump_report(pt_model, pt_model.dump_path)
+    return pt_model.dump_path
+
+
+class TestOfflineCompare(unittest.TestCase):
+    def test_offline(self):
+        pd_path = run_paddle()
+        pt_path = run_torch(pd_path)
+        report_success = check_report(pd_path, pt_path, cfg={"atol": 1e-4}, diff_phase="forward")
+        assert report_success is True, "Failed. expected success."
+
+    def test_offline_wrapped(self):
+        pd_path = run_paddle(warpped=True)
+        pt_path = run_torch(pd_path, warpped=True)
+        report_success = check_report(pd_path, pt_path, cfg={"atol": 1e-4}, diff_phase="forward")
+        assert report_success is True, "Failed. expected success."
 
 
 if __name__ == "__main__":
