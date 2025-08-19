@@ -13,6 +13,19 @@
 # limitations under the License.
 
 
+class Counter:
+    def __init__(self):
+        self.clear()
+
+    def clear(self):
+        self.id = 0
+
+    def get_id(self):
+        ret = self.id
+        self.id += 1
+        return ret
+
+
 def clone_dict_tree(root):
     new_root = {}
     new_root.update(root)

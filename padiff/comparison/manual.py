@@ -13,63 +13,63 @@
 # limitations under the License.
 
 from .checker import check_report, check_params, check_weights, check_grads
-from ..utils import log
+from ..utils import logger
 import os
 
 
-def compare_dumps(dump_path1, dump_path2, cfg):
+def compare_dumps(dump_path1, dump_path2, cfg=None):
     # check report
-    print("🔍 Start comparison report (check_report)...")
+    logger.info("🔍 Start comparison report (check_report)...")
     try:
         report_success = check_report(dump_path1, dump_path2, cfg=cfg, diff_phase="both")
         if report_success:
-            log("✅ check_report: SUCCESS !!!")
+            logger.info("✅ check_report: SUCCESS !!!")
         else:
-            log("❌ check_report: FAILED !!!")
+            logger.warning("❌ check_report: FAILED !!!")
     except Exception as e:
-        log(f"❌ check_report: FAILED with error: {e}")
+        logger.error(f"❌ check_report: FAILED with error: {e}")
         report_success = False
 
     # check grads
     grads_success = None
     if os.path.exists(f"{dump_path1}/grads.json") and os.path.exists(f"{dump_path2}/grads.json"):
-        print("\n🔍 Start comparison grads (check_grads)...")
+        logger.info("\n🔍 Start comparison grads (check_grads)...")
         try:
             grads_success = check_grads(dump_path1, dump_path2, cfg=cfg)
             if grads_success:
-                log("✅ check_grads: SUCCESS !!!")
+                logger.info("✅ check_grads: SUCCESS !!!")
             else:
-                log("❌ check_grads: FAILED !!!")
+                logger.warning("❌ check_grads: FAILED !!!")
         except Exception as e:
-            log(f"❌ check_grads: FAILED with error: {e}")
+            logger.error(f"❌ check_grads: FAILED with error: {e}")
             grads_success = False
 
     # check weights
     weights_success = None
     if os.path.exists(f"{dump_path1}/grads.json") and os.path.exists(f"{dump_path2}/weights.json"):
-        print("\n🔍 Start comparison weights (check_weights)...")
+        logger.info("\n🔍 Start comparison weights (check_weights)...")
         try:
             weights_success = check_weights(dump_path1, dump_path2, cfg=cfg)
             if weights_success:
-                log("✅ check_weights: SUCCESS !!!")
+                logger.info("✅ check_weights: SUCCESS !!!")
             else:
-                log("❌ check_weights: FAILED !!!")
+                logger.warning("❌ check_weights: FAILED !!!")
         except Exception as e:
-            log(f"❌ check_weights: FAILED with error: {e}")
+            logger.error(f"❌ check_weights: FAILED with error: {e}")
             weights_success = False
 
     # check params
     params_success = None
     if os.path.exists(f"{dump_path1}/grads.json") and os.path.exists(f"{dump_path2}/params.json"):
-        print("\n🔍 Start comparison all parameters (check_params)...")
+        logger.info("\n🔍 Start comparison all parameters (check_params)...")
         try:
             params_success = check_params(dump_path1, dump_path2, cfg=cfg)
             if params_success:
-                log("✅ check_params: SUCCESS !!!")
+                logger.info("✅ check_params: SUCCESS !!!")
             else:
-                log("❌ check_params: FAILED !!!")
+                logger.warning("❌ check_params: FAILED !!!")
         except Exception as e:
-            log(f"❌ check_params: FAILED with error: {e}")
+            logger.error(f"❌ check_params: FAILED with error: {e}")
             params_success = False
 
     # final result
@@ -77,10 +77,13 @@ def compare_dumps(dump_path1, dump_path2, cfg):
     for res in [grads_success, weights_success, params_success]:
         if res is not None:
             success = success and res
-    log(f"🏁 final comparison result: {'SUCCESS !!!' if success else 'FAILED !!!'}")
+    if success:
+        logger.info(f"🎉 final comparison result: SUCCESS !!!")
+    else:
+        logger.warning(f"❌ final comparison result: FAILED !!!")
 
 
 if __name__ == "__main__":
     pt_dump_path = "transformer4sr/padiff_dump/model_PT"
     pd_dump_path = "paddle_project/padiff_dump/model_PD"
-    main(pt_dump_path, pd_dump_path)
+    compare_dumps(pt_dump_path, pd_dump_path)

@@ -13,25 +13,85 @@
 # limitations under the License.
 
 import os
-import sys
 import shutil
+import logging
 
 
-log_path = os.path.join(sys.path[0], "padiff_log")
-__reset_log_dir__ = False  # reset log_path only once
+class Logger:
+    def __init__(self):
+        self._logger = None
+        self._is_initialized = False
+
+    def setup(self, log_parent_dir):
+        if self._is_initialized:
+            return
+
+        self._logger = logging.getLogger("padiff")
+        self._logger.setLevel(logging.INFO)
+        self._logger.propagate = False
+
+        if self._logger.handlers:
+            self._logger.handlers.clear()
+
+        log_file_path = os.path.join(log_parent_dir, "padiff.log")
+        file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
+        file_formatter = logging.Formatter("[AutoDiff] [%(levelname)s] %(message)s")
+        file_handler.setFormatter(file_formatter)
+
+        console_handler = logging.StreamHandler()
+        console_formatter = logging.Formatter("[AutoDiff] [%(levelname)s] %(message)s")
+        console_handler.setFormatter(console_formatter)
+
+        self._logger.addHandler(file_handler)
+        self._logger.addHandler(console_handler)
+
+        self._logger.info(f"Logging initialized. Log file: {log_file_path}")
+        self._is_initialized = True
+
+    def info(self, *args):
+        if self._logger is not None:
+            self._logger.info(" ".join(map(str, args)))
+        else:
+            print(f"[AutoDiff] [INFO] {' '.join(map(str, args))}")
+
+    def warning(self, *args):
+        if self._logger is not None:
+            self._logger.warning(" ".join(map(str, args)))
+        else:
+            print(f"[AutoDiff] [WARNING] {' '.join(map(str, args))}")
+
+    def error(self, *args):
+        if self._logger is not None:
+            self._logger.error(" ".join(map(str, args)))
+        else:
+            print(f"[AutoDiff] [ERROR] {' '.join(map(str, args))}")
+
+    def debug(self, *args):
+        if self._logger is not None:
+            self._logger.debug(" ".join(map(str, args)))
+        else:
+            print(f"[AutoDiff] [DEBUG] {' '.join(map(str, args))}")
+
+
+logger = Logger()
+log_path = os.path.join(os.path.dirname(__file__), "padiff_log")
+
+
+def log(*args):
+    message = " ".join(map(str, args))
+    local_logger = logger if logger is not None else logging.getLogger("padiff")
+    local_logger.info(message)
 
 
 def reset_dir(path):
     if os.path.exists(path):
         shutil.rmtree(path)
     os.makedirs(path)
+    logger.setup(path)
 
 
 def log_file(filename, mode, info):
-    global __reset_log_dir__
-    if not __reset_log_dir__:
-        reset_dir(log_path)
-        __reset_log_dir__ = True
+    os.makedirs(log_path, exist_ok=True)
 
     filepath = os.path.join(log_path, filename)
     with open(filepath, mode) as f:
@@ -40,21 +100,9 @@ def log_file(filename, mode, info):
     return filepath
 
 
-def log(*args):
-    print("[AutoDiff]", *args)
-
-
-class Counter:
-    def __init__(self):
-        self.clear()
-
-    def clear(self):
-        self.id = 0
-
-    def get_id(self):
-        ret = self.id
-        self.id += 1
-        return ret
+"""
+    other prints
+"""
 
 
 def print_report_info(nodes, reports, exc, stage, msg=None):
