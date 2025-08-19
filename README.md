@@ -4,6 +4,12 @@
 **P**addle  **A**utomatically  **Diff**  precision toolkits.
 
 
+## 使用单行命令对齐（当前仅支持前向对齐）
+
+```sh
+python -m padiff.cli --pt_cmd "python torch_project/run.py" --pd_cmd "python paddle_project/run.py" --pt_model_name "transformer" --pd_model_name "transformer"
+```
+
 
 ## 最近更新
 
