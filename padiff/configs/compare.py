@@ -12,11 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# this folder is just used to support assign_weight interface
 
-from .data_structures import *
-from .decorators import *
-from .io import *
-from .data_structures import *
-from .utils import *
-from .log import *
+global_compare_configs = {
+    "atol": 0,
+    "rtol": 1e-7,
+    "compare_mode": "mean",
+    "act_name": "equal",
+}
+
+
+def update_configs(cfg):
+    global global_compare_configs
+    assert isinstance(cfg, dict)
+    for k in cfg.keys():
+        assert k in global_compare_configs
+    global_compare_configs.update(cfg)
+    return global_compare_configs
+
+
+def parse_cfg(cfg):
+    global global_compare_configs
+    if cfg is None:
+        return global_compare_configs
+    return update_configs(cfg)

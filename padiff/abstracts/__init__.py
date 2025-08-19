@@ -12,4 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .proxy_model import ProxyModel
+# this folder is just used to support assign_weight interface
+
+from .marker import *
+from .report import *
+from .hooks import *
+from .proxy import ProxyModel
+from .special_init import *
