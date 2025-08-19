@@ -20,6 +20,9 @@ from .base import _context, _current_report
 from .hook import register_hooker
 
 
+_global_report = None
+
+
 @contextlib.contextmanager
 def report_guard(report):
     global _global_report

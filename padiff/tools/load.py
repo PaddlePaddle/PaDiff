@@ -24,7 +24,7 @@ from ..configs import global_yaml_loader
 from ..utils import log
 
 
-def load_first_input_from_dump(report_path, framework="paddle"):
+def load_first_input_from_dump(report_path, tar_framework):
     report_json = json.load(open(os.path.join(report_path, "report.json")))
     if not report_json.get("has_first_input"):
         return None
@@ -42,10 +42,10 @@ def load_first_input_from_dump(report_path, framework="paddle"):
 
         if file_name.endswith(".npy"):
             numpy_array = np.load(file_path)
-            if framework == "paddle":
+            if tar_framework == "paddle":
                 tensor = paddle.to_tensor(numpy_array)
                 tensor.stop_gradient = False
-            elif framework == "torch":
+            elif tar_framework == "torch":
                 tensor = torch.tensor(numpy_array)
                 tensor.requires_grad_ = True
             reconstructed_inputs.append(tensor)
@@ -80,11 +80,11 @@ def load_first_input_from_dump(report_path, framework="paddle"):
                 else:
                     reconstructed_inputs.append(data_value)
             except Exception as e:
-                print(f"[Error] Error loading metadata file {file_name}: {e}")
+                log(f"[Error] Error loading metadata file {file_name}: {e}")
                 raise
 
         else:
-            print(f"[Warning] Ignore unknown files: {file_name}")
+            log(f"[Warning] Ignore unknown files: {file_name}")
             continue
     return reconstructed_inputs
 
@@ -111,7 +111,7 @@ def load_init_weights_from_dump(
                     returns the key name used for the lookup.
             If None, the parameter name of proxy_model is used directly as the
             search key for the '*.npy' file. Defaults to None.
-        verbose (bool, optional): Whether to print all logs. Defaults to False.
+        verbose (bool, optional): Whether to show all logs. Defaults to False.
     """
     # check files
     report_json = json.load(open(os.path.join(report_path, "report.json")))
