@@ -52,6 +52,5 @@ unit-test:
 .PHONY: install
 install:
 	pip install --upgrade pip
-	pip install -e .
 	pip install coverage
 	pre-commit install
