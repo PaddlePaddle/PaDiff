@@ -81,6 +81,7 @@ def compare_dumps(dump_path1, dump_path2, cfg=None):
         logger.info(f"🎉 final comparison result: SUCCESS !!!")
     else:
         logger.warning(f"❌ final comparison result: FAILED !!!")
+    return success
 
 
 if __name__ == "__main__":
