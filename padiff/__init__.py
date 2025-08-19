@@ -18,15 +18,15 @@ __version__ = "0.3.0"
 
 # for api -> Layer
 
-import sys, os
 import inspect
+import os
+import sys
 from functools import partial
+from importlib.abc import Loader, MetaPathFinder
+from importlib.machinery import ExtensionFileLoader, PathFinder, SourceFileLoader
 
-from importlib.abc import MetaPathFinder, Loader
-from importlib.machinery import SourceFileLoader, ExtensionFileLoader, PathFinder
-
-from .guards.hooks import info_hook
-from .datas import global_json_laoder as jsons
+from .configs import global_json_laoder as jsons
+from .abstracts.hooks import info_hook
 
 try:
     from . import cinn_diff
@@ -114,7 +114,7 @@ def wrap_func(fullname, func):
             handle = layer.register_forward_hook(partial(info_hook, net_id=-1))
 
         else:
-            raise RuntimeError("Required module_type is in [paddle, torch], but received {}".format(full_name))
+            raise RuntimeError("Required module_type is in [paddle, torch], but received {}".format(fullname))
 
         out = layer(*args, **kwargs)
 
@@ -232,17 +232,17 @@ def add_thirdparty_apis(thirdparty_apis):
     # Exp. 1:
     #   thirdparty_apis = "paddle3d.ops.iou3d_nms,paddle3d.ops.hard_voxelize,paddle_xpu_nn.xpu_rms_norm"
     #   json.THIRD_PARTY = {"paddle3d.ops": {"iou3d_nms", "hard_voxelize"}, "paddle_xpu_nn": {"xpu_rms_norm"}}
-    thirdparty_apis = thirdparty_api.replace(" ", "").split(",")
-    json.THIRD_PARTY = {}
+    thirdparty_apis = thirdparty_apis.replace(" ", "").split(",")
+    jsons.THIRD_PARTY = {}
     for fullname in thirdparty_apis:
         module = fullname.rpartition(".")[0]
         api = fullname.rpartition(".")[2]
-        if not module in json.THIRD_PARTY:
-            json.THIRD_PARTY[module] = {api}
+        if not module in jsons.THIRD_PARTY:
+            jsons.THIRD_PARTY[module] = {api}
         else:
-            json.THIRD_PARTY[module].add(api)
+            jsons.THIRD_PARTY[module].add(api)
 
-    self.paddle_apis.update(self.THIRD_PARTY)
+    jsons.paddle_apis.update(jsons.THIRD_PARTY)
 
 
 if os.getenv("PADIFF_API_CHECK") == "ON":
@@ -269,10 +269,11 @@ import torch
 paddle.set_printoptions(precision=10)
 torch.set_printoptions(precision=10)
 
-from .interfaces import *
-from .report import *
-from .guards import *
+from .abstracts import *
+from .comparison import *
+from .configs import *
 from .tools import *
+from .utils import *
 
 __all__ = [
     "create_model",

@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .dump_tools import (
-    dump_report,
-    dump_params,
-    dump_weights,
+from .dump import (
+    dump_first_input,
     dump_grads,
     dump_init_weights,
-    dump_first_input,
+    dump_params,
+    dump_report,
+    dump_weights,
     get_dump_root_path,
     set_dump_root_path,
 )
-from .load_tools import load_first_input_from_dump, load_init_weights_from_dump
-
+from .load import load_first_input_from_dump, load_init_weights_from_dump
 
 __all__ = [
     "dump_report",
