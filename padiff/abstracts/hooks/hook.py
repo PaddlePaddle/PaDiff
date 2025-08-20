@@ -71,7 +71,11 @@ def init_weights_hook(model, input):
         init_weights = {}
         for name, param in model.named_parameters():
             if isinstance(param, (paddle.Tensor, torch.Tensor)):
-                init_weights[name] = param.detach().cpu().numpy()
+                if param.dtype == torch.bfloat16:
+                    np_array = param.detach().cpu().float().numpy()
+                else:
+                    np_array = param.detach().cpu().numpy()
+                init_weights[name] = np_array
         report.init_weights = init_weights
         report.init_weights_saved = True
     return None
@@ -80,15 +84,18 @@ def init_weights_hook(model, input):
 def first_input_hook(model, input):
     report = current_report()
     if report is None:
+        logger.debug("first_input_hook: current_report is None")
         return None
 
     if hasattr(report, "_loaded_inputs") and report._loaded_inputs is not None:
+        logger.debug("first_input_hook: loading first input")
         loaded_inputs = report._loaded_inputs
         if isinstance(loaded_inputs, list):
             return tuple(loaded_inputs)
         return loaded_inputs
 
     if not hasattr(report, "first_input_captured"):
+        logger.debug("first_input_hook: capturing first input")
 
         def serialize(x):
             if isinstance(x, (paddle.Tensor, torch.Tensor)):
@@ -102,6 +109,8 @@ def first_input_hook(model, input):
 
         try:
             serialized = [serialize(x) for x in to_sequence(input)]
+            if len(serialized) == 0:
+                logger.warning(f"non first input is captured")
             report.first_input = serialized
             report.first_input_captured = True
         except Exception as e:

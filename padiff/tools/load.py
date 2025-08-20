@@ -35,7 +35,7 @@ def load_first_input_from_dump(report_path, tar_framework):
         [f for f in os.listdir(input_dir) if f.startswith("input_")], key=lambda x: int(x.split("_")[1].split(".")[0])
     )
     if not all_files:
-        raise FileNotFoundError(f"Not found any 'input_*' file in {input_dir}. Please check the path.")
+        log(f"Not found any 'input_*' file in {input_dir}. Please check the path.")
 
     reconstructed_inputs = []
     for file_name in all_files:

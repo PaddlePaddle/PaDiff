@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import sys
 import shutil
 import logging
 
@@ -74,7 +75,7 @@ class Logger:
 
 
 logger = Logger()
-log_path = os.path.join(os.path.dirname(__file__), "padiff_log")
+log_path = os.path.join(sys.path[0], "padiff_log")
 
 
 def log(*args):
