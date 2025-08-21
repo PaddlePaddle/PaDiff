@@ -14,6 +14,7 @@
 
 import contextlib
 import json
+import os
 
 from ...utils import set_seed
 from .base import _context, _current_report
@@ -57,6 +58,46 @@ def SyncStepGuard(diff_phase, report_path):
 
 
 @contextlib.contextmanager
+def SingleStepGuard(diff_phase, base_dump_path):
+    """
+    A context manager for single-step alignment mode.
+    Attention: The code of this class currently looks the same as 'SyncStepGuard' above,
+    but for future extensibility considerations, it is still not merged with 'SyncStepGuard'.
+    """
+    old_phase = _context.phase
+    old_base = _context.base
+
+    try:
+        logger.debug(f"SingleStepGuard: Attempting to initialize for {diff_phase} phase.")
+        logger.debug(f"SingleStepGuard: base_dump_path = {base_dump_path}")
+
+        if not os.path.exists(base_dump_path):
+            logger.error(f"base_dump_path '{base_dump_path}' does not exist.")
+
+        report_json_path = os.path.join(base_dump_path, "report.json")
+        if not os.path.exists(report_json_path):
+            logger.error(f"report.json not found at '{report_json_path}'.")
+
+        _context.phase = diff_phase
+        report_json_path = os.path.join(base_dump_path, "report.json")
+        with open(report_json_path, "r") as f:
+            base_report_data = json.load(f)
+        _context.base = _context._split_by_net_id(base_report_data)
+
+        yield
+
+    except _CallsComplete:
+        raise
+    except Exception as e:
+        logger.error(f"SingleStepGuard failed to initialize: {e}")
+        raise
+    finally:
+        _context.phase = old_phase
+        _context.base = old_base
+        logger.debug("SingleStepGuard: Context state restored.")
+
+
+@contextlib.contextmanager
 def AlignmentGuard(model, seed=42):
     """Prepare the model environment for accuracy alignment."""
     model.model.train()
@@ -76,7 +117,9 @@ class _CallsComplete(Exception):
     to exit the context manager gracefully.
     """
 
-    pass
+    def __init__(self, message="CallsComplete: maximum number of forward calls reached."):
+        self.message = message
+        super().__init__(self.message)
 
 
 @contextlib.contextmanager
@@ -84,10 +127,12 @@ def PaDiffGuard(
     model,
     name="model",
     auto_dump=True,
-    load_weights_from=None,
-    load_inputs_from=None,
+    align_depth="inf",
+    single_step_mode=None,  # None, "forward", "backward"
+    load_init_weights=False,
+    load_first_inputs=False,
+    base_dump_path=None,
     framework=None,
-    verbose=False,
     seed=42,
     max_calls=1,
 ):
@@ -97,21 +142,27 @@ def PaDiffGuard(
     else:
         proxy_model = model
 
+    logger.debug(f"PaDiffGuard: depth of alignment is {align_depth}.")
+    proxy_model.marker.update_black_list_with_depth(align_depth)
+
+    if load_init_weights or load_first_inputs or (single_step_mode is not None):
+        assert (
+            base_dump_path is not None
+        ), "'base_dump_path' should not be None, when loading of init weights or/and first inputs is needed or using single_step mode"
+
     # load init weights
-    if load_weights_from:
+    if load_init_weights:
         from ...tools import load_init_weights_from_dump
 
-        load_init_weights_from_dump(load_weights_from, proxy_model, verbose=verbose)
+        load_init_weights_from_dump(base_dump_path, proxy_model)
 
-    # load inputs
-    loaded_inputs = None
-    if load_inputs_from:
+    # load first inputs
+    if load_first_inputs:
         from ...tools import load_first_input_from_dump
 
-        assert framework is not None, "'framework' must be setted if 'load_inputs_from' is not None"
-        loaded_inputs = load_first_input_from_dump(load_inputs_from, framework)
-    report = proxy_model.report
-    report._loaded_inputs = loaded_inputs
+        assert framework is not None, "'framework' must be setted if 'load_first_inputs' is True"
+        loaded_inputs = load_first_input_from_dump(base_dump_path, framework)
+        proxy_model.report._loaded_inputs = loaded_inputs
 
     # moniter number of calls
     calls_count = 0
@@ -129,6 +180,9 @@ def PaDiffGuard(
             stack.enter_context(report_guard(proxy_model.report))
             stack.enter_context(register_hooker(proxy_model))
 
+            if single_step_mode is not None:
+                stack.enter_context(SingleStepGuard(single_step_mode, base_dump_path))
+
             count_handle = proxy_model.register_forward_post_hook(calls_hook)
             stack.callback(count_handle.remove)
 
@@ -144,3 +198,7 @@ def PaDiffGuard(
         import sys
 
         sys.exit(0)
+
+    except SystemExit as e:
+        logger.info("PaDiffGuard: SystemExit received, skipping dump_report.")
+        raise

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import sys
 import shutil
 import logging
 
@@ -27,7 +28,17 @@ class Logger:
             return
 
         self._logger = logging.getLogger("padiff")
-        self._logger.setLevel(logging.INFO)
+
+        debug_flag = os.getenv("PADIFF_DEBUG")
+        log_level_flag = os.getenv("PADIFF_LOG_LEVEL")
+
+        if log_level_flag and log_level_flag.upper() in ("DEBUG", "INFO", "WARNING", "ERROR"):
+            log_level = getattr(logging, log_level_flag.upper())
+        elif debug_flag and debug_flag.strip().lower() in ("1", "true", "on"):
+            log_level = logging.DEBUG
+        else:
+            log_level = logging.INFO
+        self._logger.setLevel(log_level)
         self._logger.propagate = False
 
         if self._logger.handlers:
@@ -74,7 +85,7 @@ class Logger:
 
 
 logger = Logger()
-log_path = os.path.join(os.path.dirname(__file__), "padiff_log")
+log_path = os.path.join(sys.path[0], "padiff_log")
 
 
 def log(*args):

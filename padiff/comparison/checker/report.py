@@ -20,7 +20,7 @@ from ...utils import (
     load_json,
     print_report_info,
     reorder_and_match_sublayers,
-    log,
+    logger,
 )
 from ...configs import parse_cfg
 from ...abstracts import global_special_init_pool as init_pool
@@ -30,12 +30,12 @@ def check_report(report_path_0, report_path_1, cfg=None, diff_phase="both"):
     assert diff_phase in ("forward", "backward", "both"), f"Illegal diff_phase {diff_phase}"
 
     cfg = parse_cfg(cfg)
-    log(f"check cfg {cfg}")
+    logger.info(f"check cfg {cfg}")
 
     final_rst = True
     all_ranks_path_0, all_ranks_path_1 = get_all_valid_path(report_path_0, report_path_1)
     for path_0, path_1 in zip(all_ranks_path_0, all_ranks_path_1):
-        log(f"Checking report in {path_0} and {path_1}")
+        logger.info(f"Checking report in {path_0} and {path_1}")
         final_rst = final_rst and _check_report_impl(path_0, path_1, cfg, diff_phase)
     return final_rst
 
@@ -58,22 +58,22 @@ def _check_report_impl(report_path_0, report_path_1, cfg=None, diff_phase="both"
             # forward check
             res = check_forward(root_pair, reports, cfg)
             if res == False:
-                log("The forward stage comparing failed !!!")
+                logger.error("The forward stage comparing failed !!!")
                 return False
 
         if diff_phase in ("backward", "both"):
             # backward check
             res = check_backward(root_pair, reports, cfg)
             if res == False:
-                log("The backward stage comparing failed !!!")
+                logger.error("The backward stage comparing failed !!!")
                 return False
 
     return True
 
 
 def check_forward(nodes, reports, cfg):
-    act_name = cfg.pop("act_name", None)
-    act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=act_name)
+    action_name = cfg.pop("action_name", None)
+    act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=action_name)
     try:
         act(nodes[0]["fwd_outputs"], nodes[1]["fwd_outputs"], cfg)
         return True
@@ -107,8 +107,8 @@ def check_forward(nodes, reports, cfg):
 
 
 def check_backward(nodes, reports, cfg):
-    act_name = cfg.pop("act_name", None)
-    act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=act_name)
+    action_name = cfg.pop("action_name", None)
+    act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=action_name)
     try:
         act(nodes[0]["bwd_grads"], nodes[1]["bwd_grads"], cfg)
         return True
@@ -143,7 +143,7 @@ def check_backward(nodes, reports, cfg):
 def check_layer_map(reports):
     if len(reports[0]["layer_map"]["route"]) == 0 and len(reports[1]["layer_map"]["route"]) == 0:
         return True
-    log("Start check layer_map:")
+    logger.info("Start check layer_map:")
     layer_maps = [zip(rep["layer_map"]["route"], rep["layer_map"]["fullname"]) for rep in reports]
     for base_info, raw_info in zip_longest(layer_maps[0], layer_maps[1], fillvalue=None):
         if raw_info is None or base_info is None:
@@ -164,8 +164,8 @@ def check_layer_map(reports):
             print("\nError: When check layer_map in order, find that raw_model can not matchs base_model.")
             print(f"    base_model:  `{base_fullname}` at `{base_route}`")
             print(f"    raw_model: `{raw_fullname}` at `{raw_route}`")
-            log("Check layer_map FAILED!!!\n")
+            logger.error("Check layer_map FAILED!!!\n")
             return False
 
-    log("Check layer_map SUCCESS!!!\n")
+    logger.info("Check layer_map SUCCESS!!!\n")
     return True

@@ -118,6 +118,19 @@ class Marker:
         yield self.proxy_model
         yield from traversal_for_assign_weight(self.proxy_model, self)
 
+    def update_black_list_with_depth(self, depth="inf"):
+        max_depth = float(depth)
+
+        def traverse_and_mark(model, cur_depth=0):
+            for child in model.children():
+                if cur_depth >= max_depth:
+                    self.black_list.add(child.model)
+                    self.black_list_recursively.add(child.model)
+                else:
+                    traverse_and_mark(child, cur_depth + 1)
+
+        traverse_and_mark(self.proxy_model)
+
 
 def traversal_prototype(fn0, fn1):
     # if fn0 returns True, yield current model

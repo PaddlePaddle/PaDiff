@@ -17,7 +17,7 @@ import torch
 from itertools import zip_longest
 import numpy as np
 from ...configs import global_yaml_loader
-from ...utils import load_numpy, struct_info_log, assert_tensor_equal, log
+from ...utils import load_numpy, struct_info_log, assert_tensor_equal, logger
 
 
 def process_each_param(process, node_lists, reports, compare_target, cfg):
@@ -87,8 +87,8 @@ def check_dataloader(first_loader, second_loader, **kwargs):
         return data
 
     options = {
-        "atol": 0,
-        "rtol": 1e-7,
+        "atol": 1e-6,
+        "rtol": 1e-6,
         "compare_mode": "mean",
     }
     options.update(kwargs)
@@ -99,7 +99,6 @@ def check_dataloader(first_loader, second_loader, **kwargs):
         try:
             assert_tensor_equal(get_numpy(data_0), get_numpy(data_1), options)
         except Exception as e:
-            log("check dataloader failed!!!")
-            print(f"{type(e).__name__ + ':  ' + str(e)}")
+            logger.error(f"check dataloader failed!!! {type(e).__name__}: {str(e)}")
             return False
     return True
