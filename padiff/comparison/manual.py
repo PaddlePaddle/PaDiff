@@ -17,11 +17,11 @@ from ..utils import logger
 import os
 
 
-def compare_dumps(dump_path1, dump_path2, cfg=None):
+def compare_dumps(dump_path1, dump_path2, cfg=None, diff_phase="both"):
     # check report
     logger.info("🔍 Start comparison report (check_report)...")
     try:
-        report_success = check_report(dump_path1, dump_path2, cfg=cfg, diff_phase="both")
+        report_success = check_report(dump_path1, dump_path2, cfg=cfg, diff_phase=diff_phase)
         if report_success:
             logger.info("✅ check_report: SUCCESS !!!")
         else:
@@ -46,7 +46,7 @@ def compare_dumps(dump_path1, dump_path2, cfg=None):
 
     # check weights
     weights_success = None
-    if os.path.exists(f"{dump_path1}/grads.json") and os.path.exists(f"{dump_path2}/weights.json"):
+    if os.path.exists(f"{dump_path1}/weights.json") and os.path.exists(f"{dump_path2}/weights.json"):
         logger.info("\n🔍 Start comparison weights (check_weights)...")
         try:
             weights_success = check_weights(dump_path1, dump_path2, cfg=cfg)
@@ -60,7 +60,7 @@ def compare_dumps(dump_path1, dump_path2, cfg=None):
 
     # check params
     params_success = None
-    if os.path.exists(f"{dump_path1}/grads.json") and os.path.exists(f"{dump_path2}/params.json"):
+    if os.path.exists(f"{dump_path1}/params.json") and os.path.exists(f"{dump_path2}/params.json"):
         logger.info("\n🔍 Start comparison all parameters (check_params)...")
         try:
             params_success = check_params(dump_path1, dump_path2, cfg=cfg)

@@ -76,5 +76,13 @@ def single_step_state():
 
 def find_base_report_node(net_id, step_idx):
     if _context.base is None:
-        raise RuntimeError("SyncStepGuard context is not active.")
+        raise RuntimeError("Neither SyncStepGuard or SingleStepGuard context is not active.")
+
+    if net_id not in _context.base:
+        raise RuntimeError(f"Cannot find net_id={net_id} in base report.")
+
+    node_list = _context.base[net_id]
+    if step_idx < 0 or step_idx >= len(node_list):
+        raise RuntimeError(f"Index out of range: net_id={net_id}, step_idx={step_idx}, list length={len(node_list)}")
+
     return _context.base[net_id][step_idx]

@@ -21,13 +21,13 @@ import paddle
 import torch
 
 from ..configs import global_yaml_loader
-from ..utils import log
+from ..utils import logger
 
 
 def load_first_input_from_dump(report_path, tar_framework):
     report_json = json.load(open(os.path.join(report_path, "report.json")))
     if not report_json.get("has_first_input"):
-        log(f"No first_input found in {report_path}/report.json")
+        logger.error(f"No first_input found in {report_path}/report.json")
         return None
 
     input_dir = os.path.join(report_path, "first_input")
@@ -35,7 +35,8 @@ def load_first_input_from_dump(report_path, tar_framework):
         [f for f in os.listdir(input_dir) if f.startswith("input_")], key=lambda x: int(x.split("_")[1].split(".")[0])
     )
     if not all_files:
-        log(f"Not found any 'input_*' file in {input_dir}. Please check the path.")
+        logger.error(f"Not found any 'input_*' file in {input_dir}. Please check the path.")
+        return None
 
     reconstructed_inputs = []
     for file_name in all_files:
@@ -81,11 +82,11 @@ def load_first_input_from_dump(report_path, tar_framework):
                 else:
                     reconstructed_inputs.append(data_value)
             except Exception as e:
-                log(f"[Error] Error loading metadata file {file_name}: {e}")
+                logger.error(f"Error loading metadata file {file_name}: {e}")
                 raise
 
         else:
-            log(f"[Warning] Ignore unknown files: {file_name}")
+            logger.warning(f"Ignore unknown files: {file_name}")
             continue
     return reconstructed_inputs
 
@@ -94,7 +95,6 @@ def load_init_weights_from_dump(
     report_path: str,
     proxy_model: "ProxyModel",
     keys_mapping: dict | Callable | None = None,
-    verbose: bool | None = False,
 ):
     """Load initial weights from specified report_path and use it based on
     the parameter name (or the name converted by keys_mapping), perform necessary
@@ -112,12 +112,11 @@ def load_init_weights_from_dump(
                     returns the key name used for the lookup.
             If None, the parameter name of proxy_model is used directly as the
             search key for the '*.npy' file. Defaults to None.
-        verbose (bool, optional): Whether to show all logs. Defaults to False.
     """
     # check files
     report_json = json.load(open(os.path.join(report_path, "report.json")))
     if not report_json.get("has_init_weights"):
-        log(f"No init_weights found in {report_path}/report.json")
+        logger.error(f"No init_weights found in {report_path}/report.json")
         return False
 
     weights_dir = os.path.join(report_path, "init_weights")
@@ -129,7 +128,7 @@ def load_init_weights_from_dump(
             loaded_weights[param_name] = np.load(file_path)
 
     if not loaded_weights:
-        log(f"Not found any '*.npy' file in {weights_dir}")
+        logger.error(f"Not found any '*.npy' file in {weights_dir}")
         return False
 
     # get framwork
@@ -154,7 +153,7 @@ def load_init_weights_from_dump(
                     param_key = param_name
 
                 if param_key not in loaded_weights:
-                    log(f"[Info] param {param_key}({param_name}) not found, skip it.")
+                    logger.info(f"param {param_key}({param_name}) not found, skip it.")
                     continue
                 np_value = loaded_weights[param_key]
 
@@ -170,27 +169,24 @@ def load_init_weights_from_dump(
                 if settings["transpose"]:
                     expected_shape = expected_shape[::-1]
                 if tuple(np_value.shape) != tuple(expected_shape):
-                    if verbose:
-                        log(
-                            f"Shape mismatch for {param_key}({param_name}): "
-                            f"expected {param.shape()} but got {list(np_value.shape)}"
-                        )
+                    logger.debug(
+                        f"Shape mismatch for {param_key}({param_name}): "
+                        f"expected {param.shape()} but got {list(np_value.shape)}"
+                    )
                     continue
 
                 # transpose
                 if settings["transpose"]:
-                    if verbose:
-                        log(f"Transposing: {param_key} {np_value.shape} -> {np_value.shape[::-1]}")
+                    logger.debug(f"Transposing: {param_key} {np_value.shape} -> {np_value.shape[::-1]}")
                     np_value = np.transpose(np_value)
 
                 param.set_data(np_value)
                 success_count += 1
-        log(
-            f"SUCCESS: init_weights({success_count} / {len(list(proxy_model.named_parameters()))}) loaded. "
-            "If more detailed log information needed, please set the 'verbose = True'."
+        logger.info(
+            f"Loading success: init_weights({success_count} / {len(list(proxy_model.named_parameters()))}) loaded. "
         )
         return True
     except Exception as e:
-        log(f"ERROR: {type(e).__name__}: {e}")
+        logger.error(f"{type(e).__name__}: {e}")
 
     return False

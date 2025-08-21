@@ -10,3 +10,4 @@ torchvision
 graphviz
 numpy
 coverage
+pyyaml

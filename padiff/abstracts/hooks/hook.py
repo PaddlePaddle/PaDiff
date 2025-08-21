@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import contextlib
 from functools import partial
 
@@ -50,6 +51,7 @@ def register_hooker(model):
     for mod in models:
         pre_handle = mod.register_forward_pre_hook(partial(pre_structure_hook))
         if mod not in marker.black_list:
+            logger.debug(f"info_hook of {mod.model.__class__.__name__} is registered")
             handle = mod.register_forward_post_hook(partial(info_hook, net_id=idx))
             remove_handles.append(handle)
         post_handle = mod.register_forward_post_hook(partial(post_structure_hook))
@@ -110,7 +112,7 @@ def first_input_hook(model, input):
         try:
             serialized = [serialize(x) for x in to_sequence(input)]
             if len(serialized) == 0:
-                logger.warning(f"non first input is captured")
+                logger.warning(f"No first input captured")
             report.first_input = serialized
             report.first_input_captured = True
         except Exception as e:
@@ -200,7 +202,26 @@ def info_hook(model, input, output, net_id):
     if single_step_state() == "forward" and net_id != -1:
         # two report_item with same id, the step_idx should be corresponded
         step_idx = len(list(filter(lambda x: x.type == "forward" and x.net_id == net_id, report.items))) - 1
-        base_report_node = find_base_report_node(net_id, step_idx)
+
+        try:
+            base_report_node = find_base_report_node(net_id, step_idx)
+        except (IndexError, RuntimeError) as e:
+            error_msg = str(e)
+            base_max_calls = "unknown"
+            if "list length=" in error_msg:
+                try:
+                    base_max_calls = int(error_msg.split("list length=")[1].split()[0])
+                except:
+                    pass
+            current_calls = step_idx + 1
+            route = getattr(model, "route", "unknown")
+            logger.error(
+                f"\n   ❌ Single-step alignment FAILED: Execution path mismatch!"
+                f"\n   ❗️ Layer '{route}' called {current_calls} times (current) vs {base_max_calls} times (base)."
+                f"\n   ❗️ Check the forward logic in both models around this layer."
+            )
+            sys.exit(1)
+
         retval = map_structure_and_replace_key(replace_forward_output(base_report_node), to_sequence(output), output)
         __in_info_hook__ = False
         return retval

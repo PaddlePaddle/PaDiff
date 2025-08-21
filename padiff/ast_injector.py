@@ -19,7 +19,15 @@ from .utils import logger
 
 
 class PaDiffInjector(ast.NodeTransformer):
-    def __init__(self, framework: str, src_model_name="model", mode="base", alignment_dir=None):
+    def __init__(
+        self,
+        framework: str,
+        src_model_name="model",
+        mode="base",
+        alignment_dir=None,
+        single_step_mode=None,
+        align_depth="inf",
+    ):
         self.framework = framework
         self.src_model_name = src_model_name  # model(inputs)
         self.padiff_model_name = f"model_{framework.lower()}"  # "model_paddle"
@@ -28,6 +36,8 @@ class PaDiffInjector(ast.NodeTransformer):
         if self.mode == "align":
             assert alignment_dir is not None, "'alignment_dir' should not be None in align mode."
         self.alignment_dir = alignment_dir
+        self.single_step_mode = single_step_mode
+        self.align_depth = align_depth
 
         # black list: calls to these methods will not be injected into PaDiffGuard
         self.exclude_methods = {
@@ -181,19 +191,39 @@ class PaDiffInjector(ast.NodeTransformer):
         guard_keywords = []
 
         if self.mode == "align":
-            # load_weights_from="/path/to/other/model"
-            load_weights_kw = ast.keyword(arg="load_weights_from", value=ast.Constant(value=self.alignment_dir))
+            # load_init_weights
+            load_weights_kw = ast.keyword(arg="load_init_weights", value=ast.Constant(value=True))
             guard_keywords.append(load_weights_kw)
 
-            # load_inputs_from="/path/to/other/model"
-            load_inputs_kw = ast.keyword(arg="load_inputs_from", value=ast.Constant(value=self.alignment_dir))
+            # load_first_inputs
+            load_inputs_kw = ast.keyword(arg="load_first_inputs", value=ast.Constant(value=True))
             guard_keywords.append(load_inputs_kw)
 
+            # framework
             framework_kw = ast.keyword(arg="framework", value=ast.Constant(value=self.framework))
             guard_keywords.append(framework_kw)
 
+        if self.align_depth != "inf":
+            single_step_kw = ast.keyword(arg="align_depth", value=ast.Constant(value=self.align_depth))
+            guard_keywords.append(single_step_kw)
+
+        # single_step_mode
+        if self.single_step_mode is not None:
+            single_step_kw = ast.keyword(arg="single_step_mode", value=ast.Constant(value=self.single_step_mode))
+            guard_keywords.append(single_step_kw)
+
+        # base_dump_path
+        if self.mode == "align" or self.single_step_mode is not None:
+            base_dump_path_kw = ast.keyword(arg="base_dump_path", value=ast.Constant(value=self.alignment_dir))
+            guard_keywords.append(base_dump_path_kw)
+
+        # name
         name_kw = ast.keyword(arg="name", value=ast.Constant(value=self.padiff_model_name))
         guard_keywords.append(name_kw)
+
+        # max_calls
+        max_calls_kw = ast.keyword(arg="max_calls", value=ast.Constant(value=1))
+        guard_keywords.append(max_calls_kw)
 
         with_stmt = ast.With(
             items=[
@@ -235,8 +265,10 @@ def create_injected_script(
     src_script_path: str,
     framework: str,
     src_model_name: str = "model",
-    mode="base",
-    alignment_dir=None,
+    mode: str = "base",
+    alignment_dir: str = None,
+    single_step_mode: str = None,
+    align_depth: str = "inf",
 ) -> str:
     # read source script
     with open(src_script_path, "r", encoding="utf-8") as f:
@@ -249,7 +281,14 @@ def create_injected_script(
         logger.error(f"Failed to parse {src_script_path}: {e}")
         sys.exit(1)
 
-    injector = PaDiffInjector(framework, src_model_name=src_model_name, mode=mode, alignment_dir=alignment_dir)
+    injector = PaDiffInjector(
+        framework,
+        src_model_name=src_model_name,
+        mode=mode,
+        alignment_dir=alignment_dir,
+        single_step_mode=single_step_mode,
+        align_depth=align_depth,
+    )
     new_tree = injector.visit(tree)
     ast.fix_missing_locations(new_tree)
     code = astor.to_source(new_tree)

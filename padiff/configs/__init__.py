@@ -12,5 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .compare import *
 from .loader import global_json_laoder, global_yaml_loader
+from ..utils import logger
+
+
+global_compare_configs = {
+    "atol": 0,
+    "rtol": 1e-7,
+    "compare_mode": "mean",
+    "action_name": "equal",
+}
+
+
+def update_configs(cfg):
+    global global_compare_configs
+    assert isinstance(cfg, dict), "config should be dict"
+
+    provided_keys = set(cfg.keys())
+    valid_keys = set(global_compare_configs.keys())
+    invalid_keys = provided_keys - valid_keys
+    if invalid_keys:
+        logger.warning(f"Invalid config keys ignored: {invalid_keys}. Valid keys are: {valid_keys}")
+
+    valid_updates = {k: v for k, v in cfg.items() if k in valid_keys}
+    global_compare_configs.update(valid_updates)
+    return global_compare_configs
+
+
+def parse_cfg(cfg):
+    global global_compare_configs
+    if cfg is None:
+        return global_compare_configs
+    return update_configs(cfg)

@@ -4,19 +4,55 @@
 **P**addle  **A**utomatically  **Diff**  precision toolkits.
 
 
-## 使用单行命令对齐（当前仅支持前向对齐）
+## 最近更新（latest 8.21）
+
+### 使用单行命令对齐（当前仅支持前向对齐）
+
+运行命令前，请运行 `python -m padiff.cli -h` 获取更详细的参数说明。
+
+直接通过命令行运行
 
 ```sh
-python -m padiff.cli --pt_cmd "python torch_project/run.py" --pd_cmd "python paddle_project/run.py" --pt_model_name "transformer" --pd_model_name "transformer"
+python -m padiff.cli \
+  --pt_cmd "python torch_project/run.py" \
+  --pd_cmd "python paddle_project/run.py" \
+  --pt_model_name "pt_model" \
+  --pd_model_name "pd_model" \
+  --log_dir "./padiff_log" \
+  --align_depth 1 \
+  --single_step_mode "forward" \
+  --atol 1e-4 \
+  --rtol 1e-5 \
+  --compare_mode mean \
+  --action_name equal
 ```
 
+或将命令写入 .yaml 文件后，运行
 
-## 最近更新
+```sh
+python -m padiff.cli --padiff_config.yaml
+```
 
--   支持添加Paddle自定义算子
--   支持单模型运行并dump相关数据
--   提供离线对齐工具
+yaml 文件样例
 
+```python
+# padiff_config.yaml
+pt_cmd: "python transformer4sr/train_transformer_ori.py"
+pd_cmd: "python paddle_project/train_transformer_ori.py"
+pt_model_name: "transformer"
+pd_model_name: "transformer"
+log_dir: "./padiff_log"
+align_depth: 2
+single_step_mode: "forward"
+atol: 1.0e-04
+rtol: 1.0e-05
+compare_mode: "mean"
+action_name: "equal"
+```
+
+### 开启 debug 模式（获取更多 log 信息）
+
+设置环境变量 `export PADIFF_DEBUG=1`，或使用命令运行 `PADIFF_DEBUG=1 python -m padiff.cli ...`
 
 
 ## 简介

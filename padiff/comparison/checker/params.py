@@ -13,14 +13,14 @@
 # limitations under the License.
 
 
-from ...utils import log, log_file, log_path, build_file_name, get_all_valid_path, load_json, traversal_node
+from ...utils import logger, log_file, log_path, build_file_name, get_all_valid_path, load_json, traversal_node
 from ...configs import parse_cfg
 from .base import assert_weight, assert_grad, process_each_param
 
 
 def check_params(report_path_0, report_path_1, cfg=None):
     cfg = parse_cfg(cfg)
-    log(f"Check params cfg: {cfg}")
+    logger.info(f"Check params cfg: {cfg}")
 
     weight_rst = True
     grad_rst = True
@@ -29,7 +29,7 @@ def check_params(report_path_0, report_path_1, cfg=None):
         reports = [load_json(path_0, "params.json"), load_json(path_1, "params.json")]
         node_lists = [traversal_node(rep["tree"], []) for rep in reports]
 
-        log(f"Checking params in {path_0} and {path_1}")
+        logger.info(f"Checking params in {path_0} and {path_1}")
         weight_rst = weight_rst and check_target(assert_weight, node_lists, reports, "weights", cfg)
         grad_rst = grad_rst and check_target(assert_grad, node_lists, reports, "grads", cfg)
     return weight_rst and grad_rst
@@ -37,7 +37,7 @@ def check_params(report_path_0, report_path_1, cfg=None):
 
 def check_weights(report_path_0, report_path_1, cfg=None):
     cfg = parse_cfg(cfg)
-    log(f"Check weights cfg: {cfg}")
+    logger.info(f"Check weights cfg: {cfg}")
 
     weight_rst = True
     all_ranks_path_0, all_ranks_path_1 = get_all_valid_path(report_path_0, report_path_1)
@@ -45,14 +45,14 @@ def check_weights(report_path_0, report_path_1, cfg=None):
         reports = [load_json(path_0, "weights.json"), load_json(path_1, "weights.json")]
         node_lists = [traversal_node(rep["tree"], []) for rep in reports]
 
-        log(f"Checking weights in {path_0} and {path_1}")
+        logger.info(f"Checking weights in {path_0} and {path_1}")
         weight_rst = weight_rst and check_target(assert_weight, node_lists, reports, "weights", cfg)
     return weight_rst
 
 
 def check_grads(report_path_0, report_path_1, cfg=None):
     cfg = parse_cfg(cfg)
-    log(f"Check grads cfg: {cfg}")
+    logger.info(f"Check grads cfg: {cfg}")
 
     grad_rst = True
     all_ranks_path_0, all_ranks_path_1 = get_all_valid_path(report_path_0, report_path_1)
@@ -60,7 +60,7 @@ def check_grads(report_path_0, report_path_1, cfg=None):
         reports = [load_json(path_0, "grads.json"), load_json(path_1, "grads.json")]
         node_lists = [traversal_node(rep["tree"], []) for rep in reports]
 
-        log(f"Checking grads in {path_0} and {path_1}")
+        logger.info(f"Checking grads in {path_0} and {path_1}")
         grad_rst = grad_rst and check_target(assert_grad, node_lists, reports, "grads", cfg)
     return grad_rst
 
@@ -95,13 +95,12 @@ def check_target(fn, node_lists, reports, compare_target, cfg):
     try:
         process_each_param(checker, node_lists, reports, compare_target, cfg)
     except Exception as e:
-        log("=" * 10 + f"Err occurs when compare {compare_target}!!!" + "=" * 10 + "\n")
-        print(str(e))
+        logger.error("=" * 10 + f"Err occurs when compare {compare_target}!!!" + "=" * 10 + "\n" + str(e))
         return False
 
     if flag == False:
-        log(f"Diff found when compare {compare_target}, please check report \n        {log_path}/{log_name}")
+        logger.info(f"Diff found when compare {compare_target}, please check report \n        {log_path}/{log_name}")
     else:
-        log(f"{compare_target} compared.")
+        logger.info(f"{compare_target} compared.")
 
     return flag

@@ -18,7 +18,7 @@ from itertools import zip_longest
 import numpy
 
 from ..configs import global_yaml_loader as yamls
-from ..utils import log, log_file, log_path
+from ..utils import logger, log_file, log_path
 from ..abstracts import build_name
 from ..abstracts import global_special_init_pool as init_pool
 
@@ -39,20 +39,19 @@ def assign_weight(base_model, raw_model):
             base_model.framework, base_submodel.class_name, raw_model.framework, raw_submodel.class_name
         )
         if key_name not in init_pool.funcs.keys():
-            log(
-                "*** Special init `{}` and `{}` is not supported ***".format(
-                    base_submodel.fullname, raw_submodel.fullname
-                )
+            logger.warning(
+                f"*** Special init `{base_submodel.fullname}` and `{raw_submodel.fullname}` is not supported ***"
+                "    Checkout the parameters are inited by yourself,"
+                "    or call `add_special_init` to register your init logic!"
             )
-            log("    Checkout the parameters are inited by yourself,")
-            log("    or call `add_special_init` to register your init logic!")
         else:
             try:
                 init_pool.funcs[key_name](base_submodel.model, raw_submodel.model)
             except Exception as e:
-                print(f"Special init `{base_submodel.fullname}` and `{raw_submodel.fullname}` failed.")
-                print(type(e).__name__ + ":  " + str(e))
-                log("Assign weight Failed !!!")
+                logger.error(
+                    f"Special init `{base_submodel.fullname}` and `{raw_submodel.fullname}` failed."
+                    f"{type(e).__name__}: {str(e)}\nAssign weight Failed !!!"
+                )
                 return False
 
     def _assign_weight(submodels, param_names, params, settings):
@@ -65,11 +64,10 @@ def assign_weight(base_model, raw_model):
 
     try:
         process_each_weight(_assign_weight, models)
-        log("Assign weight success !!!")
+        logger.info("Assign weight success !!!")
         return True
     except Exception as e:
-        log("Assign weight Failed !!!\n")
-        print(type(e).__name__ + ":  " + str(e))
+        logger.error(f"{type(e).__name__}: {str(e)}\nAssign weight Failed !!!")
         return False
 
 
