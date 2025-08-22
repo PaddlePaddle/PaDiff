@@ -11,3 +11,4 @@ graphviz
 numpy
 coverage
 pyyaml
+optree

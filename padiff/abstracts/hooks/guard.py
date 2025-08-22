@@ -100,6 +100,7 @@ def SingleStepGuard(diff_phase, base_dump_path):
 @contextlib.contextmanager
 def AlignmentGuard(model, seed=42):
     """Prepare the model environment for accuracy alignment."""
+    logger.debug(f"AlignmentGuard: Initializing for {model}")
     model.model.train()
     model.toggle_dropout(enable=False)
     set_seed(seed)
@@ -170,7 +171,9 @@ def PaDiffGuard(
     def calls_hook(m, input, output):
         nonlocal calls_count
         calls_count += 1
+        logger.debug(f"PaDiffGuard: forward call #{calls_count}")
         if calls_count >= max_calls:
+            logger.warning(f"PaDiffGuard: max_calls={max_calls} reached, raising _CallsComplete")
             raise _CallsComplete()
 
     try:
@@ -186,15 +189,21 @@ def PaDiffGuard(
             count_handle = proxy_model.register_forward_post_hook(calls_hook)
             stack.callback(count_handle.remove)
 
+            yield model
+
             # dump report
             if auto_dump:
-                stack.callback(lambda: dump_report(proxy_model, proxy_model.dump_path))
-
-            yield model
+                dump_report(proxy_model, proxy_model.dump_path)
 
     except _CallsComplete:
         logger.info(f"PaDiffGuard: calls completed ({calls_count}/{max_calls})")
-        # raise
+        # dump report
+        if auto_dump:
+            try:
+                dump_report(proxy_model, proxy_model.dump_path)
+            except Exception:
+                pass
+
         import sys
 
         sys.exit(0)

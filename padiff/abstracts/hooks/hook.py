@@ -19,15 +19,15 @@ from functools import partial
 import numpy
 import paddle
 import torch
-from paddle.utils import to_sequence
 
 from ...utils import (
     clone_tensors,
     extract_frame_summary,
     flatten,
     for_each_grad_tensor,
-    map_structure_and_replace_key,
     logger,
+    to_sequence,
+    map_structure,
 )
 from .base import current_report, find_base_report_node, single_step_state
 
@@ -217,12 +217,24 @@ def info_hook(model, input, output, net_id):
             route = getattr(model, "route", "unknown")
             logger.error(
                 f"\n   ❌ Single-step alignment FAILED: Execution path mismatch!"
-                f"\n   ❗️ Layer '{route}' called {current_calls} times (current) vs {base_max_calls} times (base)."
-                f"\n   ❗️ Check the forward logic in both models around this layer."
+                f"\n   📌 Layer '{route}' called {current_calls} times (current) vs {base_max_calls} times (base)."
+                f"\n   📌 Check the forward logic in both models around this layer."
             )
             sys.exit(1)
 
-        retval = map_structure_and_replace_key(replace_forward_output(base_report_node), to_sequence(output), output)
+        if base_report_node["name"] != _model.__class__.__name__:
+            error_msg = (
+                f"\n   ❌ Single-step alignment FAILED: Layer with net_id={net_id} mismatch!"
+                f"\n   📌 Layer of base model: {base_report_node['name']}"
+                f"\n   📌 Layer of raw model: {_model.__class__.__name__}"
+                f"\n   💡 Suggestion: Models have different architectures or initialization order. "
+                "Please check the model implementation or decrease 'align_depth' to reduce the alignment "
+                "granularity, or add layers that do not require alignment to the blacklist."
+            )
+            logger.error(error_msg)
+            sys.exit(1)
+
+        retval = map_structure(replace_forward_output(base_report_node), output)
         __in_info_hook__ = False
         return retval
     else:
@@ -293,9 +305,9 @@ def replace_forward_output(node):
                 )
             value = numpy.load(numpy_file_list[cur_idx]["path"])
             if isinstance(input_, paddle.Tensor):
-                return paddle.to_tensor(value)
+                return paddle.to_tensor(value, dtype=input_.dtype)
             else:
-                return torch.as_tensor(value, device=input_.device)
+                return torch.as_tensor(value, dtype=input_.dtype, device=input_.device)
         else:
             return input_
 

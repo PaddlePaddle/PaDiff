@@ -35,7 +35,7 @@ def load_first_input_from_dump(report_path, tar_framework):
         [f for f in os.listdir(input_dir) if f.startswith("input_")], key=lambda x: int(x.split("_")[1].split(".")[0])
     )
     if not all_files:
-        logger.error(f"Not found any 'input_*' file in {input_dir}. Please check the path.")
+        logger.warning(f"Not found any 'input_*' file in {input_dir}. Please check the path.")
         return None
 
     reconstructed_inputs = []
@@ -182,9 +182,11 @@ def load_init_weights_from_dump(
 
                 param.set_data(np_value)
                 success_count += 1
-        logger.info(
-            f"Loading success: init_weights({success_count} / {len(list(proxy_model.named_parameters()))}) loaded. "
-        )
+        all_count = len(list(proxy_model.named_parameters()))
+        if success_count == all_count:
+            logger.info(f"Loading success: all {all_count} init_weights loaded. ")
+        else:
+            logger.warning(f"Loading might fail! {all_count} init_weights in total but only {success_count} loaded!")
         return True
     except Exception as e:
         logger.error(f"{type(e).__name__}: {e}")
