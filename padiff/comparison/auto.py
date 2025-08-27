@@ -18,7 +18,7 @@ import torch
 
 from ..abstracts import ProxyModel, SyncStepGuard
 from ..abstracts.proxy import create_model
-from ..utils import for_each_tensor, log
+from ..utils import for_each_tensor, logger
 from .assign_weight import assign_weight
 from .checker import check_grads, check_report, check_weights, global_compare_configs
 from ..tools import dump_grads, dump_report, dump_weights
@@ -81,9 +81,9 @@ def auto_diff(base_model, raw_model, inputs, loss_fns=None, optimizers=None, **k
     result = pipeline((base_model, raw_model), inputs, loss_fns, optimizers, options, cfg)
 
     if result:
-        log("SUCCESS !!!\n")
+        logger.info("SUCCESS !!!\n")
     else:
-        log("FAILED !!!\n")
+        logger.error("FAILED !!!\n")
 
     return result
 
@@ -121,7 +121,7 @@ def single_step_pipeline(models, inputs, loss_fns, optimizers, options, cfg):
             models[1].clear_report()
             retval = check_report(auto_diff_paths[0], auto_diff_paths[1], cfg, "forward")
             if retval == False:
-                log("In single step mode, diff found at forward stage!")
+                logger.info("In single step mode, diff found at forward stage!")
                 return False
 
     if options["diff_phase"] in ("backward", "both"):
@@ -134,7 +134,7 @@ def single_step_pipeline(models, inputs, loss_fns, optimizers, options, cfg):
                 if options["use_opt"]:
                     retval = retval and check_weights(auto_diff_paths[0], auto_diff_paths[1], cfg)
             if retval == False:
-                log("In single step mode, diff found at backward stage!")
+                logger.info("In single step mode, diff found at backward stage!")
                 return False
     return True
 
@@ -192,21 +192,21 @@ def init_options(options):
 
     if not options["single_step"] and options["diff_phase"] == "backward":
         options["diff_phase"] = "both"
-        log("  Not in single_step mode, diff_phase `backward` is not supported, set to `both` instead.")
+        logger.warning("  Not in single_step mode, diff_phase `backward` is not supported, set to `both` instead.")
 
     if options["diff_phase"] == "forward":
         if options["use_opt"]:
             options["use_opt"] = False
-            log("  Diff_phase is `forward`, optimizer will not be used.")
+            logger.info("  Diff_phase is `forward`, optimizer will not be used.")
         if options["steps"] > 1:
             options["steps"] = 1
-            log("  Diff_phase is `forward`, steps is set to `1`.")
+            logger.info("  Diff_phase is `forward`, steps is set to `1`.")
 
     if options["steps"] > 1 and options["use_opt"] == False:
         options["steps"] = 1
-        log("  Steps is set to `1`, because optimizers are not given.")
+        logger.info("  Steps is set to `1`, because optimizers are not given.")
 
-    log("Your options:")
+    logger.info("Your options:")
     print("{")
     for key in options.keys():
         if key in ["atol", "rtol", "compare_mode", "auto_init", "single_step", "use_loss", "use_opt"]:

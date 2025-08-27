@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import sys
 import shutil
 import logging
 
@@ -22,6 +21,7 @@ class Logger:
     def __init__(self):
         self._logger = None
         self._is_initialized = False
+        self.log_path = None
 
     def setup(self, log_parent_dir):
         if self._is_initialized:
@@ -58,6 +58,7 @@ class Logger:
 
         self._logger.info(f"Logging initialized. Log file: {log_file_path}")
         self._is_initialized = True
+        self.log_path = log_parent_dir
 
     def info(self, *args):
         if self._logger is not None:
@@ -83,32 +84,20 @@ class Logger:
         else:
             print(f"[AutoDiff] [DEBUG] {' '.join(map(str, args))}")
 
+    def reset_dir(self, path):
+        if os.path.exists(path):
+            shutil.rmtree(path)
+        os.makedirs(path)
+        self.setup(path)
+
+    def log_file(self, filename, mode, info):
+        filepath = os.path.join(self.log_path, filename)
+        with open(filepath, mode) as f:
+            f.write(info)
+        return filepath
+
 
 logger = Logger()
-log_path = os.path.join(sys.path[0], "padiff_log")
-
-
-def log(*args):
-    message = " ".join(map(str, args))
-    local_logger = logger if logger is not None else logging.getLogger("padiff")
-    local_logger.info(message)
-
-
-def reset_dir(path):
-    if os.path.exists(path):
-        shutil.rmtree(path)
-    os.makedirs(path)
-    logger.setup(path)
-
-
-def log_file(filename, mode, info):
-    os.makedirs(log_path, exist_ok=True)
-
-    filepath = os.path.join(log_path, filename)
-    with open(filepath, mode) as f:
-        f.write(info)
-
-    return filepath
 
 
 """
@@ -118,20 +107,20 @@ def log_file(filename, mode, info):
 
 def print_report_info(nodes, reports, exc, stage, msg=None):
 
-    log("FAILED !!!")
+    logger.error("FAILED !!!")
 
     if msg is not None:
-        log("ADDITIONAL MESSAGE:")
+        logger.info("ADDITIONAL MESSAGE:")
         print(msg + "\n")
-        log("DIFF DETAILS:")
-    log(f"    Diff found in {stage} Stage")
-    log(f"    Type of layer is: {nodes[0]['name']} vs {nodes[1]['name']}")
-    log(f"    Route: {nodes[0]['route']}")
-    log(f"           {nodes[1]['route']}\n")
+        logger.info("DIFF DETAILS:")
+    logger.info(f"    Diff found in {stage} Stage")
+    logger.info(f"    Type of layer is: {nodes[0]['name']} vs {nodes[1]['name']}")
+    logger.info(f"    Route: {nodes[0]['route']}")
+    logger.info(f"           {nodes[1]['route']}\n")
 
     print(f"{type(exc).__name__}: {str(exc)} \n")
 
-    log("Check model struct:")
+    logger.info("Check model struct:")
     retstr = struct_info_log(reports, [node["origin_node"] for node in nodes], "report")
     print(retstr)
 
@@ -182,10 +171,10 @@ def struct_info_log(reports, nodes, file_prefix):
         for tree in report["tree"]:
             retval.extend(tree_print(tree, mark=node, prefix=[" " * 4]))
         info = title + "\n".join(retval)
-        log_file(file_name, "w", info)
+        logger.log_file(file_name, "w", info)
 
-    retval = f"Logs: {log_path}/{file_names[0]}\n"
-    retval += f"      {log_path}/{file_names[1]}\n"
+    retval = f"Logs: {logger.log_path}/{file_names[0]}\n"
+    retval += f"      {logger.log_path}/{file_names[1]}\n"
     return retval
 
 
@@ -194,4 +183,4 @@ def build_file_name(report, file_name):
     for s in reversed(strs):
         if "step_" in s:
             return file_name + "_" + s + ".log"
-    return file_name
+    return file_name + ".log"

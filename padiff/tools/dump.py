@@ -20,7 +20,7 @@ import numpy
 import paddle
 import torch
 
-from ..utils import Counter, frames_to_string, reset_dir
+from ..utils import Counter, frames_to_string, logger
 
 dump_root_path = os.path.join(sys.path[0], "padiff_dump")
 
@@ -35,7 +35,7 @@ def get_dump_root_path():
 
 
 def numpy_dumper(path, prefix):
-    reset_dir(path)
+    logger.reset_dir(path)
     counter = Counter()
 
     def dumper(value):

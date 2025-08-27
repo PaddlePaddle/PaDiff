@@ -20,7 +20,7 @@ import torch
 from ..marker import Marker
 from ..report import Report
 from ...tools import dump_grads, dump_params, dump_report, dump_weights, get_dump_root_path
-from ...utils import deco_iter, logger, reset_dir
+from ...utils import deco_iter, logger
 from .params import ProxyParam
 
 
@@ -193,7 +193,7 @@ class ProxyModel:
         if self.step % self.dump_freq == 0:
             if dump_path is None:
                 dump_path = f"{self.dump_path}/step_{self.step}/rank_{paddle.distributed.get_rank()}"
-            reset_dir(dump_path)
+            logger.reset_dir(dump_path)
             self.dump_params(dump_path)
             self.dump_report(dump_path)
         self.clear_report()

@@ -238,14 +238,9 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    compare_cfg = {
-        "atol": args_dict.pop("atol", 1.0e-4),
-        "rtol": args_dict.pop("rtol", 1.0e-6),
-        "compare_mode": args_dict.pop("compare_mode", "mean"),
-        "action_name": args_dict.pop("action_name", "equal"),
-    }
-
     log_dir = args_dict.pop("log_dir", "./padiff_log")
+    logger.reset_dir(log_dir)
+
     pt_model_name = args_dict.pop("pt_model_name", "model")
     pd_model_name = args_dict.pop("pd_model_name", "model")
 
@@ -253,6 +248,13 @@ def main():
     pd_kwargs = dict(args_dict)
     if single_step_mode_value is not None:
         pd_kwargs["single_step_mode"] = single_step_mode_value
+
+    compare_cfg = {
+        "atol": args_dict.pop("atol", 1.0e-4),
+        "rtol": args_dict.pop("rtol", 1.0e-6),
+        "compare_mode": args_dict.pop("compare_mode", "mean"),
+        "action_name": args_dict.pop("action_name", "equal"),
+    }
 
     pt_dump_path = run_with_padiff(pt_cmd, "torch", pt_model_name, **args_dict)
     pd_dump_path = run_with_padiff(pd_cmd, "paddle", pd_model_name, "align", pt_dump_path, **pd_kwargs)
