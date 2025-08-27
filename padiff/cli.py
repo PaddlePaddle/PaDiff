@@ -42,8 +42,7 @@ def run_with_padiff(
     src_model_name: str = "model",
     mode="base",
     alignment_dir=None,
-    single_step_mode=None,
-    align_depth="inf",
+    **kwargs,
 ):
     # parse command
     parts = cmd.split()
@@ -58,9 +57,7 @@ def run_with_padiff(
         sys.exit(1)
 
     # run injected script
-    injected_script = create_injected_script(
-        script_path, framework, src_model_name, mode, alignment_dir, single_step_mode, align_depth
-    )
+    injected_script = create_injected_script(script_path, framework, src_model_name, mode, alignment_dir, **kwargs)
     injected_filename = os.path.basename(injected_script)
 
     new_cmd = ["python", injected_filename] + parts[2:]
@@ -137,7 +134,7 @@ def main():
            启用逐层对齐模式。
            * 可选值: forward, backward, both
            * 默认值: None (禁用)
-           * 当启用时，工具会从 --log_dir 中加载基准模型的输出，并用其替换对齐模型的相应层输出。
+           * 当启用时，工具会从自动加载基准模型的输出，并用其替换对齐模型的相应层输出。
 
         6. 结果对比参数:
            控制模型输出结果的对比精度和模式。
@@ -194,6 +191,12 @@ def main():
         help="Enable single-step alignment mode. Choices: forward, backward, both. (default: None, disabled)",
     )
     parser.add_argument(
+        "--black_list",
+        type=str,
+        nargs="*",
+        help="List of layer names to add to the black list.",
+    )
+    parser.add_argument(
         "--atol", type=float, default=1e-6, help="Absolute tolerance for result comparison (default: 1e-4)"
     )
     parser.add_argument(
@@ -212,46 +215,51 @@ def main():
         help="Activation function name for specific comparison logic. Choices: equal, loose_equal (default: equal)",
     )
 
-    args = parser.parse_args()
-    if args.config:
+    known_args, _ = parser.parse_known_args()
+    if known_args.config:
         try:
-            config_args = load_yaml_config(args.config)
+            config_args = load_yaml_config(known_args.config)
             parser.set_defaults(**config_args)
             args = parser.parse_args()
         except Exception as e:
-            print(f"Error loading config file {args.config}: {e}")
+            print(f"Error loading config file {known_args.config}: {e}")
             sys.exit(1)
 
-    if not args.pt_cmd:
-        logger.error("--pt_cmd is required. You must provide it via command line or in the config file.")
+    args = parser.parse_args()
+    args_dict = vars(args)
+    config_path = args_dict.pop("config", None)
+    if config_path:
+        logger.info(f"Configuration loaded from: {config_path}")
+
+    pt_cmd = args_dict.pop("pt_cmd", None)
+    pd_cmd = args_dict.pop("pd_cmd", None)
+    if pt_cmd is None or pd_cmd is None:
+        logger.error("--pt_cmd and --pd_cmd are required. You must provide it via command line or in the config file.")
         parser.print_help()
         sys.exit(1)
 
-    if not args.pd_cmd:
-        logger.error("--pd_cmd is required. You must provide it via command line or in the config file.")
-        parser.print_help()
-        sys.exit(1)
+    compare_cfg = {
+        "atol": args_dict.pop("atol", 1.0e-4),
+        "rtol": args_dict.pop("rtol", 1.0e-6),
+        "compare_mode": args_dict.pop("compare_mode", "mean"),
+        "action_name": args_dict.pop("action_name", "equal"),
+    }
 
-    pt_dump = run_with_padiff(args.pt_cmd, "torch", args.pt_model_name, align_depth=args.align_depth)
-    pd_dump = run_with_padiff(
-        args.pd_cmd,
-        "paddle",
-        args.pd_model_name,
-        "align",
-        pt_dump,
-        args.single_step_mode,
-        align_depth=args.align_depth,
-    )
+    log_dir = args_dict.pop("log_dir", "./padiff_log")
+    pt_model_name = args_dict.pop("pt_model_name", "model")
+    pd_model_name = args_dict.pop("pd_model_name", "model")
+
+    single_step_mode_value = args_dict.pop("single_step_mode", None)
+    pd_kwargs = dict(args_dict)
+    if single_step_mode_value is not None:
+        pd_kwargs["single_step_mode"] = single_step_mode_value
+
+    pt_dump_path = run_with_padiff(pt_cmd, "torch", pt_model_name, **args_dict)
+    pd_dump_path = run_with_padiff(pd_cmd, "paddle", pd_model_name, "align", pt_dump_path, **pd_kwargs)
 
     logger.info("Running comparison...")
     try:
-        compare_cfg = {
-            "atol": args.atol,
-            "rtol": args.rtol,
-            "compare_mode": args.compare_mode,
-            "action_name": args.action_name,
-        }
-        compare_dumps(pt_dump, pd_dump, cfg=compare_cfg)
+        compare_dumps(pt_dump_path, pd_dump_path, cfg=compare_cfg)
     except Exception as e:
         logger.error(f"Failed to run compare_dumps: {e}. Please manually run function padiff.compare_dumps(...)")
 

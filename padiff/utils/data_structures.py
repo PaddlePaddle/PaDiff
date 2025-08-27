@@ -60,9 +60,13 @@ def reorder_and_match_sublayers(nodes, reports):
     raw_layers = list(filter(lambda x: x["type"] == "net", nodes[1]["children"]))
 
     try:
-        assert len(base_apis) == len(raw_apis), "number of api is different"
-        assert len(base_opaque_layers) == len(raw_opaque_layers), "number of opaque_layers is different"
-        assert len(base_layers) == len(raw_layers), "number of normal layer is different"
+        assert len(base_apis) == len(raw_apis), f"numbers of api are mismatch: {len(base_apis)}!={len(raw_apis)}"
+        assert len(base_opaque_layers) == len(
+            raw_opaque_layers
+        ), f"numbers of opaque_layers are mismatch: {len(base_opaque_layers)}!={len(raw_opaque_layers)}"
+        assert len(base_layers) == len(
+            raw_layers
+        ), f"numbers of layers are mismatch: {len(base_layers)}!={len(raw_layers)}"
 
         # reset orders
         reorder_api(base_apis, raw_apis)
@@ -129,12 +133,12 @@ def reorder_normal_layers(base_nodes, raw_nodes):
     bucket = {}
     for node in raw_nodes:
         key = node["metas"]["net_id"]
-        if key not in bucket:
-            bucket[key] = [node]
-        else:
-            bucket[key].append(node)
+        bucket.setdefault(key, []).append(node)
 
     raw_nodes.clear()
     for node in base_nodes:
-        correspond_node = bucket[node["metas"]["net_id"]].pop(0)
+        key = node["metas"]["net_id"]
+        if key not in bucket:
+            raise RuntimeError(f"Missing net_id={key} in raw model")
+        correspond_node = bucket[key].pop(0)
         raw_nodes.append(correspond_node)

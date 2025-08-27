@@ -20,7 +20,7 @@ import torch
 from ..marker import Marker
 from ..report import Report
 from ...tools import dump_grads, dump_params, dump_report, dump_weights, get_dump_root_path
-from ...utils import deco_iter, log, reset_dir
+from ...utils import deco_iter, logger, reset_dir
 from .params import ProxyParam
 
 
@@ -38,10 +38,20 @@ class ProxyModel:
 
         self.dump_freq = dump_freq
         if self.dump_freq > 1:
-            log(
-                "WARNING: after setting dump_freq > 1 please call dump_params, dump_weighs, dump_grads apis "
+            logger.warning(
+                "after setting dump_freq > 1 please call dump_params, dump_weighs, dump_grads apis "
                 "on the steps that can be divided by dump_freq. The calling of try_dump is intact."
             )
+
+        self._name_to_layer = {}
+        self._register_layers(model)
+
+    def _register_layers(self, model):
+        for name, mod in model.named_sublayers() if hasattr(model, "named_sublayers") else model.named_modules():
+            class_name = mod.__class__.__name__
+            if class_name not in self._name_to_layer:
+                self._name_to_layer[class_name] = set()
+            self._name_to_layer[class_name].add(mod)
 
     @staticmethod
     def create_from(model, name=None, dump_freq=1):
@@ -145,6 +155,26 @@ class ProxyModel:
             if isinstance(sub_layer.model, layer_class):
                 all_sub_layers.append(sub_layer.model)
         self.update_white_list(all_sub_layers, mode)
+
+    def update_black_list_with_name(self, class_names, mode="all"):
+        if class_names is None:
+            return
+
+        if isinstance(class_names, str):
+            class_names = [class_names]
+
+        matched_layers = []
+        for name in class_names:
+            if name in self._name_to_layer:
+                matched_layers.extend(self._name_to_layer[name])
+            else:
+                logger.warning(f"update blacklist: No layer found with class name: {name}")
+
+        if matched_layers:
+            self.update_black_list(matched_layers, mode)
+            logger.info(f"update blacklist: {len(matched_layers)} added with name(s) {class_names}")
+        else:
+            logger.warning(f"update blacklist: No layers matched for {class_names}")
 
     def set_layer_map(self, layers):
         self.marker.set_layer_map(layers)

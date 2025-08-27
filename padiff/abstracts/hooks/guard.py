@@ -15,6 +15,7 @@
 import contextlib
 import json
 import os
+import sys
 
 from ...utils import set_seed
 from .base import _context, _current_report
@@ -136,6 +137,7 @@ def PaDiffGuard(
     framework=None,
     seed=42,
     max_calls=1,
+    black_list=None,
 ):
     # create_model
     if not hasattr(model, "report"):
@@ -145,6 +147,7 @@ def PaDiffGuard(
 
     logger.debug(f"PaDiffGuard: depth of alignment is {align_depth}.")
     proxy_model.marker.update_black_list_with_depth(align_depth)
+    proxy_model.update_black_list_with_name(black_list)
 
     if load_init_weights or load_first_inputs or (single_step_mode is not None):
         assert (
@@ -201,10 +204,8 @@ def PaDiffGuard(
         if auto_dump:
             try:
                 dump_report(proxy_model, proxy_model.dump_path)
-            except Exception:
-                pass
-
-        import sys
+            except Exception as e:
+                logger.error(e)
 
         sys.exit(0)
 

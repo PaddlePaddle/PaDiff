@@ -50,7 +50,7 @@ def register_hooker(model):
     # register layer-level hooks
     for mod in models:
         pre_handle = mod.register_forward_pre_hook(partial(pre_structure_hook))
-        if mod not in marker.black_list:
+        if mod.model not in marker.black_list:
             logger.debug(f"info_hook of {mod.model.__class__.__name__} is registered")
             handle = mod.register_forward_post_hook(partial(info_hook, net_id=idx))
             remove_handles.append(handle)
@@ -136,7 +136,7 @@ def pre_structure_hook(layer, input):
 def post_structure_hook(layer, input, output):
     report = current_report()
     retval = report.stack.pop_layer(layer)
-    if retval in report.marker.black_list:
+    if retval.net in report.marker.black_list:
         report.stack._top().children.pop()
     return None
 
