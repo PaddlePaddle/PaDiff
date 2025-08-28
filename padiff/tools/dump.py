@@ -20,7 +20,7 @@ import numpy
 import paddle
 import torch
 
-from ..utils import Counter, frames_to_string, logger
+from ..utils import Counter, frames_to_string, logger, save_model_struct
 
 dump_root_path = os.path.join(sys.path[0], "padiff_dump")
 
@@ -74,6 +74,7 @@ def dump_report(model, dump_path):
     }
     with open(f"{dump_path}/report.json", "w") as fp:
         json.dump(report_info, fp, indent=4)
+    save_model_struct(report_info, "arch")
 
 
 def dump_report_node(wrap_node, tensor_dumper):
@@ -94,6 +95,8 @@ def dump_report_node(wrap_node, tensor_dumper):
     for tensor in wrap_node.fwd_report.tensors_for_compare():
         if tensor.dtype == torch.bfloat16:
             np_array = tensor.detach().float().numpy()
+        elif tensor.dtype == paddle.bfloat16:
+            np_array = tensor.detach().astype("float32").numpy()
         else:
             np_array = tensor.detach().numpy()
         file_name = tensor_dumper(np_array)

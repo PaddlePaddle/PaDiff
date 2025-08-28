@@ -17,12 +17,11 @@ import json
 import os
 import sys
 
-from ...utils import set_seed
+from ...utils import set_seed, logger
 from .base import _context, _current_report
 from .hook import register_hooker
 from ..proxy import create_model
 from ...tools import dump_report
-from ...utils import logger
 
 
 _global_report = None
@@ -138,6 +137,7 @@ def PaDiffGuard(
     seed=42,
     max_calls=1,
     black_list=None,
+    keys_mapping=None,
 ):
     # create_model
     if not hasattr(model, "report"):
@@ -158,7 +158,7 @@ def PaDiffGuard(
     if load_init_weights:
         from ...tools import load_init_weights_from_dump
 
-        load_init_weights_from_dump(base_dump_path, proxy_model)
+        load_init_weights_from_dump(base_dump_path, proxy_model, keys_mapping)
 
     # load first inputs
     if load_first_inputs:
@@ -184,11 +184,11 @@ def PaDiffGuard(
         with contextlib.ExitStack() as stack:
             stack.enter_context(AlignmentGuard(proxy_model, seed=seed))
             stack.enter_context(report_guard(proxy_model.report))
-            stack.enter_context(register_hooker(proxy_model))
 
             if single_step_mode is not None:
                 stack.enter_context(SingleStepGuard(single_step_mode, base_dump_path))
 
+            stack.enter_context(register_hooker(proxy_model))
             count_handle = proxy_model.register_forward_post_hook(calls_hook)
             stack.callback(count_handle.remove)
 

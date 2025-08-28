@@ -173,7 +173,10 @@ def load_init_weights_from_dump(
                         f"Shape mismatch for {param_key}({param_name}): "
                         f"expected {param.shape()} but got {list(np_value.shape)}"
                     )
-                    continue
+                    if np_value.size == param.param.size:
+                        settings["transpose"] = not settings["transpose"]
+                    else:
+                        continue
 
                 # transpose
                 if settings["transpose"]:

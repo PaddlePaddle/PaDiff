@@ -21,7 +21,7 @@ class Logger:
     def __init__(self):
         self._logger = None
         self._is_initialized = False
-        self.log_path = None
+        self.log_path = "padiff_log"
 
     def setup(self, log_parent_dir):
         if self._is_initialized:
@@ -108,21 +108,19 @@ logger = Logger()
 def print_report_info(nodes, reports, exc, stage, msg=None):
 
     logger.error("FAILED !!!")
+    logger.error("DIFF DETAILS:")
+    logger.error(f"  '{stage}' Stage Mismatch")
+    logger.error(f"  Layer: {nodes[0]['name']} vs {nodes[1]['name']}")
+    logger.error(f"  Route: {nodes[0]['route']} vs {nodes[1]['route']} \n")
+
+    logger.error(f"Error({type(exc).__name__}): {str(exc)} \n")
 
     if msg is not None:
-        logger.info("ADDITIONAL MESSAGE:")
-        print(msg + "\n")
-        logger.info("DIFF DETAILS:")
-    logger.info(f"    Diff found in {stage} Stage")
-    logger.info(f"    Type of layer is: {nodes[0]['name']} vs {nodes[1]['name']}")
-    logger.info(f"    Route: {nodes[0]['route']}")
-    logger.info(f"           {nodes[1]['route']}\n")
+        logger.warning("ADDITIONAL MESSAGE:")
+        logger.warning(msg.strip() + " \n")
 
-    print(f"{type(exc).__name__}: {str(exc)} \n")
-
-    logger.info("Check model struct:")
     retstr = struct_info_log(reports, [node["origin_node"] for node in nodes], "report")
-    print(retstr)
+    logger.info(retstr)
 
 
 def tree_print(node, mark=None, prefix=[]):
@@ -159,28 +157,38 @@ def tree_print(node, mark=None, prefix=[]):
     return ret_strs
 
 
-def struct_info_log(reports, nodes, file_prefix):
-    file_names = []
-    for idx in range(2):
-        node = nodes[idx]
-        report = reports[idx]
-        file_name = build_file_name(report, file_prefix + "_" + report["model_name"])
-        file_names.append(file_name)
-        title = f"{report['model_name']}\n" + "=" * 40 + "\n"
-        retval = []
-        for tree in report["tree"]:
-            retval.extend(tree_print(tree, mark=node, prefix=[" " * 4]))
-        info = title + "\n".join(retval)
-        logger.log_file(file_name, "w", info)
-
-    retval = f"Logs: {logger.log_path}/{file_names[0]}\n"
-    retval += f"      {logger.log_path}/{file_names[1]}\n"
-    return retval
-
-
 def build_file_name(report, file_name):
     strs = report["file_path"].split("/")
     for s in reversed(strs):
         if "step_" in s:
             return file_name + "_" + s + ".log"
     return file_name + ".log"
+
+
+def struct_info(report, node, file_prefix):
+    file_name = build_file_name(report, file_prefix + "_" + report["model_name"])
+    title = f"{report['model_name']}(without layers in blacklist)\n" + "=" * 40 + "\n"
+    retval = []
+    for tree in report["tree"]:
+        retval.extend(tree_print(tree, mark=node, prefix=[" " * 4]))
+    info = title + "\n".join(retval)
+    logger.log_file(file_name, "w", info)
+    return file_name
+
+
+def struct_info_log(reports, nodes, file_prefix):
+    file_names = []
+    for idx in range(2):
+        node = nodes[idx]
+        report = reports[idx]
+        file_name = struct_info(report, node, file_prefix)
+        file_names.append(file_name)
+    retval = (
+        f"Model struct files saved in: '{logger.log_path}/{file_names[0]}' vs '{logger.log_path}/{file_names[1]}'\n"
+    )
+    return retval
+
+
+def save_model_struct(report, file_prefix="arch"):
+    file_name = struct_info(report, None, file_prefix)
+    logger.info(f"Model struct saved in: '{logger.log_path}/{file_name}' without layers in blacklist\n")

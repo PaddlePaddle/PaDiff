@@ -192,6 +192,11 @@ class PaDiffInjector(ast.NodeTransformer):
             # load_init_weights
             load_weights_kw = ast.keyword(arg="load_init_weights", value=ast.Constant(value=True))
             guard_keywords.append(load_weights_kw)
+            logger.warning(
+                "The current injection does not include the 'keys_mapping' parameter of loading init weights. "
+                "If the model parameter names are inconsistent, please manually modify the injected script "
+                f"'debug_inject_{framework}.py' and pass 'keys_mapping' to 'PaDiffGuard(...)'"
+            )
 
             # load_first_inputs
             load_inputs_kw = ast.keyword(arg="load_first_inputs", value=ast.Constant(value=True))

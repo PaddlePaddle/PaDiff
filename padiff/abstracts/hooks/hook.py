@@ -16,7 +16,7 @@ import sys
 import contextlib
 from functools import partial
 
-import numpy
+import numpy as np
 import paddle
 import torch
 
@@ -51,12 +51,14 @@ def register_hooker(model):
     for mod in models:
         pre_handle = mod.register_forward_pre_hook(partial(pre_structure_hook))
         if mod.model not in marker.black_list:
-            logger.debug(f"info_hook of {mod.model.__class__.__name__} is registered")
+            logger.debug(f"Register(info_hook): {mod.model.__class__.__name__}(net_id={idx})")
             handle = mod.register_forward_post_hook(partial(info_hook, net_id=idx))
             remove_handles.append(handle)
+            idx += 1
+        else:
+            logger.debug(f"Skip(info_hook): {mod.model.__class__.__name__}(blacklisted)")
         post_handle = mod.register_forward_post_hook(partial(post_structure_hook))
         remove_handles.extend([pre_handle, post_handle])
-        idx += 1
     yield
     for h in remove_handles:
         h.remove()
@@ -75,6 +77,8 @@ def init_weights_hook(model, input):
             if isinstance(param, (paddle.Tensor, torch.Tensor)):
                 if param.dtype == torch.bfloat16:
                     np_array = param.detach().cpu().float().numpy()
+                elif param.dtype == paddle.bfloat16:
+                    np_array = param.detach().cpu().astype("float32").numpy()
                 else:
                     np_array = param.detach().cpu().numpy()
                 init_weights[name] = np_array
@@ -223,16 +227,16 @@ def info_hook(model, input, output, net_id):
             sys.exit(1)
 
         if base_report_node["name"] != _model.__class__.__name__:
-            error_msg = (
-                f"\n   ❌ Single-step alignment FAILED: Layer with net_id={net_id} mismatch!"
-                f"\n   📌 Layer of base model: {base_report_node['name']}"
-                f"\n   📌 Layer of raw model: {_model.__class__.__name__}"
+            warning_msg = (
+                f"\n   ⚠️ Single-step alignment FAILED: Layer with net_id={net_id} mismatch!"
+                f"\n   📌 Mismatch Layer: {base_report_node['name']}(base) vs {_model.__class__.__name__}(raw)"
                 f"\n   💡 Suggestion: Models have different architectures or initialization order. "
                 "Please check the model implementation or decrease 'align_depth' to reduce the alignment "
                 "granularity, or add layers that do not require alignment to the blacklist."
             )
-            logger.error(error_msg)
-            sys.exit(1)
+            logger.warning(warning_msg)
+        else:
+            logger.debug(f"Single Step: {_model.__class__.__name__}(net_id={net_id})")
 
         retval = map_structure(replace_forward_output(base_report_node), output)
         __in_info_hook__ = False
@@ -258,7 +262,7 @@ def tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
         )
         base_report_node = find_base_report_node(net_id, step_idx)
 
-        value = numpy.load(base_report_node["bwd_grads"][nth_tensor]["path"])
+        value = np.load(base_report_node["bwd_grads"][nth_tensor]["path"])
         if isinstance(x_grad, paddle.Tensor):
             return paddle.to_tensor(value)
         else:
@@ -303,7 +307,7 @@ def replace_forward_output(node):
                 raise RuntimeError(
                     "In single step mode, try to replace tensor by dumpped numpy value, but the number of tensors and numpy is not equal. Maybe the models are not corresponded."
                 )
-            value = numpy.load(numpy_file_list[cur_idx]["path"])
+            value = np.load(numpy_file_list[cur_idx]["path"])
             if isinstance(input_, paddle.Tensor):
                 return paddle.to_tensor(value, dtype=input_.dtype)
             else:

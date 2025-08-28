@@ -56,7 +56,7 @@ class PaddleParam(ProxyParam):
         return self.param.numpy()
 
     def set_data(self, np_value):
-        paddle.assign(paddle.to_tensor(np_value), self.param)
+        paddle.assign(paddle.to_tensor(np_value, dtype=self.param.dtype), self.param)
 
     def shape(self):
         return list(self.param.shape)
