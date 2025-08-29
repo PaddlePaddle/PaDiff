@@ -21,6 +21,7 @@ from ...utils import (
     print_report_info,
     reorder_and_match_sublayers,
     logger,
+    struct_info_log,
 )
 from ...configs import parse_cfg
 from ...abstracts import global_special_init_pool as init_pool
@@ -60,6 +61,8 @@ def _check_report_impl(report_path_0, report_path_1, cfg=None, diff_phase="both"
             if res == False:
                 logger.error("The forward stage comparing failed !!!")
                 return False
+            else:
+                struct_info_log(reports, root_pair, "report")
 
         if diff_phase in ("backward", "both"):
             # backward check
@@ -72,10 +75,11 @@ def _check_report_impl(report_path_0, report_path_1, cfg=None, diff_phase="both"
 
 
 def check_forward(nodes, reports, cfg):
-    action_name = cfg.pop("action_name", None)
+    action_name = cfg.get("action_name", None)
     act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=action_name)
     try:
         act(nodes[0]["fwd_outputs"], nodes[1]["fwd_outputs"], cfg)
+        logger.debug(f"Checking forward success of {nodes[0]['name']}")
         return True
     except Exception as e:
         compare_info = e
@@ -91,8 +95,9 @@ def check_forward(nodes, reports, cfg):
         msg = f"While checking forward, diff found at base_model {nodes[0]['name']} vs raw_model {nodes[1]['name']}\n"
         msg += "Call `reorder_and_match_sublayers` for more detailed infos, but error occurs again:\n"
         msg += f"{type(e).__name__}:  {str(e)}"
-        print_report_info(nodes, reports, compare_info, "Forward", msg)
-        return False
+        logger.error(msg)
+        # print_report_info(nodes, reports, compare_info, "Forward", msg)
+        # return False
 
     for child_0, child_1 in zip(nodes[0]["children"], nodes[1]["children"]):
         res = check_forward((child_0, child_1), reports, cfg)
@@ -100,14 +105,13 @@ def check_forward(nodes, reports, cfg):
             return False
 
     # sublayers is compared ok, but diff found at father layer
-
     msg = f"Sublayers of {nodes[0]['name']} and {nodes[1]['name']} are corresponded, but diff found at their output!"
     print_report_info(nodes, reports, compare_info, "Forward", msg)
     return False
 
 
 def check_backward(nodes, reports, cfg):
-    action_name = cfg.pop("action_name", None)
+    action_name = cfg.get("action_name", None)
     act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=action_name)
     try:
         act(nodes[0]["bwd_grads"], nodes[1]["bwd_grads"], cfg)

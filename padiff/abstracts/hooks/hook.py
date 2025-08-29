@@ -16,18 +16,18 @@ import sys
 import contextlib
 from functools import partial
 
-import numpy
+import numpy as np
 import paddle
 import torch
-from paddle.utils import to_sequence
 
 from ...utils import (
     clone_tensors,
     extract_frame_summary,
     flatten,
     for_each_grad_tensor,
-    map_structure_and_replace_key,
     logger,
+    to_sequence,
+    map_structure,
 )
 from .base import current_report, find_base_report_node, single_step_state
 
@@ -50,13 +50,15 @@ def register_hooker(model):
     # register layer-level hooks
     for mod in models:
         pre_handle = mod.register_forward_pre_hook(partial(pre_structure_hook))
-        if mod not in marker.black_list:
-            logger.debug(f"info_hook of {mod.model.__class__.__name__} is registered")
+        if mod.model not in marker.black_list:
+            logger.debug(f"Register(info_hook): {mod.model.__class__.__name__}(net_id={idx})")
             handle = mod.register_forward_post_hook(partial(info_hook, net_id=idx))
             remove_handles.append(handle)
+            idx += 1
+        else:
+            logger.debug(f"Skip(info_hook): {mod.model.__class__.__name__}(blacklisted)")
         post_handle = mod.register_forward_post_hook(partial(post_structure_hook))
         remove_handles.extend([pre_handle, post_handle])
-        idx += 1
     yield
     for h in remove_handles:
         h.remove()
@@ -75,6 +77,8 @@ def init_weights_hook(model, input):
             if isinstance(param, (paddle.Tensor, torch.Tensor)):
                 if param.dtype == torch.bfloat16:
                     np_array = param.detach().cpu().float().numpy()
+                elif param.dtype == paddle.bfloat16:
+                    np_array = param.detach().cpu().astype("float32").numpy()
                 else:
                     np_array = param.detach().cpu().numpy()
                 init_weights[name] = np_array
@@ -136,7 +140,7 @@ def pre_structure_hook(layer, input):
 def post_structure_hook(layer, input, output):
     report = current_report()
     retval = report.stack.pop_layer(layer)
-    if retval in report.marker.black_list:
+    if retval.net in report.marker.black_list:
         report.stack._top().children.pop()
     return None
 
@@ -217,12 +221,24 @@ def info_hook(model, input, output, net_id):
             route = getattr(model, "route", "unknown")
             logger.error(
                 f"\n   ❌ Single-step alignment FAILED: Execution path mismatch!"
-                f"\n   ❗️ Layer '{route}' called {current_calls} times (current) vs {base_max_calls} times (base)."
-                f"\n   ❗️ Check the forward logic in both models around this layer."
+                f"\n   📌 Layer '{route}' called {current_calls} times (current) vs {base_max_calls} times (base)."
+                f"\n   📌 Check the forward logic in both models around this layer."
             )
             sys.exit(1)
 
-        retval = map_structure_and_replace_key(replace_forward_output(base_report_node), to_sequence(output), output)
+        if base_report_node["name"] != _model.__class__.__name__:
+            warning_msg = (
+                f"\n   ⚠️ Single-step alignment FAILED: Layer with net_id={net_id} mismatch!"
+                f"\n   📌 Mismatch Layer: {base_report_node['name']}(base) vs {_model.__class__.__name__}(raw)"
+                f"\n   💡 Suggestion: Models have different architectures or initialization order. "
+                "Please check the model implementation or decrease 'align_depth' to reduce the alignment "
+                "granularity, or add layers that do not require alignment to the blacklist."
+            )
+            logger.warning(warning_msg)
+        else:
+            logger.debug(f"Single Step: {_model.__class__.__name__}(net_id={net_id})")
+
+        retval = map_structure(replace_forward_output(base_report_node), output)
         __in_info_hook__ = False
         return retval
     else:
@@ -246,7 +262,7 @@ def tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
         )
         base_report_node = find_base_report_node(net_id, step_idx)
 
-        value = numpy.load(base_report_node["bwd_grads"][nth_tensor]["path"])
+        value = np.load(base_report_node["bwd_grads"][nth_tensor]["path"])
         if isinstance(x_grad, paddle.Tensor):
             return paddle.to_tensor(value)
         else:
@@ -291,11 +307,11 @@ def replace_forward_output(node):
                 raise RuntimeError(
                     "In single step mode, try to replace tensor by dumpped numpy value, but the number of tensors and numpy is not equal. Maybe the models are not corresponded."
                 )
-            value = numpy.load(numpy_file_list[cur_idx]["path"])
+            value = np.load(numpy_file_list[cur_idx]["path"])
             if isinstance(input_, paddle.Tensor):
-                return paddle.to_tensor(value)
+                return paddle.to_tensor(value, dtype=input_.dtype)
             else:
-                return torch.as_tensor(value, device=input_.device)
+                return torch.as_tensor(value, dtype=input_.dtype, device=input_.device)
         else:
             return input_
 

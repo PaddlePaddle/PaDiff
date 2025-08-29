@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import json
+import collections.abc
 
 import numpy as np
 import paddle
 import torch
-from paddle.utils import flatten, map_structure, pack_sequence_as
 
 
 def set_seed(seed=42):
@@ -83,6 +83,118 @@ def clone_tensors(inputs):
     return tensors
 
 
+def is_sequence(x):
+    """
+    Check if x is a sequence (list, tuple, etc.) but not string or bytes.
+    """
+    if isinstance(x, str) or isinstance(x, bytes):
+        return False
+    return isinstance(x, collections.abc.Sequence) or isinstance(x, collections.abc.MutableSequence)
+
+
+def to_sequence(x):
+    return list(x) if is_sequence(x) else [x]
+
+
+def traverse(structure, on_leaf, on_container=None):
+    """
+    Traverse a nested structure and apply `on_leaf` to each leaf.
+    Optionally apply `on_container` to containers (dict, list, etc.).
+
+    Args:
+        structure: The nested structure to traverse.
+        on_leaf: Function to apply to each leaf (e.g., Tensor).
+        on_container: Optional function to apply to container after children are processed.
+
+    Returns:
+        A new structure with leaves transformed.
+    """
+    if structure is None:
+        return structure
+
+    # basic type
+    if isinstance(structure, (str, int, float, bool)):
+        return on_leaf(structure)
+
+    # Tensor
+    if isinstance(structure, (paddle.Tensor, torch.Tensor)):
+        return on_leaf(structure)
+
+    # dict
+    if isinstance(structure, dict):
+        new_dict = type(structure)()
+        for k in sorted(structure.keys()):
+            new_dict[k] = traverse(structure[k], on_leaf, on_container)
+        return on_container(new_dict) if on_container else new_dict
+
+    # list
+    if isinstance(structure, list):
+        result = [traverse(item, on_leaf, on_container) for item in structure]
+        return on_container(result) if on_container else result
+
+    # tuple
+    if isinstance(structure, tuple):
+        # namedtuple
+        if hasattr(structure, "_fields"):
+            result = type(structure)(
+                *[traverse(getattr(structure, field), on_leaf, on_container) for field in structure._fields]
+            )
+            return on_container(result) if on_container else result
+        else:  # tuple
+            result = tuple(traverse(item, on_leaf, on_container) for item in structure)
+            return on_container(result) if on_container else result
+
+    # others like, ModelOutput, CausalLMOutputWithPast, DynamicCache
+    if hasattr(structure, "__dict__"):
+        try:
+            new_obj = type(structure)()
+            for k in sorted(structure.__dict__.keys()):
+                if not k.startswith("_"):
+                    v = getattr(structure, k)
+                    setattr(new_obj, k, traverse(v, on_leaf, on_container))
+            return on_container(new_obj) if on_container else new_obj
+        except:
+            pass
+
+    # others
+    if hasattr(structure, "__class__"):
+        try:
+            new_obj = type(structure)()
+            for k in dir(structure):
+                if not k.startswith("_") and not callable(getattr(structure, k)):
+                    try:
+                        v = getattr(structure, k)
+                        setattr(new_obj, k, traverse(v, on_leaf, on_container))
+                    except:
+                        pass
+            return on_container(new_obj) if on_container else new_obj
+        except:
+            pass
+
+    # default: treat as leaves
+    return on_leaf(structure)
+
+
+def flatten(structure):
+    flat_list = []
+
+    def on_leaf(x):
+        flat_list.append(x)
+        return None
+
+    traverse(structure, on_leaf)
+    return flat_list
+
+
+def map_structure(func, structure):
+    return traverse(structure, on_leaf=func)
+
+
+def pack_sequence_as(structure, flat_sequence):
+    flat_iter = iter(flat_sequence)
+    return traverse(structure, on_leaf=lambda x: next(flat_iter), on_container=lambda x: x)
+
+
 """
     traversal tools
 """
@@ -106,6 +218,7 @@ def for_each_grad_tensor(*structure):
 def map_structure_and_replace_key(func, structure1, structure2):
     """
     Apply `func` to each entry in `structure` and return a new structure.
+    deprecated: func(*x) will cause more than 1 tensor to be passed in, but 'inner()' of 'replace_forward_output' only wants one input
     """
     flat_structure = [flatten(s) for s in structure1]
     entries = zip(*flat_structure)

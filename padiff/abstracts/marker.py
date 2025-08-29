@@ -17,7 +17,7 @@ import os
 import paddle
 import torch
 
-from ..utils import log
+from ..utils import logger
 from .special_init import global_special_init_pool as init_pool
 
 
@@ -80,7 +80,7 @@ class Marker:
         _layer_map = []
         registered = init_pool.registered_base_models if model_place == "base" else init_pool.registered_raw_models
 
-        log("Auto set layer_map start searching...")
+        logger.info("Auto set layer_map start searching...")
         for layer in self.traversal_for_layer_map():
             if layer.fullname in registered:
                 print(f"++++    {model_place}_model found `{layer.fullname}` add to layer_map   ++++")

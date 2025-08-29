@@ -15,13 +15,13 @@
 import contextlib
 import json
 import os
+import sys
 
-from ...utils import set_seed
+from ...utils import set_seed, logger
 from .base import _context, _current_report
 from .hook import register_hooker
 from ..proxy import create_model
 from ...tools import dump_report
-from ...utils import logger
 
 
 _global_report = None
@@ -100,6 +100,7 @@ def SingleStepGuard(diff_phase, base_dump_path):
 @contextlib.contextmanager
 def AlignmentGuard(model, seed=42):
     """Prepare the model environment for accuracy alignment."""
+    logger.debug(f"AlignmentGuard: Initializing for {model}")
     model.model.train()
     model.toggle_dropout(enable=False)
     set_seed(seed)
@@ -135,6 +136,8 @@ def PaDiffGuard(
     framework=None,
     seed=42,
     max_calls=1,
+    black_list=None,
+    keys_mapping=None,
 ):
     # create_model
     if not hasattr(model, "report"):
@@ -144,6 +147,7 @@ def PaDiffGuard(
 
     logger.debug(f"PaDiffGuard: depth of alignment is {align_depth}.")
     proxy_model.marker.update_black_list_with_depth(align_depth)
+    proxy_model.update_black_list_with_name(black_list)
 
     if load_init_weights or load_first_inputs or (single_step_mode is not None):
         assert (
@@ -154,7 +158,7 @@ def PaDiffGuard(
     if load_init_weights:
         from ...tools import load_init_weights_from_dump
 
-        load_init_weights_from_dump(base_dump_path, proxy_model)
+        load_init_weights_from_dump(base_dump_path, proxy_model, keys_mapping)
 
     # load first inputs
     if load_first_inputs:
@@ -170,7 +174,9 @@ def PaDiffGuard(
     def calls_hook(m, input, output):
         nonlocal calls_count
         calls_count += 1
+        logger.debug(f"PaDiffGuard: forward call #{calls_count}")
         if calls_count >= max_calls:
+            logger.warning(f"PaDiffGuard: max_calls={max_calls} reached, raising _CallsComplete")
             raise _CallsComplete()
 
     try:
@@ -178,24 +184,28 @@ def PaDiffGuard(
         with contextlib.ExitStack() as stack:
             stack.enter_context(AlignmentGuard(proxy_model, seed=seed))
             stack.enter_context(report_guard(proxy_model.report))
-            stack.enter_context(register_hooker(proxy_model))
 
             if single_step_mode is not None:
                 stack.enter_context(SingleStepGuard(single_step_mode, base_dump_path))
 
+            stack.enter_context(register_hooker(proxy_model))
             count_handle = proxy_model.register_forward_post_hook(calls_hook)
             stack.callback(count_handle.remove)
 
+            yield model
+
             # dump report
             if auto_dump:
-                stack.callback(lambda: dump_report(proxy_model, proxy_model.dump_path))
-
-            yield model
+                dump_report(proxy_model, proxy_model.dump_path)
 
     except _CallsComplete:
         logger.info(f"PaDiffGuard: calls completed ({calls_count}/{max_calls})")
-        # raise
-        import sys
+        # dump report
+        if auto_dump:
+            try:
+                dump_report(proxy_model, proxy_model.dump_path)
+            except Exception as e:
+                logger.error(e)
 
         sys.exit(0)
 

@@ -18,7 +18,7 @@ from itertools import zip_longest
 import numpy
 
 from ..configs import global_yaml_loader as yamls
-from ..utils import logger, log_file, log_path
+from ..utils import logger
 from ..abstracts import build_name
 from ..abstracts import global_special_init_pool as init_pool
 
@@ -120,11 +120,11 @@ def fail_init_weight_log(models, submodels):
         title = f"{model.name}\n" + "=" * 40 + "\n"
         retval = weight_struct_string(model, mark=submodels[idx], prefix=[" " * 4])
         info = title + "\n".join(retval)
-        log_file(file_name, "w", info)
+        logger.log_file(file_name, "w", info)
 
     retval = f"Weight init log saved to \n"
-    retval += f"    {log_path}/{file_names[0]}\n"
-    retval += f"    {log_path}/{file_names[1]}\n\n"
+    retval += f"    {logger.log_path}/{file_names[0]}\n"
+    retval += f"    {logger.log_path}/{file_names[1]}\n\n"
     retval += "Please view the reports and checkout the layer marked with `<---  *** HERE ***` !"
 
     retval += "\nHint:\n"

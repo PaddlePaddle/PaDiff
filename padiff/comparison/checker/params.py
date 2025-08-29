@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from ...utils import logger, log_file, log_path, build_file_name, get_all_valid_path, load_json, traversal_node
+from ...utils import logger, build_file_name, get_all_valid_path, load_json, traversal_node
 from ...configs import parse_cfg
 from .base import assert_weight, assert_grad, process_each_param
 
@@ -90,7 +90,7 @@ def check_target(fn, node_lists, reports, compare_target, cfg):
                     type(e).__name__ + ":  " + str(e),
                 )
             )
-            log_file(log_name, "a", info)
+            logger.log_file(log_name, "a", info)
 
     try:
         process_each_param(checker, node_lists, reports, compare_target, cfg)
@@ -99,7 +99,9 @@ def check_target(fn, node_lists, reports, compare_target, cfg):
         return False
 
     if flag == False:
-        logger.info(f"Diff found when compare {compare_target}, please check report \n        {log_path}/{log_name}")
+        logger.info(
+            f"Diff found when compare {compare_target}, please check report \n        {logger.log_path}/{log_name}"
+        )
     else:
         logger.info(f"{compare_target} compared.")
 

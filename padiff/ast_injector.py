@@ -25,8 +25,7 @@ class PaDiffInjector(ast.NodeTransformer):
         src_model_name="model",
         mode="base",
         alignment_dir=None,
-        single_step_mode=None,
-        align_depth="inf",
+        **kwargs,
     ):
         self.framework = framework
         self.src_model_name = src_model_name  # model(inputs)
@@ -36,8 +35,7 @@ class PaDiffInjector(ast.NodeTransformer):
         if self.mode == "align":
             assert alignment_dir is not None, "'alignment_dir' should not be None in align mode."
         self.alignment_dir = alignment_dir
-        self.single_step_mode = single_step_mode
-        self.align_depth = align_depth
+        self.kwargs = kwargs
 
         # black list: calls to these methods will not be injected into PaDiffGuard
         self.exclude_methods = {
@@ -194,6 +192,11 @@ class PaDiffInjector(ast.NodeTransformer):
             # load_init_weights
             load_weights_kw = ast.keyword(arg="load_init_weights", value=ast.Constant(value=True))
             guard_keywords.append(load_weights_kw)
+            logger.warning(
+                "The current injection does not include the 'keys_mapping' parameter of loading init weights. "
+                "If the model parameter names are inconsistent, please manually modify the injected script "
+                f"'debug_inject_{framework}.py' and pass 'keys_mapping' to 'PaDiffGuard(...)'"
+            )
 
             # load_first_inputs
             load_inputs_kw = ast.keyword(arg="load_first_inputs", value=ast.Constant(value=True))
@@ -203,19 +206,28 @@ class PaDiffInjector(ast.NodeTransformer):
             framework_kw = ast.keyword(arg="framework", value=ast.Constant(value=self.framework))
             guard_keywords.append(framework_kw)
 
-        if self.align_depth != "inf":
-            single_step_kw = ast.keyword(arg="align_depth", value=ast.Constant(value=self.align_depth))
-            guard_keywords.append(single_step_kw)
+        # align_depth
+        if "align_depth" in self.kwargs and self.kwargs["align_depth"] != "inf":
+            align_depth_kw = ast.keyword(arg="align_depth", value=ast.Constant(value=self.kwargs["align_depth"]))
+            guard_keywords.append(align_depth_kw)
 
         # single_step_mode
-        if self.single_step_mode is not None:
-            single_step_kw = ast.keyword(arg="single_step_mode", value=ast.Constant(value=self.single_step_mode))
+        single_step_mode = self.kwargs.get("single_step_mode")
+        if single_step_mode is not None:
+            single_step_kw = ast.keyword(
+                arg="single_step_mode", value=ast.Constant(value=self.kwargs["single_step_mode"])
+            )
             guard_keywords.append(single_step_kw)
 
         # base_dump_path
-        if self.mode == "align" or self.single_step_mode is not None:
+        if self.mode == "align" or single_step_mode is not None:
             base_dump_path_kw = ast.keyword(arg="base_dump_path", value=ast.Constant(value=self.alignment_dir))
             guard_keywords.append(base_dump_path_kw)
+
+        # black_list
+        if "black_list" in self.kwargs:
+            black_list_kw = ast.keyword(arg="black_list", value=ast.Constant(value=self.kwargs["black_list"]))
+            guard_keywords.append(black_list_kw)
 
         # name
         name_kw = ast.keyword(arg="name", value=ast.Constant(value=self.padiff_model_name))
@@ -267,8 +279,7 @@ def create_injected_script(
     src_model_name: str = "model",
     mode: str = "base",
     alignment_dir: str = None,
-    single_step_mode: str = None,
-    align_depth: str = "inf",
+    **kwargs,
 ) -> str:
     # read source script
     with open(src_script_path, "r", encoding="utf-8") as f:
@@ -286,8 +297,7 @@ def create_injected_script(
         src_model_name=src_model_name,
         mode=mode,
         alignment_dir=alignment_dir,
-        single_step_mode=single_step_mode,
-        align_depth=align_depth,
+        **kwargs,
     )
     new_tree = injector.visit(tree)
     ast.fix_missing_locations(new_tree)
