@@ -14,5 +14,5 @@
 
 from .base import check_dataloader
 from .params import check_grads, check_params, check_weights
-from .report import check_report
+from .reports import check_report
 from ...configs import global_compare_configs, update_configs

@@ -242,20 +242,52 @@ def dump_first_input(report, path):
     os.makedirs(first_input_path, exist_ok=True)
 
     input_idx = 0
-    for i, (typ, data) in enumerate(first_input):
-        if typ == "Tensor" and isinstance(data, numpy.ndarray):
-            numpy.save(os.path.join(first_input_path, f"input_{input_idx}.npy"), data)
-        else:
-            meta_file = os.path.join(first_input_path, f"input_{input_idx}.json")
-            try:
-                json.dump({"type": typ, "data": data}, open(meta_file, "w"), indent=2, default=str)
-            except Exception as e:
-                with open(meta_file, "w") as f:
-                    f.write(f"type: {typ}\nvalue: {str(data)}")
-        input_idx += 1
+    meta_info = []
+    if "args" in first_input:
+        for item in first_input["args"]:
+            typ, data = item
+            file_base = f"arg_{input_idx}"
+            if typ == "Tensor" and isinstance(data, numpy.ndarray):
+                npy_path = os.path.join(first_input_path, f"{file_base}.npy")
+                numpy.save(npy_path, data)
+                meta_info.append({"type": "Tensor", "path": f"{file_base}.npy"})
+            else:
+                json_path = os.path.join(first_input_path, f"{file_base}.json")
+                try:
+                    with open(json_path, "w") as f:
+                        json.dump({"type": typ, "data": data}, f, indent=2, default=str)
+                except Exception as e:
+                    with open(json_path, "w") as f:
+                        f.write(f"type: {typ}\nvalue: {str(data)}")
+                meta_info.append({"type": typ, "path": f"{file_base}.json"})
+            input_idx += 1
+
+    if "kwargs" in first_input:
+        for key, item in first_input["kwargs"].items():
+            typ, data = item
+            file_base = f"kw_{key}_{input_idx}"
+            if typ == "Tensor" and isinstance(data, numpy.ndarray):
+                npy_path = os.path.join(first_input_path, f"{file_base}.npy")
+                numpy.save(npy_path, data)
+                meta_info.append({"type": "Tensor", "path": f"{file_base}.npy", "key": key})
+            else:
+                json_path = os.path.join(first_input_path, f"{file_base}.json")
+                try:
+                    with open(json_path, "w") as f:
+                        json.dump({"type": typ, "data": data}, f, indent=2, default=str)
+                except Exception as e:
+                    with open(json_path, "w") as f:
+                        f.write(f"type: {typ}\nvalue: {str(data)}")
+                meta_info.append({"type": typ, "path": f"{file_base}.json", "key": key})
+            input_idx += 1
+
+    meta_file = os.path.join(first_input_path, "meta.json")
+    with open(meta_file, "w") as f:
+        json.dump(meta_info, f, indent=2)
 
     return {
         "has_first_input": True,
         "first_input_dir": "first_input",
         "first_input_count": input_idx,
+        "first_input_meta": "first_input/meta.json",
     }

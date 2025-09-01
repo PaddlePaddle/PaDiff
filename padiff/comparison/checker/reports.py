@@ -75,11 +75,11 @@ def _check_report_impl(report_path_0, report_path_1, cfg=None, diff_phase="both"
 
 
 def check_forward(nodes, reports, cfg):
+    logger.debug(f"Checking forward of {nodes[0]['name']}")
     action_name = cfg.get("action_name", None)
     act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=action_name)
     try:
         act(nodes[0]["fwd_outputs"], nodes[1]["fwd_outputs"], cfg)
-        logger.debug(f"Checking forward success of {nodes[0]['name']}")
         return True
     except Exception as e:
         compare_info = e
@@ -105,7 +105,10 @@ def check_forward(nodes, reports, cfg):
             return False
 
     # sublayers is compared ok, but diff found at father layer
-    msg = f"Sublayers of {nodes[0]['name']} and {nodes[1]['name']} are corresponded, but diff found at their output!"
+    msg = (
+        f"\n   ⚠️ Sublayers of {nodes[0]['name']} and {nodes[1]['name']} are corresponded, but diff found at their output! "
+        "\n   💡 This might be reasonable since errors accumulate if single_step mode is enabled."
+    )
     print_report_info(nodes, reports, compare_info, "Forward", msg)
     return False
 

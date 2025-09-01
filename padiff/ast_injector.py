@@ -28,6 +28,7 @@ class PaDiffInjector(ast.NodeTransformer):
         **kwargs,
     ):
         self.framework = framework
+        self.base_name = src_model_name.split(".")[0]  # get trainer if trainer.model
         self.src_model_name = src_model_name  # model(inputs)
         self.padiff_model_name = f"model_{framework.lower()}"  # "model_paddle"
         self.proxy_model_name = "proxy_model"  # proxy_model = create_model(model)
@@ -90,13 +91,13 @@ class PaDiffInjector(ast.NodeTransformer):
             return False
         func = node.func
         # model(inp)
-        if isinstance(func, ast.Name) and func.id == self.src_model_name:
+        if isinstance(func, ast.Name) and func.id == self.base_name:
             return True
         # model.forward(inp), model.submodule(inp)
         if isinstance(func, ast.Attribute):
-            if func.attr in self.exclude_methods:
+            if self.base_name != "trainer" and func.attr in self.exclude_methods:
                 return False
-            return self.is_model_attribute(func, self.src_model_name)
+            return self.is_model_attribute(func, self.base_name)
         return False
 
     def is_model_attribute(self, node, root="model"):
@@ -185,7 +186,12 @@ class PaDiffInjector(ast.NodeTransformer):
         return [node, wrapper]
 
     def wrap_with_guard(self, node):
-        guard_args = [ast.Name(id=self.src_model_name, ctx=ast.Load())]
+        path = self.src_model_name.split(".")
+        model_node = ast.Name(id=path[0], ctx=ast.Load())
+        for attr in path[1:]:  # if trainer.model
+            model_node = ast.Attribute(value=model_node, attr=attr, ctx=ast.Load())
+        guard_args = [model_node]
+
         guard_keywords = []
 
         if self.mode == "align":
@@ -195,7 +201,7 @@ class PaDiffInjector(ast.NodeTransformer):
             logger.warning(
                 "The current injection does not include the 'keys_mapping' parameter of loading init weights. "
                 "If the model parameter names are inconsistent, please manually modify the injected script "
-                f"'debug_inject_{framework}.py' and pass 'keys_mapping' to 'PaDiffGuard(...)'"
+                f"'debug_inject_{self.framework}.py' and pass 'keys_mapping' to 'PaDiffGuard(...)'"
             )
 
             # load_first_inputs

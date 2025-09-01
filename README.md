@@ -30,7 +30,7 @@ python -m padiff.cli \
 或将命令写入 .yaml 文件后，运行
 
 ```sh
-python -m padiff.cli --padiff_config.yaml
+python -m padiff.cli --config padiff_config.yaml
 ```
 
 yaml 文件样例
