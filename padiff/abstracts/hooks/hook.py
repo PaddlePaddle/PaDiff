@@ -14,7 +14,9 @@
 
 import sys
 import contextlib
+import functools
 from functools import partial
+import inspect
 
 import numpy as np
 import paddle
@@ -26,7 +28,6 @@ from ...utils import (
     flatten,
     for_each_grad_tensor,
     logger,
-    to_sequence,
     map_structure,
 )
 from .base import current_report, find_base_report_node, single_step_state
@@ -44,8 +45,8 @@ def register_hooker(model):
 
     # register model-level hooks
     handle_init = model.register_forward_pre_hook(partial(init_weights_hook))
-    handle_input = model.register_forward_pre_hook(partial(first_input_hook))
-    remove_handles.extend([handle_init, handle_input])
+    remove_handles.append(handle_init)
+    inject_input_capture(models[0].model)
 
     # register layer-level hooks
     for mod in models:
@@ -84,43 +85,6 @@ def init_weights_hook(model, input):
                 init_weights[name] = np_array
         report.init_weights = init_weights
         report.init_weights_saved = True
-    return None
-
-
-def first_input_hook(model, input):
-    report = current_report()
-    if report is None:
-        logger.debug("first_input_hook: current_report is None")
-        return None
-
-    if hasattr(report, "_loaded_inputs") and report._loaded_inputs is not None:
-        logger.debug("first_input_hook: loading first input")
-        loaded_inputs = report._loaded_inputs
-        if isinstance(loaded_inputs, list):
-            return tuple(loaded_inputs)
-        return loaded_inputs
-
-    if not hasattr(report, "first_input_captured"):
-        logger.debug("first_input_hook: capturing first input")
-
-        def serialize(x):
-            if isinstance(x, (paddle.Tensor, torch.Tensor)):
-                return ("Tensor", x.detach().cpu().numpy())
-            elif isinstance(x, dict):
-                return ("dict", {k: serialize(v) for k, v in x.items()})
-            elif isinstance(x, (list, tuple)):
-                return (type(x).__name__, [serialize(item) for item in x])
-            else:
-                return (type(x).__name__, str(x))
-
-        try:
-            serialized = [serialize(x) for x in to_sequence(input)]
-            if len(serialized) == 0:
-                logger.warning(f"No first input captured")
-            report.first_input = serialized
-            report.first_input_captured = True
-        except Exception as e:
-            logger.warning(f"Failed to capture first input: {e}")
     return None
 
 
@@ -316,3 +280,65 @@ def replace_forward_output(node):
             return input_
 
     return inner
+
+
+def inject_input_capture(model):
+    if hasattr(model, "_padiff_input_captured"):
+        return
+    original_forward = model.forward
+
+    @functools.wraps(original_forward)
+    def tracked_forward(*args, **kwargs):
+        report = current_report()
+
+        if not args and not kwargs:
+            logger.warning("Skipped capturing or loading input: both args and kwargs are empty.")
+            return original_forward(*args, **kwargs)
+
+        if hasattr(report, "_loaded_inputs") and report._loaded_inputs is not None:
+            logger.info("Loading first input from dump")
+            loaded_args, loaded_kwargs = report._loaded_inputs
+
+            try:
+                sig = inspect.signature(original_forward)
+                valid_arg_names = set(sig.parameters.keys())
+            except Exception as e:
+                logger.warning(f"Failed to get forward signature: {e}. Using all keys.")
+                valid_arg_names = set(loaded_kwargs.keys())
+
+            filtered_kwargs = {k: v for k, v in loaded_kwargs.items() if k in valid_arg_names}
+            dropped_keys = set(loaded_kwargs.keys()) - set(filtered_kwargs.keys())
+            if dropped_keys:
+                logger.debug(f"Dropped keys not in forward signature: {dropped_keys}")
+
+            final_kwargs = {**kwargs, **filtered_kwargs}
+            delattr(report, "_loaded_inputs")
+            return original_forward(*loaded_args, **final_kwargs)
+
+        if report and not hasattr(report, "first_input_captured"):
+
+            def serialize(x):
+                if isinstance(x, (paddle.Tensor, torch.Tensor)):
+                    return ("Tensor", x.detach().cpu().numpy())
+                elif isinstance(x, dict):
+                    return ("dict", {k: serialize(v) for k, v in x.items()})
+                elif isinstance(x, (list, tuple)):
+                    return (type(x).__name__, [serialize(item) for item in x])
+                else:
+                    return (type(x).__name__, str(x))
+
+            serialized = {
+                "args": [serialize(x) for x in args] if args else [],
+                "kwargs": {k: serialize(v) for k, v in kwargs.items()},
+            }
+            if serialized["args"] or serialized["kwargs"]:
+                report.first_input = serialized
+                report.first_input_captured = True
+                logger.info(f"Captured full input: args={len(args)}, kwargs={list(kwargs.keys())}")
+            else:
+                logger.warning("Skipped capturing input: serialized input is empty.")
+
+        return original_forward(*args, **kwargs)
+
+    model.forward = tracked_forward
+    model._padiff_input_captured = True

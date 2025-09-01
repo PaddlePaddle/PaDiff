@@ -31,64 +31,63 @@ def load_first_input_from_dump(report_path, tar_framework):
         return None
 
     input_dir = os.path.join(report_path, "first_input")
-    all_files = sorted(
-        [f for f in os.listdir(input_dir) if f.startswith("input_")], key=lambda x: int(x.split("_")[1].split(".")[0])
-    )
-    if not all_files:
-        logger.warning(f"Not found any 'input_*' file in {input_dir}. Please check the path.")
+    meta_file = os.path.join(input_dir, "meta.json")
+
+    if not os.path.exists(meta_file):
+        logger.warning(f"'meta.json' not found in {input_dir}. Please check the path.")
         return None
 
-    reconstructed_inputs = []
-    for file_name in all_files:
-        file_path = os.path.join(input_dir, file_name)
+    try:
+        with open(meta_file, "r") as f:
+            meta_info = json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load 'meta.json': {e}")
+        return None
 
-        if file_name.endswith(".npy"):
-            numpy_array = np.load(file_path)
-            if tar_framework == "paddle":
-                tensor = paddle.to_tensor(numpy_array)
-                tensor.stop_gradient = False
-            elif tar_framework == "torch":
-                tensor = torch.tensor(numpy_array)
-                tensor.requires_grad_ = True
-            reconstructed_inputs.append(tensor)
+    args = []
+    kwargs = {}
 
-        elif file_name.endswith(".json"):
-            try:
-                with open(file_path) as f:
-                    meta_data = json.load(f)
-                data_type = meta_data["type"]
-                data_value = meta_data["data"]
+    for item in meta_info:
+        file_path = os.path.join(input_dir, item["path"])
+        key = item.get("key")
 
-                if data_type == "dict":
-                    reconstructed_dict = {}
-                    for key, (item_type, item_value) in data_value.items():
-                        if item_type == "Tensor":
-                            raise RuntimeError(
-                                f"Including Tensor types in meta JSON is not supported. Please check the serialize logic."
-                            )
-                        else:
-                            reconstructed_dict[key] = item_value
-                    reconstructed_inputs.append(reconstructed_dict)
-                elif data_type in ["list", "tuple"]:
-                    reconstructed_list = []
-                    for item_type, item_value in data_value:
-                        if item_type == "Tensor":
-                            raise RuntimeError(f"Including Tensor types in meta JSON is not supported.")
-                        else:
-                            reconstructed_list.append(item_value)
-                    if data_type == "tuple":
-                        reconstructed_list = tuple(reconstructed_list)
-                    reconstructed_inputs.append(reconstructed_list)
+        try:
+            if item["type"] == "Tensor":
+                numpy_array = np.load(file_path)
+                if tar_framework == "paddle":
+                    tensor = paddle.to_tensor(numpy_array)
+                    tensor.stop_gradient = False
+                elif tar_framework == "torch":
+                    tensor = torch.tensor(numpy_array)
+                    tensor.requires_grad_(True)
                 else:
-                    reconstructed_inputs.append(data_value)
-            except Exception as e:
-                logger.error(f"Error loading metadata file {file_name}: {e}")
-                raise
+                    raise ValueError(f"Unsupported framework: {tar_framework}")
 
-        else:
-            logger.warning(f"Ignore unknown files: {file_name}")
-            continue
-    return reconstructed_inputs
+                if key is None:
+                    args.append(tensor)
+                else:
+                    kwargs[key] = tensor
+            else:
+                if item["type"] == "dict":
+                    reconstructed_dict = {}
+                    for k, v in item["data"].items():
+                        reconstructed_dict[k] = v
+                    value = reconstructed_dict
+                elif item["type"] in ["list", "tuple"]:
+                    reconstructed_list = [v for v in item["data"]]
+                    value = tuple(reconstructed_list) if item["type"] == "tuple" else reconstructed_list
+                else:
+                    value = item["data"]
+
+                if key is None:
+                    args.append(value)
+                else:
+                    kwargs[key] = value
+        except Exception as e:
+            logger.error(f"Error loading metadata file {file_path}: {e}")
+            raise
+
+    return (args, kwargs)
 
 
 def load_init_weights_from_dump(

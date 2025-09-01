@@ -117,7 +117,7 @@ def print_report_info(nodes, reports, exc, stage, msg=None):
 
     if msg is not None:
         logger.warning("ADDITIONAL MESSAGE:")
-        logger.warning(msg.strip() + " \n")
+        logger.warning(msg + " \n")
 
     retstr = struct_info_log(reports, [node["origin_node"] for node in nodes], "report")
     logger.info(retstr)
