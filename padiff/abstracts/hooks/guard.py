@@ -16,12 +16,16 @@ import contextlib
 import json
 import os
 import sys
+import functools
+import inspect
+import paddle
+import torch
 
 from ...utils import set_seed, logger
-from .base import _context, _current_report
+from .base import _context, _current_report, _CallsComplete, current_report, get_calls_context
 from .hook import register_hooker
 from ..proxy import create_model
-from ...tools import dump_report
+from ...tools import dump_report, load_first_input_from_dump, load_init_weights_from_dump
 
 
 _global_report = None
@@ -110,17 +114,101 @@ def AlignmentGuard(model, seed=42):
         pass
 
 
-class _CallsComplete(Exception):
-    """A private exception used by PaDiffGuard to interrupt execution.
-
-    This exception is raised by the internal calls_hook when the maximum number
-    of calls (max_calls) has been reached. It is caught by PaDiffGuard
-    to exit the context manager gracefully.
+@contextlib.contextmanager
+def InputCaptureGuard(model, base_dump_path=None, framework=None, load_first_inputs=False):
     """
+    Context manager to capture or inject first input. Cannot be implemented as a hook
+    because hook registered through 'register_forward_pre_hook' can only capture args but not kwargs.
+    """
+    if hasattr(model, "_padiff_input_captured"):
+        yield
+        return
 
-    def __init__(self, message="CallsComplete: maximum number of forward calls reached."):
-        self.message = message
-        super().__init__(self.message)
+    original_forward = model.forward
+
+    @functools.wraps(original_forward)
+    def tracked_forward(*args, **kwargs):
+        report = current_report()
+        if not args and not kwargs:
+            logger.warning("Skipped capturing or loading input: both args and kwargs are empty.")
+            return original_forward(*args, **kwargs)
+
+        if load_first_inputs and base_dump_path and framework and not hasattr(report, "_inputs_loaded"):
+            assert framework is not None, "'framework' must be setted if 'load_first_inputs' is True"
+            logger.info("Loading first input from dump")
+            loaded_inputs = load_first_input_from_dump(base_dump_path, framework)
+            if loaded_inputs is not None:
+                loaded_args, loaded_kwargs = loaded_inputs
+                try:
+                    sig = inspect.signature(original_forward)
+                    valid_arg_names = set(sig.parameters.keys())
+                except Exception as e:
+                    logger.warning(f"Failed to get forward signature: {e}. Using all keys.")
+                    valid_arg_names = set(loaded_kwargs.keys())
+
+                filtered_kwargs = {k: v for k, v in loaded_kwargs.items() if k in valid_arg_names}
+                dropped_keys = set(loaded_kwargs.keys()) - set(filtered_kwargs.keys())
+                if dropped_keys:
+                    logger.debug(f"Dropped keys not in forward signature: {dropped_keys}")
+
+                final_kwargs = {**kwargs, **filtered_kwargs}
+                report._inputs_loaded = True
+                return original_forward(*loaded_args, **final_kwargs)
+
+        if report and not hasattr(report, "first_input_captured"):
+
+            def serialize(x):
+                if isinstance(x, (paddle.Tensor, torch.Tensor)):
+                    return ("Tensor", x.detach().cpu().numpy())
+                elif isinstance(x, dict):
+                    return ("dict", {k: serialize(v) for k, v in x.items()})
+                elif isinstance(x, (list, tuple)):
+                    return (type(x).__name__, [serialize(item) for item in x])
+                else:
+                    return (type(x).__name__, str(x))
+
+            serialized = {
+                "args": [serialize(x) for x in args] if args else [],
+                "kwargs": {k: serialize(v) for k, v in kwargs.items()},
+            }
+            if serialized["args"] or serialized["kwargs"]:
+                report.first_input = serialized
+                report.first_input_captured = True
+                logger.info(f"Captured full input: args={len(args)}, kwargs={list(kwargs.keys())}")
+            else:
+                logger.warning("Skipped capturing input: serialized input is empty.")
+
+        return original_forward(*args, **kwargs)
+
+    model.forward = tracked_forward
+    model._padiff_input_captured = True
+
+    try:
+        yield
+    finally:
+        model.forward = original_forward
+
+
+@contextlib.contextmanager
+def MaxCallsGuard(max_calls: int, model):
+    if max_calls <= 0:
+        yield
+        return
+
+    calls_context = get_calls_context()
+
+    def pre_hook(m, input):
+        if calls_context.is_exceeded():
+            logger.warning(f"PaDiffGuard: max_calls={max_calls} reached, raising _CallsComplete")
+            raise _CallsComplete()
+        count = calls_context.increment()
+        logger.info(f"MaxCallsGuard: forward start calling #{count}")
+
+    handle = model.register_forward_pre_hook(pre_hook)
+    try:
+        yield
+    finally:
+        handle.remove()
 
 
 @contextlib.contextmanager
@@ -139,11 +227,23 @@ def PaDiffGuard(
     black_list=None,
     keys_mapping=None,
 ):
+    # moniter number of calls
+    calls_context = get_calls_context()
+    reset_flag = calls_context.state["count"] == 0
+
     # create_model
     if not hasattr(model, "report"):
-        proxy_model = create_model(model, name=name)
+        proxy_model = create_model(model, name=name, reset_dir=reset_flag)
     else:
         proxy_model = model
+
+    if reset_flag:
+        # set max calls
+        calls_context.set_limit(max_calls)
+
+        # load init weights
+        if load_init_weights:
+            load_init_weights_from_dump(base_dump_path, proxy_model, keys_mapping)
 
     logger.debug(f"PaDiffGuard: depth of alignment is {align_depth}.")
     proxy_model.marker.update_black_list_with_depth(align_depth)
@@ -154,43 +254,22 @@ def PaDiffGuard(
             base_dump_path is not None
         ), "'base_dump_path' should not be None, when loading of init weights or/and first inputs is needed or using single_step mode"
 
-    # load init weights
-    if load_init_weights:
-        from ...tools import load_init_weights_from_dump
-
-        load_init_weights_from_dump(base_dump_path, proxy_model, keys_mapping)
-
-    # load first inputs
-    if load_first_inputs:
-        from ...tools import load_first_input_from_dump
-
-        assert framework is not None, "'framework' must be setted if 'load_first_inputs' is True"
-        loaded_inputs = load_first_input_from_dump(base_dump_path, framework)
-        proxy_model.report._loaded_inputs = loaded_inputs
-
-    # moniter number of calls
-    calls_count = 0
-
-    def calls_hook(m, input, output):
-        nonlocal calls_count
-        calls_count += 1
-        logger.debug(f"PaDiffGuard: forward call #{calls_count}")
-        if calls_count >= max_calls:
-            logger.warning(f"PaDiffGuard: max_calls={max_calls} reached, raising _CallsComplete")
-            raise _CallsComplete()
-
     try:
         # set hooks
         with contextlib.ExitStack() as stack:
+            # moniter number of calls
+            if max_calls > 0:
+                stack.enter_context(MaxCallsGuard(max_calls, proxy_model))
+
             stack.enter_context(AlignmentGuard(proxy_model, seed=seed))
             stack.enter_context(report_guard(proxy_model.report))
+            # load first inputs
+            stack.enter_context(InputCaptureGuard(proxy_model.model, base_dump_path, framework, load_first_inputs))
 
             if single_step_mode is not None:
                 stack.enter_context(SingleStepGuard(single_step_mode, base_dump_path))
 
             stack.enter_context(register_hooker(proxy_model))
-            count_handle = proxy_model.register_forward_post_hook(calls_hook)
-            stack.callback(count_handle.remove)
 
             yield model
 
@@ -199,14 +278,6 @@ def PaDiffGuard(
                 dump_report(proxy_model, proxy_model.dump_path)
 
     except _CallsComplete:
-        logger.info(f"PaDiffGuard: calls completed ({calls_count}/{max_calls})")
-        # dump report
-        if auto_dump:
-            try:
-                dump_report(proxy_model, proxy_model.dump_path)
-            except Exception as e:
-                logger.error(e)
-
         sys.exit(0)
 
     except SystemExit as e:
