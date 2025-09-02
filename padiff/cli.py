@@ -39,7 +39,8 @@ def load_yaml_config(config_path):
 def run_with_padiff(
     cmd: str,
     framework: str,
-    src_model_name: str = "model",
+    model_name: str = "model",
+    optim_name=None,
     mode="base",
     alignment_dir=None,
     **kwargs,
@@ -56,8 +57,11 @@ def run_with_padiff(
         logger.error(f"Script not found: {script_path}")
         sys.exit(1)
 
+    if optim_name is not None:
+        kwargs["optimizer"] = optim_name
+
     # run injected script
-    injected_script = create_injected_script(script_path, framework, src_model_name, mode, alignment_dir, **kwargs)
+    injected_script = create_injected_script(script_path, framework, model_name, mode, alignment_dir, **kwargs)
     injected_filename = os.path.basename(injected_script)
 
     new_cmd = ["python", injected_filename] + parts[2:]
@@ -116,11 +120,39 @@ def main():
               那么您应该使用：
                 --pd_model_name net
 
-        3. 日志目录参数 (--log_dir):
+        3. 优化器名参数 (--pt_optim_name, --pd_optim_name):
+           这些参数指定您在脚本中创建优化器实例的**变量名**。
+           * 它们不是类名，也不是文件名。
+           * 它们是优化器实例化时 `=` 左边的标识符。
+
+           示例：
+              如果您的 PyTorch 脚本中有：
+                optim = torch.optim.Adam(
+                    transformer.parameters(),
+                    lr=1.0,
+                    betas=(0.9, 0.98),
+                    eps=1e-9,
+                )
+              那么您应该使用：
+                --pt_optim_name optim
+
+              如果您的 Paddle 脚本中有：
+                optimizer = paddle.optimizer.Adam(
+                    parameters=transformer.parameters(),
+                    learning_rate=1.0,
+                    epsilon=1e-09,
+                    beta1=0.9,
+                    beta2=0.98,
+                    weight_decay=0.0,
+                )
+              那么您应该使用：
+                --pd_optim_name optimizer
+
+        4. 日志目录参数 (--log_dir):
            指定生成报告和日志的目录。
            * 默认值: ./padiff_log
 
-        4. 对齐深度参数 (--align_depth):
+        5. 对齐深度参数 (--align_depth):
            控制对齐的粒度。通过指定一个深度值，可以忽略该深度以下的所有子模块。
            * 值为整数: 指定一个具体的深度。例如，--align_depth 1 会忽略深度为1及以下的所有子模块。
            * 值为 'inf': (默认) 无限深度，会对齐到最细粒度的层（如 Linear, ReLU）。
@@ -130,13 +162,13 @@ def main():
               --align_depth 1  # 对齐到第一层子模块
               --align_depth inf # 对齐到最细粒度
 
-        5. 单步对齐模式参数 (--single_step_mode):
+        6. 单步对齐模式参数 (--single_step_mode):
            启用逐层对齐模式。
            * 可选值: forward, backward, both
            * 默认值: None (禁用)
            * 当启用时，工具会从自动加载基准模型的输出，并用其替换对齐模型的相应层输出。
 
-        6. 结果对比参数:
+        7. 结果对比参数:
            控制模型输出结果的对比精度和模式。
            * --atol: 绝对误差容忍度 (default: 1e-6)
            * --rtol: 相对误差容忍度 (default: 1e-6)
@@ -151,6 +183,8 @@ def main():
               --pd_cmd "python paddle_model.py" \\
               --pt_model_name "model" \\
               --pd_model_name "model" \\
+              --pt_optim_name "optimizer" \\
+              --pd_optim_name "optimizer" \\
               --log_dir "./my_alignment_results" \\
               --align_depth 1 \\
               --single_step_mode "forward" \\
@@ -175,6 +209,18 @@ def main():
         "--pd_model_name",
         type=str,
         default="model",
+        help="The model name that appears in the paddle script's code (default: 'model')",
+    )
+    parser.add_argument(
+        "--pt_optim_name",
+        type=str,
+        default=None,
+        help="The model name that appears in the pytorch script's code (default: 'model')",
+    )
+    parser.add_argument(
+        "--pd_optim_name",
+        type=str,
+        default=None,
         help="The model name that appears in the paddle script's code (default: 'model')",
     )
     parser.add_argument(
@@ -256,8 +302,11 @@ def main():
         "action_name": args_dict.pop("action_name", "equal"),
     }
 
-    pt_dump_path = run_with_padiff(pt_cmd, "torch", pt_model_name, **args_dict)
-    pd_dump_path = run_with_padiff(pd_cmd, "paddle", pd_model_name, "align", pt_dump_path, **pd_kwargs)
+    pt_optim_name = args_dict.pop("pt_optim_name", None)
+    pd_optim_name = args_dict.pop("pd_optim_name", None)
+
+    pt_dump_path = run_with_padiff(pt_cmd, "torch", pt_model_name, pt_optim_name, **args_dict)
+    pd_dump_path = run_with_padiff(pd_cmd, "paddle", pd_model_name, pd_optim_name, "align", pt_dump_path, **pd_kwargs)
 
     logger.info("Running comparison...")
     try:

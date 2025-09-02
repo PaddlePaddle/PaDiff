@@ -4,9 +4,9 @@
 **P**addle  **A**utomatically  **Diff**  precision toolkits.
 
 
-## 最近更新（latest 8.21）
+## 最近更新（latest 9.2）
 
-### 使用单行命令对齐（当前仅支持前向对齐）
+### 使用单行命令对齐（支持前反向对齐）
 
 运行命令前，请运行 `python -m padiff.cli -h` 获取更详细的参数说明。
 
@@ -18,6 +18,8 @@ python -m padiff.cli \
   --pd_cmd "python paddle_project/run.py" \
   --pt_model_name "pt_model" \
   --pd_model_name "pd_model" \
+  --pt_optim_name "pt_optimizer" \
+  --pd_optim_name "pd_optimizer" \
   --log_dir "./padiff_log" \
   --align_depth 1 \
   --single_step_mode "forward" \
@@ -37,10 +39,12 @@ yaml 文件样例
 
 ```python
 # padiff_config.yaml
-pt_cmd: "python transformer4sr/train_transformer_ori.py"
-pd_cmd: "python paddle_project/train_transformer_ori.py"
-pt_model_name: "transformer"
-pd_model_name: "transformer"
+pt_cmd: "python transformer4sr/train_transformer.py"
+pd_cmd: "python paddle_project/train_transformer.py"
+pt_model_name: "transformer_pt"
+pd_model_name: "transformer_pd"
+pt_optim_name: "optimizer_pt"
+pd_optim_name: "optimizer_pd"
 log_dir: "./padiff_log"
 align_depth: 2
 single_step_mode: "forward"

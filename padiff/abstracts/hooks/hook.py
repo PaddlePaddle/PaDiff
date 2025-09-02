@@ -27,6 +27,7 @@ from ...utils import (
     for_each_grad_tensor,
     logger,
     map_structure,
+    get_numpy_from_tensor,
 )
 from .base import current_report, find_base_report_node, single_step_state
 
@@ -73,12 +74,7 @@ def init_weights_hook(model, input):
         init_weights = {}
         for name, param in model.named_parameters():
             if isinstance(param, (paddle.Tensor, torch.Tensor)):
-                if param.dtype == torch.bfloat16:
-                    np_array = param.detach().cpu().float().numpy()
-                elif param.dtype == paddle.bfloat16:
-                    np_array = param.detach().cpu().astype("float32").numpy()
-                else:
-                    np_array = param.detach().cpu().numpy()
+                np_array = get_numpy_from_tensor(param)
                 init_weights[name] = np_array
         report.init_weights = init_weights
         report.init_weights_saved = True

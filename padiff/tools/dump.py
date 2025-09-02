@@ -18,9 +18,8 @@ import sys
 
 import numpy
 import paddle
-import torch
 
-from ..utils import Counter, frames_to_string, logger, save_model_struct
+from ..utils import Counter, frames_to_string, logger, save_model_struct, get_numpy_from_tensor
 
 dump_root_path = os.path.join(sys.path[0], "padiff_dump")
 
@@ -93,12 +92,7 @@ def dump_report_node(wrap_node, tensor_dumper):
         "stack": frames_to_string(wrap_node.fwd_report.frames),
     }
     for tensor in wrap_node.fwd_report.tensors_for_compare():
-        if tensor.dtype == torch.bfloat16:
-            np_array = tensor.detach().float().numpy()
-        elif tensor.dtype == paddle.bfloat16:
-            np_array = tensor.detach().astype("float32").numpy()
-        else:
-            np_array = tensor.detach().numpy()
+        np_array = get_numpy_from_tensor(tensor)
         file_name = tensor_dumper(np_array)
         node_info["fwd_outputs"].append(
             {
@@ -111,7 +105,8 @@ def dump_report_node(wrap_node, tensor_dumper):
         )
 
     for tensor in wrap_node.bwd_report.tensors_for_compare():
-        file_name = tensor_dumper(tensor.detach().numpy())
+        np_array = get_numpy_from_tensor(tensor)
+        file_name = tensor_dumper(np_array)
         node_info["bwd_grads"].append(
             {
                 "path": file_name,

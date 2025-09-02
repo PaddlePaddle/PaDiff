@@ -21,11 +21,11 @@ import inspect
 import paddle
 import torch
 
-from ...utils import set_seed, logger
+from ...utils import set_seed, logger, wrap_optimizer_step
 from .base import _context, _current_report, _CallsComplete, current_report, get_calls_context
 from .hook import register_hooker
 from ..proxy import create_model
-from ...tools import dump_report, load_first_input_from_dump, load_init_weights_from_dump
+from ...tools import load_first_input_from_dump, load_init_weights_from_dump
 
 
 _global_report = None
@@ -214,8 +214,8 @@ def MaxCallsGuard(max_calls: int, model):
 @contextlib.contextmanager
 def PaDiffGuard(
     model,
+    optimizer=None,
     name="model",
-    auto_dump=True,
     align_depth="inf",
     single_step_mode=None,  # None, "forward", "backward"
     load_init_weights=False,
@@ -231,28 +231,34 @@ def PaDiffGuard(
     calls_context = get_calls_context()
     reset_flag = calls_context.state["count"] == 0
 
-    # create_model
-    if not hasattr(model, "report"):
-        proxy_model = create_model(model, name=name, reset_dir=reset_flag)
-    else:
-        proxy_model = model
-
     if reset_flag:
         # set max calls
         calls_context.set_limit(max_calls)
+
+        logger.info(f"PaDiffGuard: creating proxy model.")
+        proxy_model = create_model(model, name=name, reset_dir=reset_flag)
+        model._padiff_proxy = proxy_model
+
+        if optimizer is not None and not hasattr(optimizer, "_padiff_proxy_model"):
+            logger.info(f"PaDiffGuard: wrapping optimizer.step().")
+            optimizer._padiff_proxy_model = proxy_model
+            wrap_optimizer_step(optimizer)
+
+        if load_init_weights or load_first_inputs or (single_step_mode is not None):
+            assert (
+                base_dump_path is not None
+            ), "'base_dump_path' should not be None, when loading of init weights or/and first inputs is needed or using single_step mode"
 
         # load init weights
         if load_init_weights:
             load_init_weights_from_dump(base_dump_path, proxy_model, keys_mapping)
 
-    logger.debug(f"PaDiffGuard: depth of alignment is {align_depth}.")
-    proxy_model.marker.update_black_list_with_depth(align_depth)
-    proxy_model.update_black_list_with_name(black_list)
+        logger.debug(f"PaDiffGuard: depth of alignment is {align_depth}.")
+        proxy_model.marker.update_black_list_with_depth(align_depth)
+        proxy_model.update_black_list_with_name(black_list)
 
-    if load_init_weights or load_first_inputs or (single_step_mode is not None):
-        assert (
-            base_dump_path is not None
-        ), "'base_dump_path' should not be None, when loading of init weights or/and first inputs is needed or using single_step mode"
+    else:
+        proxy_model = model._padiff_proxy
 
     try:
         # set hooks
@@ -264,7 +270,8 @@ def PaDiffGuard(
             stack.enter_context(AlignmentGuard(proxy_model, seed=seed))
             stack.enter_context(report_guard(proxy_model.report))
             # load first inputs
-            stack.enter_context(InputCaptureGuard(proxy_model.model, base_dump_path, framework, load_first_inputs))
+            if reset_flag:
+                stack.enter_context(InputCaptureGuard(proxy_model.model, base_dump_path, framework, load_first_inputs))
 
             if single_step_mode is not None:
                 stack.enter_context(SingleStepGuard(single_step_mode, base_dump_path))
@@ -273,11 +280,11 @@ def PaDiffGuard(
 
             yield model
 
-            # dump report
-            if auto_dump:
-                dump_report(proxy_model, proxy_model.dump_path)
-
     except _CallsComplete:
+        # dump
+        proxy_model.dump_report(proxy_model.dump_path)
+        proxy_model.dump_weights(proxy_model.dump_path)
+
         sys.exit(0)
 
     except SystemExit as e:
