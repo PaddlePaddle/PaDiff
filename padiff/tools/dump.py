@@ -194,14 +194,14 @@ def dump_grads(model, path):
     grad_dumper = numpy_dumper(path + "/grads", "grads")
 
     def _dump(param_name, param, param_info):
-        if param.main_grad() is not None:
-            file_name = grad_dumper(param.main_grad())
-            param_info["grads"][param_name] = file_name
-        elif param.grad() is not None:
-            file_name = grad_dumper(param.grad())
-            param_info["grads"][param_name] = file_name
-        else:
-            param_info["grads"][param_name] = None
+        grad = param.main_grad()
+        if grad is None:
+            grad = param.grad()
+        if grad is None and hasattr(param.param, "_collected_grad"):
+            grad = param.param._collected_grad
+            grad = get_numpy_from_tensor(grad) if grad is not None else None
+
+        param_info["grads"][param_name] = grad_dumper(grad) if grad is not None else None
 
     dump_param_prototype(model, _dump, f"{path}/grads.json")
 

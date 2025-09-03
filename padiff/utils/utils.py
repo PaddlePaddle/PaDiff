@@ -228,6 +228,12 @@ def for_each_grad_tensor(*structure):
         yield ts
 
 
+def for_each_grad_tensor_no_require(*structure):
+    for ts in for_each_tensor(*structure):
+        if is_tensors(*ts):
+            yield ts
+
+
 def map_structure_and_replace_key(func, structure1, structure2):
     """
     Apply `func` to each entry in `structure` and return a new structure.
