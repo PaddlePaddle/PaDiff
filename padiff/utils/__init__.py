@@ -20,3 +20,4 @@ from .io import *
 from .data_structures import *
 from .utils import *
 from .log import *
+from .optim import *

@@ -22,14 +22,14 @@ class PaDiffInjector(ast.NodeTransformer):
     def __init__(
         self,
         framework: str,
-        src_model_name="model",
+        model_name="model",
         mode="base",
         alignment_dir=None,
         **kwargs,
     ):
         self.framework = framework
-        self.base_name = src_model_name.split(".")[0]  # get trainer if trainer.model
-        self.src_model_name = src_model_name  # model(inputs)
+        self.base_name = model_name.split(".")[0]  # get trainer if trainer.model
+        self.model_name = model_name  # model(inputs)
         self.padiff_model_name = f"model_{framework.lower()}"  # "model_paddle"
         self.proxy_model_name = "proxy_model"  # proxy_model = create_model(model)
         self.mode = mode
@@ -67,7 +67,7 @@ class PaDiffInjector(ast.NodeTransformer):
     def visit_Assign(self, node):
         # # model = SimplePaddle()
         # for target in node.targets:
-        #     if isinstance(target, ast.Name) and target.id == self.src_model_name:
+        #     if isinstance(target, ast.Name) and target.id == self.model_name:
         #         return self.add_create_model(node)
 
         # with PaDiffGuard(proxy_model):
@@ -143,7 +143,7 @@ class PaDiffInjector(ast.NodeTransformer):
             targets=[ast.Name(id=self.proxy_model_name, ctx=ast.Store())],
             value=ast.Call(
                 func=ast.Name(id="create_model", ctx=ast.Load()),
-                args=[ast.Name(id=self.src_model_name, ctx=ast.Load())],
+                args=[ast.Name(id=self.model_name, ctx=ast.Load())],
                 keywords=[ast.keyword(arg="name", value=ast.Constant(value=self.padiff_model_name))],
             ),
         )
@@ -152,7 +152,7 @@ class PaDiffInjector(ast.NodeTransformer):
         mark_wrapped = ast.Assign(
             targets=[
                 ast.Attribute(
-                    value=ast.Name(id=self.src_model_name, ctx=ast.Load()), attr="_padiff_wrapped", ctx=ast.Store()
+                    value=ast.Name(id=self.model_name, ctx=ast.Load()), attr="_padiff_wrapped", ctx=ast.Store()
                 )
             ],
             value=ast.Constant(value=True),
@@ -173,7 +173,7 @@ class PaDiffInjector(ast.NodeTransformer):
                 op=ast.Not(),
                 operand=ast.Call(
                     func=ast.Name(id="hasattr", ctx=ast.Load()),
-                    args=[ast.Name(id=self.src_model_name, ctx=ast.Load()), ast.Constant(value="_padiff_wrapped")],
+                    args=[ast.Name(id=self.model_name, ctx=ast.Load()), ast.Constant(value="_padiff_wrapped")],
                     keywords=[],
                 ),
             ),
@@ -186,13 +186,18 @@ class PaDiffInjector(ast.NodeTransformer):
         return [node, wrapper]
 
     def wrap_with_guard(self, node):
-        path = self.src_model_name.split(".")
+        path = self.model_name.split(".")
         model_node = ast.Name(id=path[0], ctx=ast.Load())
         for attr in path[1:]:  # if trainer.model
             model_node = ast.Attribute(value=model_node, attr=attr, ctx=ast.Load())
         guard_args = [model_node]
 
         guard_keywords = []
+
+        # optimizer
+        if "optimizer" in self.kwargs:
+            optim_kw = ast.keyword(arg="optimizer", value=ast.Name(id=self.kwargs["optimizer"], ctx=ast.Load()))
+            guard_keywords.append(optim_kw)
 
         if self.mode == "align":
             # load_init_weights
@@ -282,7 +287,7 @@ class PaDiffInjector(ast.NodeTransformer):
 def create_injected_script(
     src_script_path: str,
     framework: str,
-    src_model_name: str = "model",
+    model_name: str = "model",
     mode: str = "base",
     alignment_dir: str = None,
     **kwargs,
@@ -300,7 +305,7 @@ def create_injected_script(
 
     injector = PaDiffInjector(
         framework,
-        src_model_name=src_model_name,
+        model_name=model_name,
         mode=mode,
         alignment_dir=alignment_dir,
         **kwargs,

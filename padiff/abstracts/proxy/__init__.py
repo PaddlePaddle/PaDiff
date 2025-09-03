@@ -42,13 +42,14 @@ def remove_inplace(model):
             submodel.inplace = False
 
 
-def create_model(model, name=None, dump_freq=1):
+def create_model(model, name=None, dump_freq=1, reset_dir=True):
     retval = ProxyModel.create_from(model, name, dump_freq)
     init_route(retval)
-    if retval.framework == "paddle" and paddle.distributed.get_rank() % 8 == 0:
+    if retval.framework == "paddle" and paddle.distributed.get_rank() % 8 == 0 and reset_dir:
         # Only reset the root path once for each machine, here we assume each machine has 8 GPUs
         logger.reset_dir(retval.dump_path)
     if retval.framework == "torch":
-        logger.reset_dir(retval.dump_path)
+        if reset_dir:
+            logger.reset_dir(retval.dump_path)
         remove_inplace(retval)
     return retval

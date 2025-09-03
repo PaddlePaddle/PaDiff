@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import contextvars
+from typing import Dict
 
 # --- Core state management class ---
 # This is an internal state shared by all Guards and should be placed first
@@ -56,6 +57,66 @@ _current_report = contextvars.ContextVar("current_report", default=None)
 _global_report = None
 
 
+class _CallsContext:
+    """
+    A global context for managing forward call counts across multiple PaDiffGuard invocations.
+    This ensures that max_calls is respected even when PaDiffGuard is re-entered.
+    """
+
+    _state = contextvars.ContextVar("_calls_context_state", default=None)
+
+    def __init__(self):
+        self._state.set({"count": 0, "limit": 0, "active": False})
+
+    @property
+    def state(self) -> Dict:
+        s = self._state.get()
+        if s is None:
+            s = {"count": 0, "limit": 0, "active": False}
+            self._state.set(s)
+        return s
+
+    def set_limit(self, limit: int):
+        self.state["limit"] = limit
+        self.state["active"] = True
+
+    def increment(self) -> int:
+        if not self.state["active"]:
+            return 0
+        self.state["count"] += 1
+        return self.state["count"]
+
+    def is_exceeded(self) -> bool:
+        if not self.state["active"]:
+            return False
+        return self.state["count"] >= self.state["limit"]
+
+    def reset(self):
+        self.state["count"] = 0
+        self.state["limit"] = 0
+        self.state["active"] = False
+
+    @classmethod
+    def get_current(cls) -> "_CallsContext":
+        return cls()
+
+
+_calls_context = None
+
+
+class _CallsComplete(Exception):
+    """A private exception used by PaDiffGuard to interrupt execution.
+
+    This exception is raised by the internal calls_hook when the maximum number
+    of calls (max_calls) has been reached. It is caught by PaDiffGuard
+    to exit the context manager gracefully.
+    """
+
+    def __init__(self, message="CallsComplete: maximum number of forward calls reached."):
+        self.message = message
+        super().__init__(self.message)
+
+
 # --- Public utility functions for external calls ---
 # These are "accessors" to the Guard's internal state and should be placed after the Guard it depends on
 
@@ -86,3 +147,10 @@ def find_base_report_node(net_id, step_idx):
         raise RuntimeError(f"Index out of range: net_id={net_id}, step_idx={step_idx}, list length={len(node_list)}")
 
     return _context.base[net_id][step_idx]
+
+
+def get_calls_context() -> _CallsContext:
+    global _calls_context
+    if _calls_context is None:
+        _calls_context = _CallsContext()
+    return _calls_context

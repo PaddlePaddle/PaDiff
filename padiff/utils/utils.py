@@ -19,6 +19,9 @@ import numpy as np
 import paddle
 import torch
 
+import os.path as osp
+import traceback
+
 
 def set_seed(seed=42):
     np.random.seed(seed)
@@ -26,6 +29,16 @@ def set_seed(seed=42):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+
+def get_numpy_from_tensor(tensor):
+    if tensor.dtype == torch.bfloat16:
+        np_array = tensor.cpu().detach().float().numpy()
+    elif tensor.dtype == paddle.bfloat16:
+        np_array = tensor.cpu().detach().astype("float32").numpy()
+    else:
+        np_array = tensor.cpu().detach().numpy()
+    return np_array
 
 
 """
@@ -251,10 +264,6 @@ def assert_tensor_equal(tensor1, tensor2, cfg):
 """
     tools for recording frame stack
 """
-
-
-import os.path as osp
-import traceback
 
 
 def _is_system_package(filename):

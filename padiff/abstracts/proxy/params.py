@@ -52,8 +52,15 @@ class PaddleParam(ProxyParam):
     def __init__(self, param):
         super().__init__(param, "paddle")
 
+    def _numpy(self, tensor):
+        if tensor.dtype == paddle.bfloat16:
+            np_array = tensor.astype("float32").numpy()
+        else:
+            np_array = tensor.numpy()
+        return np_array
+
     def numpy(self):
-        return self.param.numpy()
+        return self._numpy(self.param)
 
     def set_data(self, np_value):
         paddle.assign(paddle.to_tensor(np_value, dtype=self.param.dtype), self.param)
@@ -63,14 +70,15 @@ class PaddleParam(ProxyParam):
 
     def grad(self):
         if self.param.grad is not None:
-            return self.param.grad.numpy()
+            return self._numpy(self.param.grad)
         else:
             return None
 
     def main_grad(self):
         if hasattr(self.param, "main_grad") and self.param.main_grad is not None:
             assert self.param.grad is None
-            return self.param.main_grad.numpy()
+            return self._numpy(self.param.main_grad)
+
         else:
             return None
 
@@ -79,8 +87,15 @@ class TorchParam(ProxyParam):
     def __init__(self, param):
         super().__init__(param, "torch")
 
+    def _numpy(self, tensor):
+        if tensor.dtype == torch.bfloat16:
+            np_array = tensor.cpu().detach().float().numpy()
+        else:
+            np_array = tensor.cpu().detach().numpy()
+        return np_array
+
     def numpy(self):
-        return self.param.data.detach().cpu().numpy()
+        return self._numpy(self.param.data)
 
     def set_data(self, np_value):
         self.param.data = torch.as_tensor(np_value).type(self.param.dtype).to(self.param.device)
@@ -90,7 +105,7 @@ class TorchParam(ProxyParam):
 
     def grad(self):
         if self.param.grad is not None:
-            return self.param.grad.data.detach().cpu().numpy()
+            return self._numpy(self.param.grad.data)
         else:
             return None
 
