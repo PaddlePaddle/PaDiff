@@ -28,6 +28,7 @@ from ...utils import (
     logger,
     map_structure,
     get_numpy_from_tensor,
+    is_require_grad,
 )
 from .base import current_report, find_base_report_node, single_step_state
 
@@ -46,16 +47,19 @@ def register_hooker(model):
     handle_init = model.register_forward_pre_hook(partial(init_weights_hook))
     remove_handles.append(handle_init)
 
+    param_handles = creat_param_handles(model)
+    remove_handles.extend(param_handles)
+
     # register layer-level hooks
     for mod in models:
         pre_handle = mod.register_forward_pre_hook(partial(pre_structure_hook))
         if mod.model not in marker.black_list:
-            logger.debug(f"Register(info_hook): {mod.model.__class__.__name__}(net_id={idx})")
+            logger.debug(f"Register(info_hook): {mod.class_name}(net_id={idx})")
             handle = mod.register_forward_post_hook(partial(info_hook, net_id=idx))
             remove_handles.append(handle)
             idx += 1
         else:
-            logger.debug(f"Skip(info_hook): {mod.model.__class__.__name__}(blacklisted)")
+            logger.debug(f"Skip(info_hook): {mod.class_name}(blacklisted)")
         post_handle = mod.register_forward_post_hook(partial(post_structure_hook))
         remove_handles.extend([pre_handle, post_handle])
     yield
@@ -226,6 +230,26 @@ def tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
             return torch.as_tensor(value, device=x_grad.device)
 
     return x_grad
+
+
+def creat_param_handles(model):
+    handles = []
+
+    for name, proxy_param in model.named_parameters(recursively=True):
+        if is_require_grad(proxy_param.param):
+
+            def make_hook(param, param_name):
+                def hook(grad):
+                    logger.debug(f"Grad hook triggered for {param_name}")
+                    param._collected_grad = grad
+                    return grad
+
+                return hook
+
+            handle = proxy_param.param.register_hook(make_hook(proxy_param.param, name))
+            handles.append(handle)
+
+    return handles
 
 
 """

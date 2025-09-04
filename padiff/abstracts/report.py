@@ -14,7 +14,7 @@
 
 import os
 
-from ..utils import Counter, for_each_grad_tensor, for_each_tensor
+from ..utils import Counter, for_each_grad_tensor, for_each_tensor, for_each_grad_tensor_no_require
 
 
 class LayerStack:
@@ -188,7 +188,7 @@ class ReportItem:
         if self.type == "forward":
             return [t for (t,) in for_each_tensor(self.output)]
         if self.type == "backward":
-            return [t for (t,) in for_each_grad_tensor(self.input_grads)]
+            return [t for (t,) in for_each_grad_tensor_no_require(self.input_grads)]
 
     def __repr__(self):
         return self.__str__()

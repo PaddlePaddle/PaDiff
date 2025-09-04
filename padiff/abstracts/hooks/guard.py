@@ -284,6 +284,8 @@ def PaDiffGuard(
         # dump
         proxy_model.dump_report(proxy_model.dump_path)
         proxy_model.dump_weights(proxy_model.dump_path)
+        if optimizer is None:
+            proxy_model.dump_grads(proxy_model.dump_path)
 
         sys.exit(0)
 
