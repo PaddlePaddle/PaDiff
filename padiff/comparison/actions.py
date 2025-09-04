@@ -40,7 +40,7 @@ class ActionPool:
             raise ValueError(f"Action '{name}' not registered. Available: {list(self.pool.keys())}")
         return self.pool[name]
 
-    def find_actions(self, report_0, node_0, report_1, node_1, name=None):
+    def find_actions(self, report_0=None, node_0=None, report_1=None, node_1=None, name=None):
         if name is not None:
             return self.get_action_by_name(name)
 
@@ -85,11 +85,16 @@ class EqualAction(Action):
         for info_0, info_1 in zip(file_list_0, file_list_1):
             tensor_0 = load_numpy(info_0["path"])
             tensor_1 = load_numpy(info_1["path"])
+
+            if "transpose" in cfg and cfg["transpose"]:
+                tensor_1 = np.transpose(tensor_1)
+
             if tensor_0.size == 0 or tensor_1.size == 0:
                 if tensor_0.size != tensor_1.size:
                     raise RuntimeError("size of tensors is not equal")
                 logger.warning("Found nparray.size == 0, compare skipped!")
                 continue
+
             assert_tensor_equal(tensor_0, tensor_1, cfg)
 
 
@@ -113,9 +118,14 @@ class LooseEqualAction(Action):
         for info_0, info_1 in zip(file_list_0[:min_len], file_list_1[:min_len]):
             tensor_0 = load_numpy(info_0["path"])
             tensor_1 = load_numpy(info_1["path"])
+
+            if cfg["transpose"]:
+                tensor_1 = np.transpose(tensor_1)
+
             if tensor_0.size == 0 or tensor_1.size == 0:
                 logger.debug("Found empty tensor, compare skipped!")
                 continue
+
             if tensor_0.shape != tensor_1.shape:
                 logger.debug(f"Shape of tensors are not equal: {tensor_0.shape}!={tensor_1.shape}")
                 if tensor_0.size == tensor_1.size:
@@ -123,7 +133,22 @@ class LooseEqualAction(Action):
                     tensor_1 = np.reshape(tensor_1, tensor_0.shape)
                 else:
                     continue
+
             assert_tensor_equal(tensor_0, tensor_1, cfg)
             num_success += 1
+
         if min_len != 0 and num_success == 0:
             raise RuntimeError("All outputs for the layer have different shape!")
+
+
+@global_actions.register("ignore")
+class IgnoreAction(Action):
+    def match(self, report_0, node_0, report_1, node_1):
+        return True
+
+    @property
+    def priority(self):
+        return 100
+
+    def __call__(self, file_list_0, file_list_1, cfg):
+        pass

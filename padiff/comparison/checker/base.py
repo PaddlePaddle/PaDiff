@@ -16,37 +16,7 @@ import paddle
 import torch
 from itertools import zip_longest
 import numpy as np
-from ...configs import global_yaml_loader
-from ...utils import load_numpy, struct_info_log, assert_tensor_equal, logger
-
-
-def process_each_param(process, node_lists, reports, compare_target, cfg):
-    for node_0, node_1 in zip_longest(node_lists[0], node_lists[1], fillvalue=None):
-        if node_0 is None or node_1 is None:
-            raise RuntimeError("Found model with difference number of sublayers. Check your model.")
-        for (param_name_0, param_path_0), (param_name_1, param_path_1) in zip(
-            node_0[compare_target].items(),
-            node_1[compare_target].items(),
-        ):
-            try:
-                settings = global_yaml_loader.get_weight_settings(
-                    (node_0["name"], node_1["name"]),
-                    (reports[0]["framework"], reports[1]["framework"]),
-                    (param_name_0, param_name_1),
-                )
-                settings.update(cfg)
-                param_0 = load_numpy(param_path_0)
-                param_1 = load_numpy(param_path_1)
-                process([node_0, node_1], [param_name_0, param_name_1], [param_0, param_1], settings)
-            except Exception as e:
-                err_str = f"{type(e).__name__ + ':  ' + str(e)}\n"
-                err_str += f"Error occured between:\n"
-                err_str += f"    (base_model):  {node_0['route'] + '.' + param_name_0}\n"
-                err_str += f"    (raw_model):   {node_1['route'] + '.' + param_name_1}\n\n"
-
-                err_str += struct_info_log(reports, (compare_target, compare_target), compare_target)
-
-                raise RuntimeError(err_str)
+from ...utils import assert_tensor_equal, logger
 
 
 def assert_shape(params, settings):

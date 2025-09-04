@@ -23,53 +23,53 @@ def compare_dumps(dump_path1, dump_path2, cfg=None, diff_phase="both"):
     try:
         report_success = check_report(dump_path1, dump_path2, cfg=cfg, diff_phase=diff_phase)
         if report_success:
-            logger.info("✅ check_report: SUCCESS !!!")
+            logger.info("✅ check_report: SUCCESS !!!\n")
         else:
-            logger.warning("❌ check_report: FAILED !!!")
+            logger.error("❌ check_report: FAILED !!!\n")
     except Exception as e:
-        logger.error(f"❌ check_report: FAILED with error: {e}")
+        logger.error(f"❌ check_report: FAILED with error: {e}\n")
         report_success = False
 
     # check grads
     grads_success = None
     if os.path.exists(f"{dump_path1}/grads.json") and os.path.exists(f"{dump_path2}/grads.json"):
-        logger.info("\n🔍 Start comparison grads (check_grads)...")
+        logger.info("🔍 Start comparison grads (check_grads)...")
         try:
             grads_success = check_grads(dump_path1, dump_path2, cfg=cfg)
             if grads_success:
-                logger.info("✅ check_grads: SUCCESS !!!")
+                logger.info("✅ check_grads: SUCCESS !!!\n")
             else:
-                logger.warning("❌ check_grads: FAILED !!!")
+                logger.error("❌ check_grads: FAILED !!!\n")
         except Exception as e:
-            logger.error(f"❌ check_grads: FAILED with error: {e}")
+            logger.error(f"❌ check_grads: FAILED with error: {e}\n")
             grads_success = False
 
     # check weights
     weights_success = None
     if os.path.exists(f"{dump_path1}/weights.json") and os.path.exists(f"{dump_path2}/weights.json"):
-        logger.info("\n🔍 Start comparison weights (check_weights)...")
+        logger.info("🔍 Start comparison weights (check_weights)...")
         try:
             weights_success = check_weights(dump_path1, dump_path2, cfg=cfg)
             if weights_success:
-                logger.info("✅ check_weights: SUCCESS !!!")
+                logger.info("✅ check_weights: SUCCESS !!!\n")
             else:
-                logger.warning("❌ check_weights: FAILED !!!")
+                logger.error("❌ check_weights: FAILED !!!\n")
         except Exception as e:
-            logger.error(f"❌ check_weights: FAILED with error: {e}")
+            logger.error(f"❌ check_weights: FAILED with error: {e}\n")
             weights_success = False
 
     # check params
     params_success = None
     if os.path.exists(f"{dump_path1}/params.json") and os.path.exists(f"{dump_path2}/params.json"):
-        logger.info("\n🔍 Start comparison all parameters (check_params)...")
+        logger.info("🔍 Start comparison all parameters (check_params)...")
         try:
             params_success = check_params(dump_path1, dump_path2, cfg=cfg)
             if params_success:
-                logger.info("✅ check_params: SUCCESS !!!")
+                logger.info("✅ check_params: SUCCESS !!!\n")
             else:
-                logger.warning("❌ check_params: FAILED !!!")
+                logger.error("❌ check_params: FAILED !!!\n")
         except Exception as e:
-            logger.error(f"❌ check_params: FAILED with error: {e}")
+            logger.error(f"❌ check_params: FAILED with error: {e}\n")
             params_success = False
 
     # final result
@@ -80,7 +80,7 @@ def compare_dumps(dump_path1, dump_path2, cfg=None, diff_phase="both"):
     if success:
         logger.info(f"🎉 final comparison result: SUCCESS !!!")
     else:
-        logger.warning(f"❌ final comparison result: FAILED !!!")
+        logger.error(f"❌ final comparison result: FAILED !!!")
     return success
 
 
