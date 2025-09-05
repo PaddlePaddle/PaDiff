@@ -33,44 +33,53 @@ def compare_dumps(dump_path1, dump_path2, cfg=None, diff_phase="both"):
     # check grads
     grads_success = None
     if os.path.exists(f"{dump_path1}/grads.json") and os.path.exists(f"{dump_path2}/grads.json"):
-        logger.info("🔍 Start comparison grads (check_grads)...")
-        try:
-            grads_success = check_grads(dump_path1, dump_path2, cfg=cfg)
-            if grads_success:
-                logger.info("✅ check_grads: SUCCESS !!!\n")
-            else:
-                logger.error("❌ check_grads: FAILED !!!\n")
-        except Exception as e:
-            logger.error(f"❌ check_grads: FAILED with error: {e}\n")
-            grads_success = False
+        if len(os.listdir(f"{dump_path1}/grads")) == 0 or len(os.listdir(f"{dump_path2}/grads")) == 0:
+            logger.warning(f" ⚠️ Grads dir is empty of {dump_path1} or/and {dump_path2}\n")
+        else:
+            logger.info("🔍 Start comparison grads (check_grads)...")
+            try:
+                grads_success = check_grads(dump_path1, dump_path2, cfg=cfg)
+                if grads_success:
+                    logger.info("✅ check_grads: SUCCESS !!!\n")
+                else:
+                    logger.error("❌ check_grads: FAILED !!!\n")
+            except Exception as e:
+                logger.error(f"❌ check_grads: FAILED with error: {e}\n")
+                grads_success = False
 
     # check weights
     weights_success = None
     if os.path.exists(f"{dump_path1}/weights.json") and os.path.exists(f"{dump_path2}/weights.json"):
-        logger.info("🔍 Start comparison weights (check_weights)...")
-        try:
-            weights_success = check_weights(dump_path1, dump_path2, cfg=cfg)
-            if weights_success:
-                logger.info("✅ check_weights: SUCCESS !!!\n")
-            else:
-                logger.error("❌ check_weights: FAILED !!!\n")
-        except Exception as e:
-            logger.error(f"❌ check_weights: FAILED with error: {e}\n")
-            weights_success = False
+        if len(os.listdir(f"{dump_path1}/weights")) == 0 or len(os.listdir(f"{dump_path2}/weights")) == 0:
+            logger.warning(f" ⚠️ Weights dir is empty of {dump_path1} or/and {dump_path2}\n")
+        else:
+            logger.info("🔍 Start comparison weights (check_weights)...")
+            try:
+                weights_success = check_weights(dump_path1, dump_path2, cfg=cfg)
+                if weights_success:
+                    logger.info("✅ check_weights: SUCCESS !!!\n")
+                else:
+                    logger.error("❌ check_weights: FAILED !!!\n")
+            except Exception as e:
+                logger.error(f"❌ check_weights: FAILED with error: {e}\n")
+                weights_success = False
 
     # check params
     params_success = None
     if os.path.exists(f"{dump_path1}/params.json") and os.path.exists(f"{dump_path2}/params.json"):
-        logger.info("🔍 Start comparison all parameters (check_params)...")
-        try:
-            params_success = check_params(dump_path1, dump_path2, cfg=cfg)
-            if params_success:
-                logger.info("✅ check_params: SUCCESS !!!\n")
-            else:
-                logger.error("❌ check_params: FAILED !!!\n")
-        except Exception as e:
-            logger.error(f"❌ check_params: FAILED with error: {e}\n")
-            params_success = False
+        if len(os.listdir(f"{dump_path1}/params")) == 0 or len(os.listdir(f"{dump_path2}/params")) == 0:
+            logger.warning(f" ⚠️ Params dir is empty of {dump_path1} or/and {dump_path2}\n")
+        else:
+            logger.info("🔍 Start comparison all parameters (check_params)...")
+            try:
+                params_success = check_params(dump_path1, dump_path2, cfg=cfg)
+                if params_success:
+                    logger.info("✅ check_params: SUCCESS !!!\n")
+                else:
+                    logger.error("❌ check_params: FAILED !!!\n")
+            except Exception as e:
+                logger.error(f"❌ check_params: FAILED with error: {e}\n")
+                params_success = False
 
     # final result
     success = report_success

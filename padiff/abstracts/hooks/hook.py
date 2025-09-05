@@ -167,38 +167,7 @@ def info_hook(model, input, output, net_id):
     if single_step_state() == "forward" and net_id != -1:
         # two report_item with same id, the step_idx should be corresponded
         step_idx = len(list(filter(lambda x: x.type == "forward" and x.net_id == net_id, report.items))) - 1
-
-        try:
-            base_report_node = find_base_report_node(net_id, step_idx)
-        except (IndexError, RuntimeError) as e:
-            error_msg = str(e)
-            base_max_calls = "unknown"
-            if "list length=" in error_msg:
-                try:
-                    base_max_calls = int(error_msg.split("list length=")[1].split()[0])
-                except:
-                    pass
-            current_calls = step_idx + 1
-            route = getattr(model, "route", "unknown")
-            logger.error(
-                f"\n   ❌ Single-step alignment FAILED: Execution path mismatch!"
-                f"\n   📌 Layer '{route}' called {current_calls} times (current) vs {base_max_calls} times (base)."
-                f"\n   📌 Check the forward logic in both models around this layer."
-            )
-            sys.exit(1)
-
-        if base_report_node["name"] != _model.__class__.__name__:
-            warning_msg = (
-                f"\n   ⚠️ Single-step alignment FAILED: Layer with net_id={net_id} mismatch!"
-                f"\n   📌 Mismatch Layer: {base_report_node['name']}(base) vs {_model.__class__.__name__}(raw)"
-                f"\n   💡 Suggestion: Models have different architectures or initialization order. "
-                "Please check the model implementation or decrease 'align_depth' to reduce the alignment "
-                "granularity, or add layers that do not require alignment to the blacklist."
-            )
-            logger.warning(warning_msg)
-        else:
-            logger.debug(f"Single Step: {_model.__class__.__name__}(net_id={net_id})")
-
+        base_report_node = single_step_check(report, net_id, step_idx, _model.__class__.__name__, "forward")
         retval = map_structure(replace_forward_output(base_report_node), output)
         __in_info_hook__ = False
         return retval
@@ -297,3 +266,46 @@ def replace_forward_output(node):
             return input_
 
     return inner
+
+
+def single_step_check(report, net_id, step_idx, current_name, node_type, bwd_item=None):
+
+    try:
+        base_report_node = find_base_report_node(net_id, step_idx)
+        if base_report_node["name"] != current_name:
+            warning_msg = (
+                f"\n   ⚠️ Single-step alignment FAILED: {node_type} with net_id={net_id} mismatch!\n"
+                f"   📌 Mismatch {node_type.capitalize()}: {base_report_node['name']}(base) vs {current_name}(raw)\n"
+                f"   💡 Suggestion: Models have different architectures or initialization order. "
+                "Please check the model implementation or decrease 'align_depth' to reduce the alignment "
+                "granularity, or add layers that do not require alignment to the blacklist."
+            )
+            logger.warning(warning_msg)
+        else:
+            logger.debug(f"Single Step: {current_name}(net_id={net_id})")
+
+        return base_report_node
+
+    except (IndexError, RuntimeError) as e:
+        error_msg = str(e)
+        base_max_calls = "unknown"
+        if "list length=" in error_msg:
+            try:
+                base_max_calls = int(error_msg.split("list length=")[1].split()[0])
+            except:
+                pass
+        current_calls = step_idx + 1
+        route = "unknown"
+        if bwd_item and hasattr(bwd_item.net, "route"):
+            route = bwd_item.net.route
+        elif hasattr(report.stack._top().net, "route"):
+            route = report.stack._top().net.route
+
+        logger.error(
+            f"\n   ❌ Single-step alignment FAILED: Execution path mismatch in {node_type}!"
+            f"\n   📌 Layer '{route}' called {current_calls} times (current) vs {base_max_calls} times (base)."
+            f"\n   📌 Check the {node_type} logic in both models around this layer."
+        )
+        sys.exit(1)
+
+    return None

@@ -280,15 +280,16 @@ def PaDiffGuard(
 
             yield model
 
-    except _CallsComplete:
-        # dump
-        proxy_model.dump_report(proxy_model.dump_path)
-        proxy_model.dump_weights(proxy_model.dump_path)
-        if optimizer is None:
-            proxy_model.dump_grads(proxy_model.dump_path)
-
-        sys.exit(0)
-
     except SystemExit as e:
         logger.info("PaDiffGuard: SystemExit received, skipping dump_report.")
         raise
+
+    finally:
+        try:
+            proxy_model.dump_report(proxy_model.dump_path)
+            proxy_model.dump_weights(proxy_model.dump_path)
+            if optimizer is None:
+                proxy_model.dump_grads(proxy_model.dump_path)
+        except Exception as e:
+            logger.error(f"Failed to dump: {e}")
+        sys.exit(0)

@@ -15,6 +15,15 @@
 import os
 import shutil
 import logging
+import colorlog
+
+
+log_config = {
+    "DEBUG": {"level": 10, "color": "cyan"},
+    "INFO": {"level": 20, "color": "green"},
+    "WARNING": {"level": 30, "color": "yellow"},
+    "ERROR": {"level": 40, "color": "red"},
+}
 
 
 class Logger:
@@ -22,6 +31,14 @@ class Logger:
         self._logger = None
         self._is_initialized = False
         self.log_path = "padiff_log"
+
+        for key, conf in log_config.items():
+            logging.addLevelName(conf["level"], key)
+
+        self.colored_formatter = colorlog.ColoredFormatter(
+            "%(log_color)s[AutoDiff] [%(levelname)s]%(reset)s %(message)s",
+            log_colors={key: conf["color"] for key, conf in log_config.items()},
+        )
 
     def setup(self, log_parent_dir):
         if self._is_initialized:
@@ -50,8 +67,7 @@ class Logger:
         file_handler.setFormatter(file_formatter)
 
         console_handler = logging.StreamHandler()
-        console_formatter = logging.Formatter("[AutoDiff] [%(levelname)s] %(message)s")
-        console_handler.setFormatter(console_formatter)
+        console_handler.setFormatter(self.colored_formatter)
 
         self._logger.addHandler(file_handler)
         self._logger.addHandler(console_handler)
