@@ -107,13 +107,12 @@ logger = Logger()
 
 def print_report_info(nodes, reports, exc, stage, msg=None):
 
-    logger.error("FAILED !!!")
-    logger.error("DIFF DETAILS:")
-    logger.error(f"  '{stage}' Stage Mismatch")
-    logger.error(f"  Layer: {nodes[0]['name']} vs {nodes[1]['name']}")
-    logger.error(f"  Route: {nodes[0]['route']} vs {nodes[1]['route']} \n")
-
-    logger.error(f"Error({type(exc).__name__}): {str(exc)} \n")
+    logger.error(
+        f"FAILED !!! '{stage}' Stage Mismatch! \n"
+        f"  Layer: {nodes[0]['name']} vs {nodes[1]['name']} \n"
+        f"  Route: {nodes[0]['route']} vs {nodes[1]['route']} \n"
+        f"Error({type(exc).__name__}): {str(exc)} \n"
+    )
 
     if msg is not None:
         logger.warning("ADDITIONAL MESSAGE:")
