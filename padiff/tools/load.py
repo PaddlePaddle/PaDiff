@@ -47,6 +47,8 @@ def load_first_input_from_dump(report_path, tar_framework):
     args = []
     kwargs = {}
 
+    NATIVE_TYPES = (int, float, str, bool, type(None))
+
     for item in meta_info:
         file_path = os.path.join(input_dir, item["path"])
         key = item.get("key")
@@ -62,30 +64,44 @@ def load_first_input_from_dump(report_path, tar_framework):
                     tensor.requires_grad_(True)
                 else:
                     raise ValueError(f"Unsupported framework: {tar_framework}")
+                value = tensor
 
-                if key is None:
-                    args.append(tensor)
-                else:
-                    kwargs[key] = tensor
             else:
-                if item["type"] == "dict":
-                    reconstructed_dict = {}
-                    for k, v in item["data"].items():
-                        reconstructed_dict[k] = v
-                    value = reconstructed_dict
-                elif item["type"] in ["list", "tuple"]:
-                    reconstructed_list = [v for v in item["data"]]
-                    value = tuple(reconstructed_list) if item["type"] == "tuple" else reconstructed_list
-                else:
-                    value = item["data"]
+                with open(file_path, "r") as f:
+                    full_item = json.load(f)
 
-                if key is None:
-                    args.append(value)
+                if item["type"] == "dict":
+                    value = {k: v for k, v in full_item["data"].items()}
+                elif item["type"] == "list":
+                    value = [v for v in full_item["data"]]
+                elif item["type"] == "tuple":
+                    value = tuple(v for v in full_item["data"])
+                elif item["type"] == "int":
+                    value = int(full_item["data"])
+                elif item["type"] == "float":
+                    value = float(full_item["data"])
+                elif item["type"] == "bool":
+                    value = full_item["data"].lower() == "true"
+                elif item["type"] == "NoneType":
+                    value = None
+                elif item["type"] == "str":
+                    value = full_item["data"]
                 else:
-                    kwargs[key] = value
+                    logger.warning(f"Skipping unsupported input type '{item['type']}' for input(key={key}).")
+                    continue
+
+            if key is None:
+                args.append(value)
+            else:
+                kwargs[key] = value
+
         except Exception as e:
-            logger.error(f"Error loading metadata file {file_path}: {e}")
+            logger.error(f"Error loading input(key={key}) in {file_path}: {e}")
             raise
+
+    if not args and not kwargs:
+        logger.warning("No valid inputs were loaded from the dump.")
+        return None
 
     return (args, kwargs)
 

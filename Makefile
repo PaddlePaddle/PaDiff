@@ -34,11 +34,17 @@ lint-all:
 # # # # # # # # # # # # # # # Test Block # # # # # # # # # # # # # # # 
 
 .PHONY: test
-test: unit-test
+test: unit-test unit-test-special coverage-report
 
 unit-test:
 	@echo "Running unit tests with coverage..."
-	PYTHONPATH=. coverage run --source=. tests/padiff_unittests.py
+	PADIFF_SILENT=1 PYTHONPATH="$(shell pwd):$(PYTHONPATH)" coverage run --source=. tests/padiff_unittests.py
+
+unit-test-special:
+	@echo "Running test_api_to_Layer.py with PADIFF_API_CHECK=ON"
+	PADIFF_SILENT=1 PADIFF_API_CHECK=ON PYTHONPATH="$(shell pwd):$(PYTHONPATH)" coverage run --source=. --append tests/test_api_to_Layer.py
+
+coverage-report:
 	@echo ""
 	@echo "Coverage Report:"
 	coverage report -m

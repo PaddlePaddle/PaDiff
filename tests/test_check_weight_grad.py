@@ -20,9 +20,9 @@ import torch
 
 
 from padiff import *
-from padiff.checker import check_grads, check_weights
-from padiff.dump_tools import dump_grads, dump_weights
-from padiff.interfaces.diff_utils import default_loss
+from padiff import check_grads, check_weights
+from padiff import dump_grads, dump_weights
+from padiff.comparison.auto import default_loss
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -63,17 +63,16 @@ class TestCaseName(unittest.TestCase):
         module = create_model(SimpleModule())
 
         inp = paddle.rand((100, 100)).numpy().astype("float32")
+        inp_modified = inp * 2
 
         assign_weight(layer, module)
         out = layer(paddle.to_tensor(inp))
         loss = default_loss(out, "paddle")
         layer.backward(loss)
 
-        out = module(torch.as_tensor(inp))
+        out = module(torch.as_tensor(inp_modified))
         loss = default_loss(out, "torch")
         module.backward(loss)
-
-        module.model.zero_grad()
 
         dump_weights(layer, layer.dump_path)
         dump_weights(module, module.dump_path)

@@ -235,12 +235,12 @@ def PaDiffGuard(
         # set max calls
         calls_context.set_limit(max_calls)
 
-        logger.info(f"PaDiffGuard: creating proxy model.")
         proxy_model = create_model(model, name=name, reset_dir=reset_flag)
         model._padiff_proxy = proxy_model
+        logger.debug(f"PaDiffGuard: creating proxy model.")
 
         if optimizer is not None and not hasattr(optimizer, "_padiff_proxy_model"):
-            logger.info(f"PaDiffGuard: wrapping optimizer.step().")
+            logger.debug(f"PaDiffGuard: wrapping optimizer.step().")
             optimizer._padiff_proxy_model = proxy_model
             wrap_optimizer_step(optimizer)
 

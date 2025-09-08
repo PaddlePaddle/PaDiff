@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
-os.environ["PADIFF_API_CHECK"] = "ON"
 
 import unittest
 
@@ -66,4 +63,3 @@ class TestCaseName(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-    os.environ["PADIFF_API_CHECK"] = "OFF"

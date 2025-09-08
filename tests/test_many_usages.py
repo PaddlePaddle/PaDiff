@@ -16,11 +16,14 @@ from padiff import *
 import unittest
 import paddle
 import os
+import json
 from paddle.distributed.fleet.utils import recompute
 
 default_path = get_dump_root_path()
 
 train_step = 10
+dump_freq = 2
+rank = paddle.distributed.get_rank() if paddle.distributed.is_initialized() else 0
 
 
 class SimpleLayer(paddle.nn.Layer):
@@ -54,13 +57,34 @@ class RandomDataset(paddle.io.Dataset):
         return self.num_samples
 
 
+def check_file_integrity(dump_path, step, rank):
+    step_dump_path = os.path.join(dump_path, f"step_{step}", f"rank_{rank}")
+
+    report_json_path = os.path.join(step_dump_path, "report.json")
+    params_json_path = os.path.join(step_dump_path, "params.json")
+
+    assert os.path.exists(report_json_path), f"report.json not found: {report_json_path}"
+    assert os.path.exists(params_json_path), f"params.json not found: {params_json_path}"
+
+    try:
+        with open(report_json_path, "r") as f:
+            report_data = json.load(f)
+        with open(params_json_path, "r") as f:
+            params_data = json.load(f)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load JSON files: {e}")
+
+    assert "tree" in report_data, "Invalid report.json format"
+    assert "tree" in params_data, "Invalid params.json format"
+
+
 class Test0SingleModelRun(unittest.TestCase):
     # single model run
     def test_single_model_run(self):
         print("Test for single model run.")
         layer = SimpleLayer()
         set_dump_root_path(os.path.join(default_path, "single_model_run"))
-        layer = create_model(layer, dump_freq=2)
+        layer = create_model(layer, dump_freq=dump_freq)
         inp = paddle.rand((100, 100)).numpy().astype("float32")
         opt = paddle.optimizer.SGD(learning_rate=1e-3, parameters=layer.model.parameters())
 
@@ -72,8 +96,8 @@ class Test0SingleModelRun(unittest.TestCase):
             opt.clear_grad()
             layer.try_dump()
 
-        assert check_report(layer.dump_path, layer.dump_path)
-        assert check_params(layer.dump_path, layer.dump_path)
+            if i % dump_freq == 0:
+                check_file_integrity(layer.dump_path, i, rank)
 
 
 class Test1DataloaderRun(unittest.TestCase):
@@ -83,12 +107,12 @@ class Test1DataloaderRun(unittest.TestCase):
         print("Test for real dataloader.")
         layer = SimpleLayer()
         set_dump_root_path(os.path.join(default_path, "real_dataLoader"))
-        layer = create_model(layer, dump_freq=2)
+        layer = create_model(layer, dump_freq=dump_freq)
         opt = paddle.optimizer.SGD(learning_rate=1e-3, parameters=layer.model.parameters())
 
         dataset = RandomDataset(train_step)
         loader = paddle.io.DataLoader(dataset)
-        for inp in loader():
+        for step, inp in enumerate(loader()):
             out = layer(paddle.to_tensor(inp))
             loss = out.mean()
             layer.backward(loss)
@@ -96,8 +120,8 @@ class Test1DataloaderRun(unittest.TestCase):
             opt.clear_grad()
             layer.try_dump()
 
-        assert check_report(layer.dump_path, layer.dump_path)
-        assert check_params(layer.dump_path, layer.dump_path)
+            if step % dump_freq == 0:
+                check_file_integrity(layer.dump_path, step, rank)
 
 
 class Test2WhiteLayerRun(unittest.TestCase):
@@ -108,13 +132,13 @@ class Test2WhiteLayerRun(unittest.TestCase):
         print("Test for single model run.")
         layer = SimpleLayer()
         set_dump_root_path(os.path.join(default_path, "white_layer_class"))
-        layer = create_model(layer, dump_freq=2)
+        layer = create_model(layer, dump_freq=dump_freq)
         layer.update_white_list_with_class(paddle.nn.Linear, mode="all")
         opt = paddle.optimizer.SGD(learning_rate=1e-3, parameters=layer.model.parameters())
 
         dataset = RandomDataset(train_step)
         loader = paddle.io.DataLoader(dataset)
-        for inp in loader():
+        for step, inp in enumerate(loader()):
             out = layer(paddle.to_tensor(inp))
             loss = out.mean()
             layer.backward(loss)
@@ -122,8 +146,8 @@ class Test2WhiteLayerRun(unittest.TestCase):
             opt.clear_grad()
             layer.try_dump()
 
-        assert check_report(layer.dump_path, layer.dump_path)
-        assert check_params(layer.dump_path, layer.dump_path)
+            if step % dump_freq == 0:
+                check_file_integrity(layer.dump_path, step, rank)
 
 
 class Test3GradAccumulationRun(unittest.TestCase):
@@ -135,7 +159,7 @@ class Test3GradAccumulationRun(unittest.TestCase):
         print("Test for gradient accumulation.")
         layer = SimpleLayer()
         set_dump_root_path(os.path.join(default_path, "grad_accumulation"))
-        layer = create_model(layer, dump_freq=2)
+        layer = create_model(layer, dump_freq=dump_freq)
         layer.update_white_list_with_class(paddle.nn.Linear, mode="all")
         opt = paddle.optimizer.SGD(learning_rate=1e-3, parameters=layer.model.parameters())
 
@@ -150,8 +174,8 @@ class Test3GradAccumulationRun(unittest.TestCase):
                 opt.clear_grad()
             layer.try_dump()
 
-        assert check_report(layer.dump_path, layer.dump_path)
-        assert check_params(layer.dump_path, layer.dump_path)
+            if step % dump_freq == 0:
+                check_file_integrity(layer.dump_path, step, rank)
 
 
 class Test4RecomputeRun(unittest.TestCase):
@@ -164,7 +188,7 @@ class Test4RecomputeRun(unittest.TestCase):
         print("Test for recompute.")
         layer = SimpleLayer()
         set_dump_root_path(os.path.join(default_path, "recompute"))
-        layer = create_model(layer, dump_freq=2)
+        layer = create_model(layer, dump_freq=dump_freq)
         layer.update_white_list_with_class(paddle.nn.Linear, mode="all")
         opt = paddle.optimizer.SGD(learning_rate=1e-3, parameters=layer.model.parameters())
 
@@ -181,8 +205,8 @@ class Test4RecomputeRun(unittest.TestCase):
                 opt.clear_grad()
             layer.try_dump()
 
-        assert check_report(layer.dump_path, layer.dump_path)
-        assert check_params(layer.dump_path, layer.dump_path)
+            if step % dump_freq == 0:
+                check_file_integrity(layer.dump_path, step, rank)
 
 
 class Test5AMPRun(unittest.TestCase):
@@ -197,7 +221,7 @@ class Test5AMPRun(unittest.TestCase):
         layer = SimpleLayer()
         layer = paddle.amp.decorate(layer, level="O2")
         set_dump_root_path(os.path.join(default_path, "amp"))
-        layer = create_model(layer, dump_freq=2)
+        layer = create_model(layer, dump_freq=dump_freq)
         layer.update_white_list_with_class(paddle.nn.Linear, mode="all")
         opt = paddle.optimizer.SGD(learning_rate=1e-3, parameters=layer.model.parameters())
 
@@ -215,8 +239,8 @@ class Test5AMPRun(unittest.TestCase):
                 opt.clear_grad()
             layer.try_dump()
 
-        assert check_report(layer.dump_path, layer.dump_path)
-        assert check_params(layer.dump_path, layer.dump_path)
+            if step % dump_freq == 0:
+                check_file_integrity(layer.dump_path, step, rank)
 
 
 if __name__ == "__main__":

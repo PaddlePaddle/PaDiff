@@ -46,13 +46,11 @@ class Logger:
 
         self._logger = logging.getLogger("padiff")
 
-        debug_flag = os.getenv("PADIFF_DEBUG")
+        silent_flag = os.getenv("PADIFF_SILENT")
         log_level_flag = os.getenv("PADIFF_LOG_LEVEL")
 
         if log_level_flag and log_level_flag.upper() in ("DEBUG", "INFO", "WARNING", "ERROR"):
             log_level = getattr(logging, log_level_flag.upper())
-        elif debug_flag and debug_flag.strip().lower() in ("1", "true", "on"):
-            log_level = logging.DEBUG
         else:
             log_level = logging.INFO
         self._logger.setLevel(log_level)
@@ -65,14 +63,15 @@ class Logger:
         file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
         file_formatter = logging.Formatter("[AutoDiff] [%(levelname)s] %(message)s")
         file_handler.setFormatter(file_formatter)
-
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(self.colored_formatter)
-
         self._logger.addHandler(file_handler)
-        self._logger.addHandler(console_handler)
 
-        self._logger.info(f"Logging initialized. Log file: {log_file_path}")
+        if not silent_flag or silent_flag.strip().lower() not in ("1", "true", "on"):
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(self.colored_formatter)
+            self._logger.addHandler(console_handler)
+
+            self._logger.info(f"Logging initialized. Log file: {log_file_path}")
+
         self._is_initialized = True
         self.log_path = log_parent_dir
 

@@ -4,7 +4,7 @@
 **P**addle  **A**utomatically  **Diff**  precision toolkits.
 
 
-## 最近更新（latest 9.2）
+## 最近更新（latest 9.8）
 
 ### 使用单行命令对齐（支持前反向对齐）
 
@@ -54,9 +54,15 @@ compare_mode: "mean"
 action_name: "equal"
 ```
 
-### 开启 debug 模式（获取更多 log 信息）
+### log 设置
 
-设置环境变量 `export PADIFF_DEBUG=1`，或使用命令运行 `PADIFF_DEBUG=1 python -m padiff.cli ...`
+#### 开启 debug 模式
+
+为了获取更多 log 信息，可以设置环境变量 `export PADIFF_LOG_LEVEL=DEBUG`，或使用命令运行 `PADIFF_LOG_LEVEL=DEBUG python -m padiff.cli ...`
+
+#### 开启静默模式
+
+或者为了保持控制台信息简洁，可以设置环境变量 `PADIFF_SILENT=1`，以便仅保存 log 文件，不在控制台输出 log 信息
 
 
 ## 简介
