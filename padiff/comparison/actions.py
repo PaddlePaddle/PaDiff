@@ -119,7 +119,7 @@ class LooseEqualAction(Action):
             tensor_0 = load_numpy(info_0["path"])
             tensor_1 = load_numpy(info_1["path"])
 
-            if cfg["transpose"]:
+            if "transpose" in cfg and cfg["transpose"]:
                 tensor_1 = np.transpose(tensor_1)
 
             if tensor_0.size == 0 or tensor_1.size == 0:
