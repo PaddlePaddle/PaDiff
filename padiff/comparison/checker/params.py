@@ -1,4 +1,4 @@
-# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2025 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,7 +54,6 @@ def _check_param_impl(report_path_0, report_path_1, compare_target, cfg=None):
     for path_0, path_1 in zip(all_ranks_path_0, all_ranks_path_1):
         reports = [load_json(path_0, f"{compare_target}.json"), load_json(path_1, f"{compare_target}.json")]
         node_lists = [traversal_node(rep["tree"], []) for rep in reports]
-
         logger.info(f"Checking {compare_target} in {path_0} and {path_1}")
         param_rst = param_rst and _check_params_impl(node_lists, reports, compare_target, cfg)
     return param_rst
@@ -101,7 +100,7 @@ def _check_params_impl(node_lists, reports, compare_target, cfg):
                     f"=========================\n"
                     f"FAILED!!! {compare_target.capitalize()} Mismatch:\n"
                     f"   Layer: {node_0['name']}(base) vs {node_1['name']}(raw)\n"
-                    f"   Route: {node_0['route']}.{param_name_0}(base) vs {node_1['route']}.{param_name_1}(raw)\n"
+                    f"   Route.param: {node_0['route']}.{param_name_0}(base) vs {node_1['route']}.{param_name_1}(raw)\n"
                     f"{e}\n\n"
                 )
                 logger.log_file(log_name, "a", info)

@@ -107,10 +107,7 @@ class Marker:
     def traversal_for_assign_weight(self):
         yield self.proxy_model
         for model in traversal_for_assign_weight(self.proxy_model, self):
-            if (
-                model.model not in self.unassigned_weights_list_recursively
-                and len(list(model.parameters(recursively=False))) == 0
-            ):
+            if model.model not in self.unassigned_weights_list_recursively and no_avaliable_params(model):
                 continue
             yield model
 
@@ -182,3 +179,11 @@ def traversal_for_hook(model, marker):
 
 def traversal_for_assign_weight(model, marker):
     yield from traversal_layers_assign_weight(model, marker)
+
+
+def no_avaliable_params(model):
+    if list(model.named_parameters(recursively=False)):
+        return False
+    if list(model.named_buffers(recursively=False)):
+        return False
+    return True
