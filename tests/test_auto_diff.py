@@ -50,7 +50,7 @@ class SimpleModule(torch.nn.Module):
         return x
 
 
-class TestOfflineCompare(unittest.TestCase):
+class TestAutoDiff(unittest.TestCase):
     def test_check_success(self):
         layer = SimpleLayer()
         layer.eval()

@@ -1,4 +1,4 @@
-# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2025 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -80,6 +80,17 @@ def init_weights_hook(model, input):
             if isinstance(param, (paddle.Tensor, torch.Tensor)):
                 np_array = get_numpy_from_tensor(param)
                 init_weights[name] = np_array
+                logger.debug(f"Register(init_weights_hook): '{name}'(param)")
+
+        for name, buffer in model.named_buffers():
+            if isinstance(buffer, (paddle.Tensor, torch.Tensor)) and name not in init_weights:
+                try:
+                    np_array = get_numpy_from_tensor(buffer)
+                    init_weights[name] = np_array
+                    logger.debug(f"Register(init_weights_hook): '{name}'(buffer)")
+                except Exception as e:
+                    logger.warning(f"Skip(init_weights_hook): '{name}'(unitialized buffer): {e}")
+
         report.init_weights = init_weights
         report.init_weights_saved = True
     return None

@@ -173,8 +173,6 @@ class ProxyModel:
         if matched_layers:
             self.update_black_list(matched_layers, mode)
             logger.info(f"update blacklist: {len(matched_layers)} added with name(s) {class_names}")
-        else:
-            logger.warning(f"update blacklist: No layers matched for {class_names}")
 
     def set_layer_map(self, layers):
         self.marker.set_layer_map(layers)
@@ -229,6 +227,9 @@ class ProxyModel:
     def named_parameters(self, recursively):
         raise NotImplementedError()
 
+    def named_buffers(self, recursively):
+        raise NotImplementedError()
+
     # child sublayers, do not include self
     def children(self):
         raise NotImplementedError()
@@ -269,6 +270,10 @@ class PaddleModel(ProxyModel):
 
     def named_parameters(self, recursively=True):
         origin_iter = self.model.named_parameters(include_sublayers=recursively)
+        return deco_iter(origin_iter, ProxyParam.create_from)
+
+    def named_buffers(self, recursively=True):
+        origin_iter = self.model.named_buffers(include_sublayers=recursively)
         return deco_iter(origin_iter, ProxyParam.create_from)
 
     def children(self):
@@ -335,6 +340,10 @@ class TorchModel(ProxyModel):
 
     def named_parameters(self, recursively=True):
         origin_iter = self.model.named_parameters(recurse=recursively)
+        return deco_iter(origin_iter, ProxyParam.create_from)
+
+    def named_buffers(self, recursively=True):
+        origin_iter = self.model.named_buffers(recurse=recursively)
         return deco_iter(origin_iter, ProxyParam.create_from)
 
     def children(self):

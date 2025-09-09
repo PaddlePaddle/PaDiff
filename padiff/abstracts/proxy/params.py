@@ -1,4 +1,4 @@
-# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2025 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 import paddle
 import torch
+from ...utils import get_numpy_from_tensor
 
 
 class ProxyParam:
@@ -29,8 +30,10 @@ class ProxyParam:
             return PaddleParam(param)
         elif isinstance(param, torch.nn.parameter.Parameter):
             return TorchParam(param)
+        elif isinstance(param, (torch.Tensor, paddle.Tensor)):
+            return ProxyTensor(param)
         else:
-            raise RuntimeError(f"Can not create ProxyParam from {type(param)}")
+            logger.error(f"Can not create ProxyParam from {type(param)}")
 
     def numpy(self):
         raise NotImplementedError()
@@ -52,15 +55,8 @@ class PaddleParam(ProxyParam):
     def __init__(self, param):
         super().__init__(param, "paddle")
 
-    def _numpy(self, tensor):
-        if tensor.dtype == paddle.bfloat16:
-            np_array = tensor.astype("float32").numpy()
-        else:
-            np_array = tensor.numpy()
-        return np_array
-
     def numpy(self):
-        return self._numpy(self.param)
+        return get_numpy_from_tensor(self.param)
 
     def set_data(self, np_value):
         paddle.assign(paddle.to_tensor(np_value, dtype=self.param.dtype), self.param)
@@ -70,14 +66,14 @@ class PaddleParam(ProxyParam):
 
     def grad(self):
         if self.param.grad is not None:
-            return self._numpy(self.param.grad)
+            return get_numpy_from_tensor(self.param.grad)
         else:
             return None
 
     def main_grad(self):
         if hasattr(self.param, "main_grad") and self.param.main_grad is not None:
             assert self.param.grad is None
-            return self._numpy(self.param.main_grad)
+            return get_numpy_from_tensor(self.param.main_grad)
 
         else:
             return None
@@ -87,15 +83,8 @@ class TorchParam(ProxyParam):
     def __init__(self, param):
         super().__init__(param, "torch")
 
-    def _numpy(self, tensor):
-        if tensor.dtype == torch.bfloat16:
-            np_array = tensor.cpu().detach().float().numpy()
-        else:
-            np_array = tensor.cpu().detach().numpy()
-        return np_array
-
     def numpy(self):
-        return self._numpy(self.param.data)
+        return get_numpy_from_tensor(self.param.data)
 
     def set_data(self, np_value):
         self.param.data = torch.as_tensor(np_value).type(self.param.dtype).to(self.param.device)
@@ -105,9 +94,23 @@ class TorchParam(ProxyParam):
 
     def grad(self):
         if self.param.grad is not None:
-            return self._numpy(self.param.grad.data)
+            return get_numpy_from_tensor(self.param.grad.data)
         else:
             return None
+
+    def main_grad(self):
+        return None
+
+
+class ProxyTensor(ProxyParam):
+    def __init__(self, param):
+        super().__init__(param, "tensor")
+
+    def numpy(self):
+        return get_numpy_from_tensor(self.param)
+
+    def grad(self):
+        return None
 
     def main_grad(self):
         return None

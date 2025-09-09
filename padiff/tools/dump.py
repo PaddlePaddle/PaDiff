@@ -1,4 +1,4 @@
-# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2025 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -142,8 +142,16 @@ def dump_param_prototype(model, dump_fn, file_path):
         }
         if model.model in target_models:  # only record sublayers specified by marker
             param_info["available"] = True
+            params_found = set()
             for param_name, param in model.named_parameters(recursively=False):
                 fn(param_name, param, param_info)
+                params_found.add(param_name)
+            for buffer_name, buffer in model.named_buffers(recursively=False):
+                if buffer_name not in params_found:
+                    fn(buffer_name, buffer, param_info)
+        else:
+            logger.debug(f"Layer {model.class_name} ({model.route}) is NOT in target_models. Skipping.")
+
         for name, child in model.named_children():
             param_info["children"].append(dump_param_with_fn(child, fn, target_models))
         return param_info
@@ -174,8 +182,6 @@ def dump_params(model, path):
         elif param.grad() is not None:
             file_name = grad_dumper(param.grad())
             param_info["grads"][param_name] = file_name
-        else:
-            param_info["grads"][param_name] = None
 
     dump_param_prototype(model, _dump, f"{path}/params.json")
 
@@ -201,7 +207,8 @@ def dump_grads(model, path):
             grad = param.param._collected_grad
             grad = get_numpy_from_tensor(grad) if grad is not None else None
 
-        param_info["grads"][param_name] = grad_dumper(grad) if grad is not None else None
+        if grad is not None:
+            param_info["grads"][param_name] = grad_dumper(grad)
 
     dump_param_prototype(model, _dump, f"{path}/grads.json")
 

@@ -168,7 +168,7 @@ def load_init_weights_from_dump(
                     param_key = param_name
 
                 if param_key not in loaded_weights:
-                    logger.info(f"param {param_key}({param_name}) not found, skip it.")
+                    logger.warning(f"param {param_key}({param_name}) not found, skip it.")
                     continue
                 np_value = loaded_weights[param_key]
 
