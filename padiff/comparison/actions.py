@@ -127,12 +127,23 @@ class LooseEqualAction(Action):
                 continue
 
             if tensor_0.shape != tensor_1.shape:
-                logger.debug(f"Shape of tensors are not equal: {tensor_0.shape}!={tensor_1.shape}")
-                if tensor_0.size == tensor_1.size:
-                    logger.debug(f"Try to reshape them to {tensor_0.shape}")
+                debug_msg = f"Shape of tensors are not equal: {tensor_0.shape}!={tensor_1.shape}. "
+
+                if tensor_0.shape == tensor_1.shape[::-1]:
+                    debug_msg += "Try to transpose one of them."
+                    tensor_1 = np.transpose(tensor_1)
+                elif tensor_0.size == tensor_1.size:
+                    debug_msg += (
+                        f"Try to reshape them to {tensor_0.shape}. Attention: this may "
+                        "put elements in wrong positions even though they actually have the same value."
+                    )
                     tensor_1 = np.reshape(tensor_1, tensor_0.shape)
                 else:
+                    debug_msg += "however tensors cannot be converted to each other, skip!"
+                    logger.debug(debug_msg)
                     continue
+
+                logger.debug(debug_msg)
 
             assert_tensor_equal(tensor_0, tensor_1, cfg)
             num_success += 1
