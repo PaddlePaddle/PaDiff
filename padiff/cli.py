@@ -90,7 +90,7 @@ def main():
                 pt_cmd: python torch_model.py
                 pd_cmd: python paddle_model.py
                 align_depth: inf
-           * 使用方式: padiff --config config.yaml
+           * 使用方式: python -m padiff.cli --config config.yaml
            * 命令行参数会覆盖配置文件中的同名参数。
 
         1. 命令参数 (--pt_cmd, --pd_cmd):
@@ -120,11 +120,21 @@ def main():
               那么您应该使用：
                 --pd_model_name net
 
+              如果您的 Paddle 脚本中有：
+                trainer = SFTTrainer(
+                    args=training_args,
+                    model="Qwen/Qwen2.5-0.5B-Instruct",
+                    train_dataset=dataset,
+                )
+                trainer.train()
+              那么您应该使用：
+                --pd_model_name trainer.model
+
         3. 优化器名参数 (--pt_optim_name, --pd_optim_name):
            这些参数指定您在脚本中创建优化器实例的**变量名**。
            * 它们不是类名，也不是文件名。
            * 它们是优化器实例化时 `=` 左边的标识符。
-           * 默认值: None (不传递优化器)
+           * 该参数为非必须参数，默认值: None (不传递优化器)
 
            示例：
               如果您的 PyTorch 脚本中有：
@@ -138,16 +148,13 @@ def main():
                 --pt_optim_name optim
 
               如果您的 Paddle 脚本中有：
-                optimizer = paddle.optimizer.Adam(
-                    parameters=transformer.parameters(),
-                    learning_rate=1.0,
-                    epsilon=1e-09,
-                    beta1=0.9,
-                    beta2=0.98,
-                    weight_decay=0.0,
+                trainer = SFTTrainer(
+                    args=training_args,
+                    model="Qwen/Qwen2.5-0.5B-Instruct",
+                    train_dataset=dataset,
                 )
-              那么您应该使用：
-                --pd_optim_name optimizer
+                trainer.train()
+              由于 trainer.train() 中通常已经包含了完整的前反向过程，因此不需要传递此参数
 
         4. 日志目录参数 (--log_dir):
            指定生成报告和日志的目录。
@@ -156,8 +163,8 @@ def main():
         5. 对齐深度参数 (--align_depth):
            控制对齐的粒度。通过指定一个深度值，可以忽略该深度以下的所有子模块。
            * 值为整数: 指定一个具体的深度。例如，--align_depth 1 会忽略深度为1及以下的所有子模块。
-           * 值为 'inf': (默认) 无限深度，会对齐到最细粒度的层（如 Linear, ReLU）。
-           * 值为整数，且数值超过模型最大迭代深度时，相当于 'inf'。
+           * 默认值: 'inf' ，即无限深度，会对齐到最细粒度的层（如 Linear, ReLU）。
+           * 值为整数，当数值超过模型最大迭代深度时，相当于 'inf'。
            * 示例：
               --align_depth 0  # 只对齐顶层模块
               --align_depth 1  # 对齐到第一层子模块
@@ -166,15 +173,15 @@ def main():
         6. 单步对齐模式参数 (--single_step_mode):
            启用逐层对齐模式。
            * 可选值: forward, backward, both
-           * 默认值: None (禁用)
+           * 默认值: None (不启用)
            * 当启用时，工具会从自动加载基准模型的输出，并用其替换对齐模型的相应层输出。
 
         7. 结果对比参数:
            控制模型输出结果的对比精度和模式。
            * --atol: 绝对误差容忍度 (default: 1e-6)
            * --rtol: 相对误差容忍度 (default: 1e-6)
-           * --compare_mode: 对比模式。可选值: mean, strict, abs_mean (default: mean)
-           * --action_name: 激活函数名称，可选值: equal, loose_equal, 用于特定的对比逻辑 (default: equal)
+           * --compare_mode: 对比模式，具体内容请看对应文档。可选值: mean, strict, abs_mean, 默认值: "mean"
+           * --action_name: 对比逻辑，具体内容请看对应文档。可选值: equal, loose_equal, 默认值: "equal"
            * 示例:
               --atol 1e-4 --rtol 1e-5 --compare_mode mean --action_name equal
 
@@ -216,13 +223,13 @@ def main():
         "--pt_optim_name",
         type=str,
         default=None,
-        help="The model name that appears in the pytorch script's code (default: 'model')",
+        help="The model name that appears in the pytorch script's code (default: None)",
     )
     parser.add_argument(
         "--pd_optim_name",
         type=str,
         default=None,
-        help="The model name that appears in the paddle script's code (default: 'model')",
+        help="The model name that appears in the paddle script's code (default: None)",
     )
     parser.add_argument(
         "--log_dir",
@@ -244,7 +251,7 @@ def main():
         help="List of layer names to add to the black list.",
     )
     parser.add_argument(
-        "--atol", type=float, default=1e-6, help="Absolute tolerance for result comparison (default: 1e-4)"
+        "--atol", type=float, default=1e-6, help="Absolute tolerance for result comparison (default: 1e-6)"
     )
     parser.add_argument(
         "--rtol", type=float, default=1e-6, help="Relative tolerance for result comparison (default: 1e-6)"

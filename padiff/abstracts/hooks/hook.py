@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import contextlib
 from functools import partial
 
@@ -175,7 +174,7 @@ def info_hook(model, input, output, net_id):
         t.register_hook(partial(tensor_hook, bwd_item=bwd_item, nth_tensor=i, net_id=net_id))
 
     # if under single step forward guard
-    if single_step_state() == "forward" and net_id != -1:
+    if single_step_state() in ("forward", "both") and net_id != -1:
         # two report_item with same id, the step_idx should be corresponded
         step_idx = len(list(filter(lambda x: x.type == "forward" and x.net_id == net_id, report.items))) - 1
         base_report_node = single_step_check(report, net_id, step_idx, _model.__class__.__name__, "forward")
@@ -196,12 +195,14 @@ def tensor_hook(x_grad, bwd_item, nth_tensor, net_id):
     new_grad = clone_tensors(x_grad)
     bwd_item.set_input_grads(nth_tensor, new_grad[0])
 
-    if single_step_state() == "backward" and net_id != -1:
+    if single_step_state() in ("backward", "both") and net_id != -1:
         report = current_report()
         step_idx = (
             list(filter(lambda x: x.type == "backward" and x.net_id == net_id, report.items)).index(bwd_item) - 1
         )
-        base_report_node = find_base_report_node(net_id, step_idx)
+        base_report_node = single_step_check(
+            report, net_id, step_idx, bwd_item.net.__class__.__name__, "backward", bwd_item=bwd_item
+        )
 
         value = np.load(base_report_node["bwd_grads"][nth_tensor]["path"])
         if isinstance(x_grad, paddle.Tensor):
@@ -285,7 +286,7 @@ def single_step_check(report, net_id, step_idx, current_name, node_type, bwd_ite
         base_report_node = find_base_report_node(net_id, step_idx)
         if base_report_node["name"] != current_name:
             warning_msg = (
-                f"\n   ⚠️ Single-step alignment FAILED: {node_type} with net_id={net_id} mismatch!\n"
+                f"\n   ⚠️ Single-step alignment WARNING: {node_type} with net_id={net_id} mismatch!\n"
                 f"   📌 Mismatch {node_type.capitalize()}: {base_report_node['name']}(base) vs {current_name}(raw)\n"
                 f"   💡 Suggestion: Models have different architectures or initialization order. "
                 "Please check the model implementation or decrease 'align_depth' to reduce the alignment "
@@ -313,10 +314,10 @@ def single_step_check(report, net_id, step_idx, current_name, node_type, bwd_ite
             route = report.stack._top().net.route
 
         logger.error(
-            f"\n   ❌ Single-step alignment FAILED: Execution path mismatch in {node_type}!"
+            f"\n   ❌ Single-step alignment FAILED: {node_type} with net_id={net_id} mismatch!"
             f"\n   📌 Layer '{route}' called {current_calls} times (current) vs {base_max_calls} times (base)."
-            f"\n   📌 Check the {node_type} logic in both models around this layer."
+            f"\n   📌 This indicates that the layer might be called but the call is not needed."
+            f"\n   📌 Please check the {node_type} logic in both models around this layer."
         )
-        sys.exit(1)
 
     return None
