@@ -1,0 +1,60 @@
+name: Docs Check
+
+on:
+  push:
+    paths:
+      - 'docs/**'
+      - '**.md'
+      - '**.rst'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '**.md'
+      - '**.rst'
+
+jobs:
+  link-check:
+    name: Check Links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Markdown Links
+        uses: gaurav0/markdown-link-check@v1
+        with:
+          use-quiet-mode: 'yes'
+          use-verbose-mode: 'no'
+
+  spell-check:
+    name: Spell Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Spell Check
+        uses: streetsidesoftware/action-spellcheck@v0
+        with:
+          check-co-authored-commits: true
+
+  format-check:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Prettier
+        run: npm install --global prettier
+
+      - name: Check Markdown Format
+        run: |
+          # 使用 prettier 检查格式，但不自动修改
+          npx prettier --check "docs/**/*.md" "**/*.md"
+          # 如果格式不正确，此命令会失败，CI 将标记为失败
