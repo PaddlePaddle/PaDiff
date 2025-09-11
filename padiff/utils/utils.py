@@ -21,6 +21,7 @@ import torch
 
 import os.path as osp
 import traceback
+from .log import logger
 
 
 def set_seed(seed=42):
@@ -140,24 +141,32 @@ def traverse(structure, on_leaf, on_container=None):
             new_dict[k] = traverse(structure[k], on_leaf, on_container)
         return on_container(new_dict) if on_container else new_dict
 
-    # list
-    if isinstance(structure, list):
+    # list or tuple
+    if isinstance(structure, (list, tuple)):
         result = [traverse(item, on_leaf, on_container) for item in structure]
         return on_container(result) if on_container else result
 
-    # tuple
-    if isinstance(structure, tuple):
-        # namedtuple
-        if hasattr(structure, "_fields"):
-            result = type(structure)(
-                *[traverse(getattr(structure, field), on_leaf, on_container) for field in structure._fields]
-            )
-            return on_container(result) if on_container else result
-        else:  # tuple
-            result = tuple(traverse(item, on_leaf, on_container) for item in structure)
-            return on_container(result) if on_container else result
+    # Sequence-like objects (e.g., DynamicCache, ModelOutput)
+    if hasattr(structure, "__getitem__") and hasattr(structure, "__len__"):
+        try:
+            items = []
+            for i in range(len(structure)):
+                traversed_item = traverse(structure[i], on_leaf, on_container)
+                items.append(traversed_item)
+            for i, item in enumerate(items):
+                structure[i] = item
+            return structure
+        except Exception:
+            pass
 
-    # others like, ModelOutput, CausalLMOutputWithPast, DynamicCache
+    # namedtuple
+    if hasattr(structure, "_fields"):
+        result = type(structure)(
+            *[traverse(getattr(structure, field), on_leaf, on_container) for field in structure._fields]
+        )
+        return on_container(result) if on_container else result
+
+    # object with __dict__
     if hasattr(structure, "__dict__"):
         try:
             new_obj = type(structure)()
@@ -166,10 +175,10 @@ def traverse(structure, on_leaf, on_container=None):
                     v = getattr(structure, k)
                     setattr(new_obj, k, traverse(v, on_leaf, on_container))
             return on_container(new_obj) if on_container else new_obj
-        except:
+        except Exception:
             pass
 
-    # others
+    # generic object
     if hasattr(structure, "__class__"):
         try:
             new_obj = type(structure)()
@@ -181,10 +190,11 @@ def traverse(structure, on_leaf, on_container=None):
                     except:
                         pass
             return on_container(new_obj) if on_container else new_obj
-        except:
+        except Exception:
             pass
 
     # default: treat as leaves
+    logger.debug(f"Failed to traverse structure with type {type(structure)}, treat it as a leaf.")
     return on_leaf(structure)
 
 

@@ -133,6 +133,11 @@ def InputCaptureGuard(model, base_dump_path=None, framework=None, load_first_inp
             logger.warning("Skipped capturing or loading input: both args and kwargs are empty.")
             return original_forward(*args, **kwargs)
 
+        corrected_args = args
+        if args and isinstance(args[0], (paddle.nn.Layer, torch.nn.Module)):
+            logger.debug("Ignoring model instance in args[0] during input capture.")
+            corrected_args = args[1:]
+
         if load_first_inputs and base_dump_path and framework and not hasattr(report, "_inputs_loaded"):
             assert framework is not None, "'framework' must be setted if 'load_first_inputs' is True"
             logger.info("Loading first input from dump")
@@ -168,17 +173,17 @@ def InputCaptureGuard(model, base_dump_path=None, framework=None, load_first_inp
                     return (type(x).__name__, str(x))
 
             serialized = {
-                "args": [serialize(x) for x in args] if args else [],
+                "args": [serialize(x) for x in corrected_args] if corrected_args else [],
                 "kwargs": {k: serialize(v) for k, v in kwargs.items()},
             }
             if serialized["args"] or serialized["kwargs"]:
                 report.first_input = serialized
                 report.first_input_captured = True
-                logger.info(f"Captured full input: args={len(args)}, kwargs={list(kwargs.keys())}")
+                logger.info(f"Captured full input: args={len(corrected_args)}, kwargs={list(kwargs.keys())}")
             else:
                 logger.warning("Skipped capturing input: serialized input is empty.")
 
-        return original_forward(*args, **kwargs)
+        return original_forward(*corrected_args, **kwargs)
 
     model.forward = tracked_forward
     model._padiff_input_captured = True
@@ -280,8 +285,11 @@ def PaDiffGuard(
 
             yield model
 
-    except SystemExit as e:
-        logger.info("PaDiffGuard: SystemExit received, skipping dump_report.")
+    except _CallsComplete as e:
+        pass
+
+    except Exception as e:
+        logger.error(f"PaDiffGuard: failed! {e}")
         raise
 
     finally:
@@ -291,5 +299,5 @@ def PaDiffGuard(
             if optimizer is None:
                 proxy_model.dump_grads(proxy_model.dump_path)
         except Exception as e:
-            logger.error(f"Failed to dump: {e}")
+            logger.error(f"PaDiffGuard: failed to dump! {e}")
         sys.exit(0)
