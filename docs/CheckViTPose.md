@@ -2,7 +2,7 @@
   - [0. 准备工作](#0-准备工作)
   - [1. 单 step 的前向对齐](#1-单-step-的前向对齐)
     - [关于输入数据](#关于输入数据)
-    - [关于黑白名单和 layer\_map](#关于黑白名单和-layer_map)
+    - [关于黑白名单和 layer_map](#关于黑白名单和-layer_map)
     - [关于参数设置](#关于参数设置)
     - [示例代码](#示例代码)
   - [2. 损失函数精度验证](#2-损失函数精度验证)
@@ -13,11 +13,9 @@
     - [关于参数设置](#关于参数设置-2)
     - [示例代码](#示例代码-2)
   - [4. 出现 diff 时进行精确定位](#4-出现-diff-时进行精确定位)
-    - [工具逻辑说明：关于 single\_step 模式](#工具逻辑说明关于-single_step-模式)
+    - [工具逻辑说明：关于 single_step 模式](#工具逻辑说明关于-single_step-模式)
     - [关于参数设置](#关于参数设置-3)
     - [示例代码](#示例代码-3)
-
-
 
 # 使用PaDiff工具对齐ViTPose流程示例
 
@@ -27,18 +25,16 @@
 
 在使用PaDiff工具前，需要自行编写部分代码，包括：
 
-1.   加载（或定义） paddle 模型以及 torch 模型
-2.   准备 dataloader 逻辑（若必要）
+1.  加载（或定义） paddle 模型以及 torch 模型
+2.  准备 dataloader 逻辑（若必要）
 
 完成准备后，使用工具进行对齐的步骤是基本固定的：
 
-1.   得到 paddle 以及 torch 模型
-2.   取得模型的输入数据
-3.   生成 layer_map 结构
-4.   调用 assign_weight 初始化模型权重
-5.   调用 auto_diff 接口进行对齐
-
-
+1.  得到 paddle 以及 torch 模型
+2.  取得模型的输入数据
+3.  生成 layer_map 结构
+4.  调用 assign_weight 初始化模型权重
+5.  调用 auto_diff 接口进行对齐
 
 以下是加载ViTPose模型的代码示例
 
@@ -206,8 +202,6 @@ def build_paddle_data_pipeline():
     return dataset,loader
 ```
 
-
-
 ## 1. 单 step 的前向对齐
 
 单 step 的模型前向对齐检查中，不更新权重，对每一组输入数据进行一次独立的对齐检查。对应代码示例见下方的代码块。
@@ -227,14 +221,13 @@ def build_paddle_data_pipeline():
 
 除了必需的输入之外，可以注意以下几个参数的设置：
 
-1.   auto_init
+1.  auto_init
 
-     在下方示例代码中，需要对不同的数据进行单 step 对齐检查，不需要重复进行权重初始化行为。因此设置为 False
+    在下方示例代码中，需要对不同的数据进行单 step 对齐检查，不需要重复进行权重初始化行为。因此设置为 False
 
-2.   options
-
-     -   single_step 选项：在模型对齐的开始，建议关闭 single_step ，确认模型存在 diff 时再打开它来帮助定位具体的 diff 位置
-     -   diff_phase 选项：由于目前的任务是单 step 的前向对齐检查，设置 diff_phase 选项为 "forward"，可以只定位模型的前向逻辑，跳过backward 部分（不会更新模型权重）
+2.  options
+    - single_step 选项：在模型对齐的开始，建议关闭 single_step ，确认模型存在 diff 时再打开它来帮助定位具体的 diff 位置
+    - diff_phase 选项：由于目前的任务是单 step 的前向对齐检查，设置 diff_phase 选项为 "forward"，可以只定位模型的前向逻辑，跳过backward 部分（不会更新模型权重）
 
 ### 示例代码
 
@@ -291,8 +284,6 @@ def test_forward():
         if result == False:
             break
 ```
-
-
 
 ## 2. 损失函数精度验证
 
@@ -373,8 +364,6 @@ def test_forward():
             break
 ```
 
-
-
 ## 3. 带 optimizer 的精度对齐
 
 多 step 的对齐检查意味着需要在每一个 step 间更新模型权重，然后进行下一个step 的对齐，相对于单 step 的模型对齐检查更复杂 。auto_diff 接口支持传入指定的 optimizer 参与对齐，传入的 optimizer 可以是一个 optimizer 实例，也可以是一个 lambda 函数。
@@ -385,26 +374,26 @@ optimizer 参数的具体的使用方法详见 [Tutorial](Tutorial.md)，以下�
 
 在检查到输入参数包含了 optimizer 后，auto_diff 接口将按照以下逻辑进行相关检查。
 
-1.   运行模型前反向计算，对比计算过程
-2.   在运行完毕模型的 backward 部分后，对比检查模型记录的梯度大小
-3.   调用传入的 optimizer ，更新模型权重
-4.   更新权重后，检查模型权重间的数值精度误差
+1.  运行模型前反向计算，对比计算过程
+2.  在运行完毕模型的 backward 部分后，对比检查模型记录的梯度大小
+3.  调用传入的 optimizer ，更新模型权重
+4.  更新权重后，检查模型权重间的数值精度误差
 
 因此，在调用 optimizer 后出现的模型权重差异可以确定为 optimizer 精度问题，在 log 信息中将给出相应的提示
 
 ### 关于参数设置
 
-1.   auto_init
+1.  auto_init
 
-     由于在多 step 对齐检查中，需要更新权重，因此 auto_init 必须设置为 False，否则在每一个 step 前都会触发权重的拷贝。
+    由于在多 step 对齐检查中，需要更新权重，因此 auto_init 必须设置为 False，否则在每一个 step 前都会触发权重的拷贝。
 
-2.   optimizer
+2.  optimizer
 
-     进行多 step 的对齐检查时必须显式地提供 optimizer ，否则工具将不知道如何更新模型权重。关于 optimizer 的设置和使用。
+    进行多 step 的对齐检查时必须显式地提供 optimizer ，否则工具将不知道如何更新模型权重。关于 optimizer 的设置和使用。
 
 ### 示例代码
 
-1.   使用 dataloader 进行多 step 的对齐检查（每一个step使用不同的input data）
+1.  使用 dataloader 进行多 step 的对齐检查（每一个step使用不同的input data）
 
 ```py
 from padiff import auto_diff, assign_weight, LayerMap()
@@ -461,7 +450,7 @@ def test_forward():
             break
 ```
 
-2.   使用同一组输入进行多 step 对齐检查
+2.  使用同一组输入进行多 step 对齐检查
 
 ```py
 from padiff import auto_diff, assign_weight, LayerMap()
@@ -506,16 +495,14 @@ def test_forward():
     )
 ```
 
-
-
 ## 4. 出现 diff 时进行精确定位
 
 在对齐检查的过程中可能出现这种情况：auto_diff 接口发现了精度 diff，但 log 信息中定位到的位置却是 Linear 等常见的 API，检查后未发现 Linear 存在 diff。
 
 这可能是由于精度误差累积引起的，可以通过使用 single_step 对齐模式进行精度对齐定位，具体方法是：
 
-1.   在接口参数中打开 single_step 模式的开关
-2.   进行对齐检查的同时不断调整 atol， rtol 等参数，以找出 diff 出现的具体位置（开启 single_step 模式后，diff 数值的数量级可能下降）
+1.  在接口参数中打开 single_step 模式的开关
+2.  进行对齐检查的同时不断调整 atol， rtol 等参数，以找出 diff 出现的具体位置（开启 single_step 模式后，diff 数值的数量级可能下降）
 
 ### 工具逻辑说明：关于 single_step 模式
 
@@ -523,7 +510,7 @@ def test_forward():
 
 ### 关于参数设置
 
-使用 single_step 模式，只需要将 options 参数中的 "single_step" 选项设置为 True，此时，"diff_phase" 选项将控制single_step 的行为，它能够被指定为 "forward",  "backward", "both" 3种可能
+使用 single_step 模式，只需要将 options 参数中的 "single_step" 选项设置为 True，此时，"diff_phase" 选项将控制single_step 的行为，它能够被指定为 "forward", "backward", "both" 3种可能
 
 注意：当需要进行 "backward" 的 single_step 对齐时，auto_diff 会额外运行一次前向网络。
 

@@ -3,20 +3,18 @@
   - [为什么需要 SpecialInit 机制](#为什么需要-specialinit-机制)
   - [什么时候触发 SpecialInit 机制](#什么时候触发-specialinit-机制)
   - [设置自定义初始化逻辑的完整流程示例](#设置自定义初始化逻辑的完整流程示例)
-- [设置 layer\_map 的方法](#设置-layer_map-的方法)
-  - [使用 set\_layer\_map 手动指定](#使用-set_layer_map-手动指定)
-  - [使用 auto\_layer\_map 自动指定](#使用-auto_layer_map-自动指定)
+- [设置 layer_map 的方法](#设置-layer_map-的方法)
+  - [使用 set_layer_map 手动指定](#使用-set_layer_map-手动指定)
+  - [使用 auto_layer_map 自动指定](#使用-auto_layer_map-自动指定)
 - [自定义模型初始化函数](#自定义模型初始化函数)
-- [使用 add\_special\_init 接口注册自定义初始化函数](#使用-add_special_init-接口注册自定义初始化函数)
+- [使用 add_special_init 接口注册自定义初始化函数](#使用-add_special_init-接口注册自定义初始化函数)
 - [如何向本 repo 贡献模型初始化函数](#如何向本-repo-贡献模型初始化函数)
-
 
 ## 已支持Special Init的组件
 
--   MultiHeadAttention
--   LSTM
--   BatchNorm2D
-
+- MultiHeadAttention
+- LSTM
+- BatchNorm2D
 
 ## 概述
 
@@ -31,12 +29,11 @@
 ### 设置自定义初始化逻辑的完整流程示例
 
 自定义模型初始化逻辑的过程主要为：
+
 1. 编写模型初始化函数
 2. 使用 add_special_init 接口注册函数
 3. 通过设置 layer_map 触发并使用模型初始化函数
 4. 向本 repo 贡献你的初始化函数 （与前面的步骤无关）
-
-
 
 ## 设置 layer_map 的方法
 
@@ -52,7 +49,6 @@ model1 = create_model(SimpleLayer1(), name="Simple1")
 model0.set_layer_map([model0.model.linear1, model0.model.linear2])
 model1.set_layer_map([model1.model.linear1, model1.model.linear2])
 ```
-
 
 ### 使用 auto_layer_map 自动指定
 
@@ -104,6 +100,7 @@ add_special_init 共有5个输入，前两个标明 base_model 的框架名和�
 > 模型名在不同框架下可能有所差异，例如下面代码中，BatchNorm2D 在 paddle 和 torch 中就有不同的名字
 
 例子：
+
 ```py
 from padiff import add_special_init
 
@@ -123,13 +120,13 @@ add_special_init("torch", "BatchNorm2d", "paddle", "BatchNorm2D", init_BatchNorm
 
 **对 Paddle 框架提供的Layer组件，如果存在与 Torch 提供的组件不对齐，可以将相应的初始化函数提供给本 Repo**
 
-1.   找到 special_init 文件夹，并新建你的文件
+1.  找到 special_init 文件夹，并新建你的文件
 
 该文件夹位于 `PaDiff/padiff/weight_init/special_init`，请在该文件夹下新建文件 `init_XXXXX.py` （必须以 `init_` 开头）
 
-2.   在新建的文件中编写初始化函数
+2.  在新建的文件中编写初始化函数
 
-3.   使用 register 装饰器装饰初始化函数
+3.  使用 register 装饰器装饰初始化函数
 
     register 装饰器的参数与 add_special_init 接口的前四个参数一致
 
@@ -152,6 +149,6 @@ def init_BatchNorm2D(module, layer):
     layer.set_state_dict(param_dict)
 ```
 
-4.   提交PR
+4.  提交PR
 
 完成上面的文件编写后，可以联系 repo 管理员 review 并合入，提交后 padiff 工具就能够支持对应模型的初始化逻辑，无需重复编写。
