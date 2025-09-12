@@ -18,6 +18,9 @@ import os
 
 
 def compare_dumps(dump_path1, dump_path2, cfg=None, diff_phase="both"):
+    if dump_path1 == dump_path2:
+        logger.error("❌ compare_dumps: FAILED !!! Two dump paths should not be same!\n")
+
     # check report
     logger.info("🔍 Start comparison report (check_report)...")
     try:

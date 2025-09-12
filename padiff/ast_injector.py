@@ -24,21 +24,21 @@ class PaDiffInjector(ast.NodeTransformer):
         framework: str,
         model_name="model",
         mode="base",
-        alignment_dir=None,
         **kwargs,
     ):
-        self.framework = framework
         self.base_name = model_name.split(".")[0]  # get trainer if trainer.model
         self.model_name = model_name  # model(inputs)
         self.padiff_model_name = f"model_{framework.lower()}"  # "model_paddle"
         self.proxy_model_name = "proxy_model"  # proxy_model = create_model(model)
         self.mode = mode
-        if self.mode == "align":
-            assert alignment_dir is not None, "'alignment_dir' should not be None in align mode."
-        self.alignment_dir = alignment_dir
         self.kwargs = kwargs
+        self.kwargs["framework"] = framework
 
-        # black list: calls to these methods will not be injected into PaDiffGuard
+        if self.mode == "align":
+            base_dump_path = kwargs.get("base_dump_path", None)
+            assert base_dump_path is not None, "'base_dump_path' should not be None in align mode."
+
+        # exclude_methods: calls to these methods will not be injected into PaDiffGuard
         self.exclude_methods = {
             "to",
             "train",
@@ -60,16 +60,9 @@ class PaDiffInjector(ast.NodeTransformer):
     def visit_Module(self, node):
         node.body = self.add_imports(node)
         self.generic_visit(node)
-        # dump_stmt = self.add_dump_report(node)
-        # node.body.append(dump_stmt)
         return node
 
     def visit_Assign(self, node):
-        # # model = SimplePaddle()
-        # for target in node.targets:
-        #     if isinstance(target, ast.Name) and target.id == self.model_name:
-        #         return self.add_create_model(node)
-
         # with PaDiffGuard(proxy_model):
         if self.is_model_call(node.value):
             return self.wrap_with_guard(node)
@@ -117,7 +110,6 @@ class PaDiffInjector(ast.NodeTransformer):
         for stmt in node.body:
             if isinstance(stmt, ast.ImportFrom) and stmt.module == "padiff":
                 imported_names = {alias.name for alias in stmt.names}
-                # required = {"create_model", "PaDiffGuard", "dump_report"}
                 required = {"PaDiffGuard"}
                 if required <= imported_names:
                     has_padiff_import = True
@@ -127,63 +119,10 @@ class PaDiffInjector(ast.NodeTransformer):
 
         import_from = ast.ImportFrom(
             module="padiff",
-            names=[
-                # ast.alias(name="create_model", asname=None),
-                ast.alias(name="PaDiffGuard", asname=None),
-                # ast.alias(name="dump_report", asname=None),
-            ],
+            names=[ast.alias(name="PaDiffGuard", asname=None)],
             level=0,
         )
         return [import_from] + node.body
-
-    def add_create_model(self, node):
-        # Temporarily abandoned
-        # proxy_model = create_model()
-        assign_proxy = ast.Assign(
-            targets=[ast.Name(id=self.proxy_model_name, ctx=ast.Store())],
-            value=ast.Call(
-                func=ast.Name(id="create_model", ctx=ast.Load()),
-                args=[ast.Name(id=self.model_name, ctx=ast.Load())],
-                keywords=[ast.keyword(arg="name", value=ast.Constant(value=self.padiff_model_name))],
-            ),
-        )
-
-        # model._padiff_wrapped = True
-        mark_wrapped = ast.Assign(
-            targets=[
-                ast.Attribute(
-                    value=ast.Name(id=self.model_name, ctx=ast.Load()), attr="_padiff_wrapped", ctx=ast.Store()
-                )
-            ],
-            value=ast.Constant(value=True),
-        )
-
-        # global _padiff_proxy_model
-        global_decl = ast.Global(names=["_padiff_proxy_model"])
-
-        # _padiff_proxy_model = proxy_model
-        assign_global = ast.Assign(
-            targets=[ast.Name(id="_padiff_proxy_model", ctx=ast.Store())],
-            value=ast.Name(id=self.proxy_model_name, ctx=ast.Load()),
-        )
-
-        # combine to if not hasattr()
-        wrapper = ast.If(
-            test=ast.UnaryOp(
-                op=ast.Not(),
-                operand=ast.Call(
-                    func=ast.Name(id="hasattr", ctx=ast.Load()),
-                    args=[ast.Name(id=self.model_name, ctx=ast.Load()), ast.Constant(value="_padiff_wrapped")],
-                    keywords=[],
-                ),
-            ),
-            body=[assign_proxy, mark_wrapped, global_decl, assign_global],
-            orelse=[],
-        )
-
-        ast.copy_location(wrapper, node)
-        ast.fix_missing_locations(wrapper)
-        return [node, wrapper]
 
     def wrap_with_guard(self, node):
         path = self.model_name.split(".")
@@ -194,59 +133,23 @@ class PaDiffInjector(ast.NodeTransformer):
 
         guard_keywords = []
 
+        # name
+        name_kw = ast.keyword(arg="name", value=ast.Constant(value=self.padiff_model_name))
+        guard_keywords.append(name_kw)
+
         # optimizer
         if "optimizer" in self.kwargs:
             optim_kw = ast.keyword(arg="optimizer", value=ast.Name(id=self.kwargs["optimizer"], ctx=ast.Load()))
             guard_keywords.append(optim_kw)
 
-        if self.mode == "align":
-            # load_init_weights
-            load_weights_kw = ast.keyword(arg="load_init_weights", value=ast.Constant(value=True))
-            guard_keywords.append(load_weights_kw)
-            logger.warning(
-                "The current injection does not include the 'keys_mapping' parameter of loading init weights. "
-                "If the model parameter names are inconsistent, please manually modify the injected script "
-                f"'debug_inject_{self.framework}.py' and pass 'keys_mapping' to 'PaDiffGuard(...)'"
-            )
+        for key, value in self.kwargs.items():
+            if key in ["optimizer"]:
+                continue
 
-            # load_first_inputs
-            load_inputs_kw = ast.keyword(arg="load_first_inputs", value=ast.Constant(value=True))
-            guard_keywords.append(load_inputs_kw)
-
-            # framework
-            framework_kw = ast.keyword(arg="framework", value=ast.Constant(value=self.framework))
-            guard_keywords.append(framework_kw)
-
-        # align_depth
-        if "align_depth" in self.kwargs and self.kwargs["align_depth"] != "inf":
-            align_depth_kw = ast.keyword(arg="align_depth", value=ast.Constant(value=self.kwargs["align_depth"]))
-            guard_keywords.append(align_depth_kw)
-
-        # single_step_mode
-        single_step_mode = self.kwargs.get("single_step_mode")
-        if single_step_mode is not None:
-            single_step_kw = ast.keyword(
-                arg="single_step_mode", value=ast.Constant(value=self.kwargs["single_step_mode"])
-            )
-            guard_keywords.append(single_step_kw)
-
-        # base_dump_path
-        if self.mode == "align" or single_step_mode is not None:
-            base_dump_path_kw = ast.keyword(arg="base_dump_path", value=ast.Constant(value=self.alignment_dir))
-            guard_keywords.append(base_dump_path_kw)
-
-        # black_list
-        if "black_list" in self.kwargs:
-            black_list_kw = ast.keyword(arg="black_list", value=ast.Constant(value=self.kwargs["black_list"]))
-            guard_keywords.append(black_list_kw)
-
-        # name
-        name_kw = ast.keyword(arg="name", value=ast.Constant(value=self.padiff_model_name))
-        guard_keywords.append(name_kw)
-
-        # max_calls
-        max_calls_kw = ast.keyword(arg="max_calls", value=ast.Constant(value=1))
-        guard_keywords.append(max_calls_kw)
+            ast_value = self.safe_ast_value(value)
+            if ast_value is not None:
+                keyword = ast.keyword(arg=key, value=ast_value)
+                guard_keywords.append(keyword)
 
         with_stmt = ast.With(
             items=[
@@ -265,23 +168,23 @@ class PaDiffInjector(ast.NodeTransformer):
         ast.fix_missing_locations(with_stmt)
         return with_stmt
 
-    def add_dump_report(self, node):
-        # Temporarily abandoned
-        dump_stmt = ast.Expr(
-            value=ast.Call(
-                func=ast.Name(id="dump_report", ctx=ast.Load()),
-                args=[
-                    ast.Name(id="_padiff_proxy_model", ctx=ast.Load()),
-                    ast.Attribute(
-                        value=ast.Name(id="_padiff_proxy_model", ctx=ast.Load()), attr="dump_path", ctx=ast.Load()
-                    ),
-                ],
-                keywords=[],
-            )
-        )
-        ast.copy_location(dump_stmt, node)
-        ast.fix_missing_locations(dump_stmt)
-        return dump_stmt
+    def safe_ast_value(self, py_value):
+        if isinstance(py_value, bool):
+            return ast.Constant(value=py_value)
+        elif isinstance(py_value, (int, float, str)):
+            return ast.Constant(value=py_value)
+        elif py_value is None:
+            return ast.Constant(value=None)
+        elif isinstance(py_value, list):
+            elts = [self.safe_ast_value(item) for item in py_value]
+            return ast.List(elts=elts, ctx=ast.Load())
+        elif isinstance(py_value, dict):
+            keys = [ast.Constant(k) for k in py_value.keys()]
+            values = [self.safe_ast_value(v) for v in py_value.values()]
+            return ast.Dict(keys=keys, values=values)
+        else:
+            logger.warning(f"Cannot inject parameter of type {type(py_value)}. Skipping.")
+        return None
 
 
 def create_injected_script(
@@ -289,7 +192,6 @@ def create_injected_script(
     framework: str,
     model_name: str = "model",
     mode: str = "base",
-    alignment_dir: str = None,
     **kwargs,
 ) -> str:
     # read source script
@@ -307,7 +209,6 @@ def create_injected_script(
         framework,
         model_name=model_name,
         mode=mode,
-        alignment_dir=alignment_dir,
         **kwargs,
     )
     new_tree = injector.visit(tree)

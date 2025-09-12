@@ -1,7 +1,7 @@
 ## Guides
 
--   [仓库README](../README.md)
--   [使用教程](Tutorial.md)
--   [对齐ViTPose流程](CheckViTPose.md)
--   [接口信息](Interfaces.md)
--   [Special init 机制](SpecialInit.md)
+- [仓库README](../README.md)
+- [使用教程](Tutorial.md)
+- [对齐ViTPose流程](CheckViTPose.md)
+- [接口信息](Interfaces.md)
+- [Special init 机制](SpecialInit.md)

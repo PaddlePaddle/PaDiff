@@ -1,58 +1,18 @@
 # PaDiff ![](https://img.shields.io/badge/version-v0.1-brightgreen) ![](https://img.shields.io/badge/docs-latest-brightgreen) ![](https://img.shields.io/badge/PRs-welcome-orange) ![](https://img.shields.io/badge/pre--commit-Yes-brightgreen)
 
+**P**addle **A**utomatically **Diff** precision toolkits.
 
-**P**addle  **A**utomatically  **Diff**  precision toolkits.
-
-
-## 最近更新（latest 9.8）
+## 最近更新（latest 9.11）
 
 ### 使用单行命令对齐（支持前反向对齐）
 
-运行命令前，请运行 `python -m padiff.cli -h` 获取更详细的参数说明。
-
-直接通过命令行运行
-
-```sh
-python -m padiff.cli \
-  --pt_cmd "python torch_project/run.py" \
-  --pd_cmd "python paddle_project/run.py" \
-  --pt_model_name "pt_model" \
-  --pd_model_name "pd_model" \
-  --pt_optim_name "pt_optimizer" \
-  --pd_optim_name "pd_optimizer" \
-  --log_dir "./padiff_log" \
-  --align_depth 1 \
-  --single_step_mode "forward" \
-  --atol 1e-4 \
-  --rtol 1e-5 \
-  --compare_mode mean \
-  --action_name equal
-```
-
-或将命令写入 .yaml 文件后，运行
+将命令写入配置文件后，通过如下命令运行：
 
 ```sh
 python -m padiff.cli --config padiff_config.yaml
 ```
 
-yaml 文件样例
-
-```python
-# padiff_config.yaml
-pt_cmd: "python transformer4sr/train_transformer.py"
-pd_cmd: "python paddle_project/train_transformer.py"
-pt_model_name: "transformer_pt"
-pd_model_name: "transformer_pd"
-pt_optim_name: "optimizer_pt"
-pd_optim_name: "optimizer_pd"
-log_dir: "./padiff_log"
-align_depth: 2
-single_step_mode: "forward"
-atol: 1.0e-04
-rtol: 1.0e-05
-compare_mode: "mean"
-action_name: "equal"
-```
+完整文件示例请参考 [配置文件说明文档](docs/CLIConfig.md)，同时，运行命令前，请运行 `python -m padiff.cli -h` 获取更详细的参数说明。
 
 ### log 设置
 
@@ -62,37 +22,31 @@ action_name: "equal"
 
 #### 开启静默模式
 
-或者为了保持控制台信息简洁，可以设置环境变量 `PADIFF_SILENT=1`，以便仅保存 log 文件，不在控制台输出 log 信息
-
+为了保持控制台信息简洁，可以设置环境变量 `PADIFF_SILENT=1`，此模式下仅保存 log 文件，不在控制台输出 log 信息
 
 ## 简介
 
 PaDiff 是基于 PaddlePaddle 与 PyTorch 的模型精度对齐工具。传入 Paddle 或 Torch 模型，对齐训练中间结果以及训练后的模型权重，并提示精度 diff 第一次出现的位置。
 
--   文档目录 [Guides](docs/README.md)
--   使用教程 [Tutorial](docs/Tutorial.md)
--   对齐ViTPose流程 [ViTPose](docs/CheckViTPose.md)
--   接口参数说明 [Interface](docs/Interfaces.md)
--   常见问题解答 [FAQs](docs/FAQs.md)
-
-
-
+- 文档目录 [Guides](docs/README.md)
+- 使用教程 [Tutorial](docs/Tutorial.md)
+- 对齐ViTPose流程 [ViTPose](docs/CheckViTPose.md)
+- 接口参数说明 [Interface](docs/Interfaces.md)
+- 常见问题解答 [FAQs](docs/FAQs.md)
 
 ## 安装
 
-  PaDiff v0.2 版本已发布，可通过如下命令安装：
+PaDiff v0.2 版本已发布，可通过如下命令安装：
 
-  ```
+```
 pip install padiff
-  ```
+```
 
-  尝鲜版或开发者推荐clone源码并使用如下命令安装：
+尝鲜版或开发者推荐clone源码并使用如下命令安装：
 
-  ```
+```
 python setup.py install
-  ```
-
-
+```
 
 ## 快速开始
 
@@ -128,8 +82,6 @@ inp = ({'x': torch.as_tensor(inp) },
 
 auto_diff(module, layer, inp, atol=1e-4, auto_init=True)
 ```
-
-
 
 ### 离线对齐
 
@@ -202,7 +154,8 @@ for i in range(6):
 ```
 
 ### 框架与编译器对齐
-使用文档 [CINN](padiff/cinn_diff/README.md)
+
+使用文档 [CINN](padiff/experimental/cinn_diff/README.md)
 
 ```python
 import os
@@ -223,6 +176,6 @@ if __name__ == '__main__':
 
 ## 已支持 `Special Init` 的组件
 
--   MultiHeadAttention
--   LSTM
--   BatchNorm2D
+- MultiHeadAttention
+- LSTM
+- BatchNorm2D

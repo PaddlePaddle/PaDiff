@@ -82,6 +82,8 @@ def _check_params_impl(node_lists, reports, compare_target, cfg):
                     param_path_0 is not None and param_path_1 is not None
                 ), f"{compare_target.capitalize()} for at least one of base or raw model is not found."
 
+                logger.debug(f"Checking {compare_target} of {node_0['route']}.{param_name_0}(base)")
+
                 settings = global_yaml_loader.get_weight_settings(
                     (node_0["name"], node_1["name"]),
                     (reports[0]["framework"], reports[1]["framework"]),

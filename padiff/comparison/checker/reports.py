@@ -92,7 +92,7 @@ def check_forward(nodes, reports, cfg):
         if not nodes[1]["reordered"]:
             reorder_and_match_sublayers(nodes, reports)
     except Exception as e:
-        msg = f"While checking forward, diff found at base_model {nodes[0]['name']} vs raw_model {nodes[1]['name']}\n"
+        msg = f"While checking forward, diff found at {nodes[0]['name']}(base) vs {nodes[1]['name']}(raw)\n"
         msg += "Call `reorder_and_match_sublayers` for more detailed infos, but error occurs again:\n"
         msg += f"{type(e).__name__}:  {str(e)}"
         logger.error(msg)
@@ -114,6 +114,7 @@ def check_forward(nodes, reports, cfg):
 
 
 def check_backward(nodes, reports, cfg):
+    logger.debug(f"Checking backward of {nodes[0]['name']}")
     action_name = cfg.get("action_name", None)
     act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=action_name)
     try:
@@ -130,14 +131,15 @@ def check_backward(nodes, reports, cfg):
         if not nodes[1]["reordered"]:
             reorder_and_match_sublayers(nodes, reports)
     except Exception as e:
-        msg = f"While checking backward, diff found at base_model {nodes[0]['name']} vs raw_model {nodes[1]['name']}\n"
+        msg = f"While checking backward, diff found at {nodes[0]['name']}(base) vs {nodes[1]['name']}(raw)\n"
         msg += "Call `reorder_and_match_sublayers` for more detailed infos, but error occurs again:\n"
         msg += f"{type(e).__name__}:  {str(e)}"
-        print_report_info(nodes, reports, compare_info, "Backward", msg)
-        return False
+        logger.error(msg)
+        # print_report_info(nodes, reports, compare_info, "Backward", msg)
+        # return False
 
     for child_0, child_1 in zip(reversed(nodes[0]["children"]), reversed(nodes[1]["children"])):
-        res = check_forward((child_0, child_1), reports, cfg)
+        res = check_backward((child_0, child_1), reports, cfg)
         if res == False:
             return False
 

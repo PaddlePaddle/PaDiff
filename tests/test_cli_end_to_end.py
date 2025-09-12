@@ -15,12 +15,11 @@
 
 import unittest
 import os
-import shutil
-import tempfile
 import sys
 from unittest.mock import patch
 from io import StringIO
 import numpy as np
+import yaml
 from padiff.cli import main as padiff_cli_main
 
 
@@ -57,8 +56,6 @@ def main():
     optimizer.clear_grad()
 
 if __name__ == "__main__":
-    import os
-    os.makedirs("{dump_path}", exist_ok=True)
     main()
 """
 
@@ -95,17 +92,17 @@ def main():
     optimizer.zero_grad()
 
 if __name__ == "__main__":
-    import os
-    os.makedirs("{dump_path}", exist_ok=True)
     main()
 """
 
 
 class TestCliEndToEnd(unittest.TestCase):
     def setUp(self):
-        self.test_dir = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.test_dir)
+        # self.test_dir = tempfile.mkdtemp()
+        # self.addCleanup(shutil.rmtree, self.test_dir)
+        self.test_dir = "./temp/"
 
+        self.config_path = os.path.join(self.test_dir, "config.yaml")
         self.paddle_script_path = os.path.join(self.test_dir, "paddle_script.py")
         self.torch_script_path = os.path.join(self.test_dir, "torch_script.py")
         self.input_file = os.path.join(self.test_dir, "input.npy")
@@ -121,18 +118,16 @@ class TestCliEndToEnd(unittest.TestCase):
             input_dim=100,
             hidden_dim=100,
             output_dim=10,
-            input_file=self.input_file,
-            model_name="model_torch",
-            dump_path=os.path.join(self.log_dir, "torch"),
+            input_file="input.npy",
+            dump_path="torch",
         )
 
         paddle_script = PADDLE_SCRIPT_TEMPLATE.format(
             input_dim=100,
             hidden_dim=100,
             output_dim=10,
-            input_file=self.input_file,
-            model_name="model_paddle",
-            dump_path=os.path.join(self.log_dir, "paddle"),
+            input_file="input.npy",
+            dump_path="paddle",
         )
 
         with open(self.torch_script_path, "w") as f:
@@ -140,26 +135,44 @@ class TestCliEndToEnd(unittest.TestCase):
         with open(self.paddle_script_path, "w") as f:
             f.write(paddle_script)
 
-        assert os.path.exists(self.torch_script_path), f"torch_script.py not created: {self.torch_script_path}"
-        assert os.path.exists(self.paddle_script_path), f"paddle_script.py not created: {self.paddle_script_path}"
-        assert os.path.getsize(self.torch_script_path) > 0, f"torch_script.py is empty: {self.torch_script_path}"
-        assert os.path.getsize(self.paddle_script_path) > 0, f"paddle_script.py is empty: {self.paddle_script_path}"
+        for path in [self.torch_script_path, self.paddle_script_path]:
+            assert os.path.exists(path), f"Script not created: {path}"
+            assert os.path.getsize(path) > 0, f"Script is empty: {path}"
 
-    def _run_cli_test(self, extra_args):
-        test_args = [
-            "padiff",
-            "--pt_cmd",
-            f"python {self.torch_script_path}",
-            "--pd_cmd",
-            f"python {self.paddle_script_path}",
-            "--pt_model_name",
-            "model",
-            "--pd_model_name",
-            "model",
-            "--log_dir",
-            self.log_dir,
-        ]
-        test_args.extend(extra_args)
+    def _create_config_file(self, overrides=None):
+        config = {
+            "CLI": {
+                "pt_cmd": f"python {self.torch_script_path}",
+                "pd_cmd": f"python {self.paddle_script_path}",
+                "pt_model_name": "model",
+                "pd_model_name": "model",
+                "log_dir": self.log_dir,
+            },
+            "PaDiffGuard": {
+                "align_depth": "inf",
+                "single_step_mode": None,
+                "max_calls": 1,
+                "load_init_weights": False,
+                "load_first_inputs": False,
+                "black_list": [],
+                "keys_mapping": None,
+            },
+            "COMPARE": {"atol": 1e-6, "rtol": 1e-6, "compare_mode": "mean", "action_name": "equal"},
+        }
+
+        if overrides:
+            for section, updates in overrides.items():
+                if section in config:
+                    config[section].update(updates)
+
+        with open(self.config_path, "w") as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+    def _run_cli_test(self, extra_args=None):
+        if extra_args is None:
+            extra_args = []
+
+        test_args = ["padiff", "--config", self.config_path] + extra_args
 
         with patch.object(sys, "argv", test_args):
             with patch("sys.stdout", new=StringIO()) as fake_out:
@@ -173,31 +186,57 @@ class TestCliEndToEnd(unittest.TestCase):
                         self.fail(f"CLI raised an unexpected exception: {type(e).__name__}: {str(e)}")
 
     def test_end_to_end_basic(self):
+        self._create_config_file()
         self._run_cli_test([])
 
     def test_end_to_end_with_optimizer(self):
-        self._run_cli_test(["--pt_optim_name", "optimizer", "--pd_optim_name", "optimizer"])
+        overrides = {"CLI": {"pt_optim_name": "optimizer", "pd_optim_name": "optimizer"}}
+        self._create_config_file(overrides)
+        self._run_cli_test()
 
     def test_end_to_end_with_align_depth(self):
-        self._run_cli_test(["--align_depth", "0"])
+        overrides = {"PaDiffGuard": {"align_depth": 0}}
+        self._create_config_file(overrides)
+        self._run_cli_test()
 
     def test_end_to_end_with_single_step(self):
-        self._run_cli_test(["--single_step_mode", "forward"])
-        self._run_cli_test(["--single_step_mode", "backward"])
-        self._run_cli_test(["--single_step_mode", "both"])
+        for mode in ["forward", "backward", "both"]:
+            with self.subTest(mode=mode):
+                overrides = {"PaDiffGuard": {"single_step_mode": mode}}
+                self._create_config_file(overrides)
+                self._run_cli_test()
 
     def test_end_to_end_with_black_list(self):
-        self._run_cli_test(["--black_list", "Linear"])
+        overrides = {"PaDiffGuard": {"black_list": ["Linear"]}}
+        self._create_config_file(overrides)
+        self._run_cli_test()
 
     def test_end_to_end_with_different_atol_rtol(self):
-        self._run_cli_test(["--atol", "1e-3", "--rtol", "1e-4"])
+        overrides = {"COMPARE": {"atol": 1e-3, "rtol": 1e-4}}
+        self._create_config_file(overrides)
+        self._run_cli_test()
 
     def test_end_to_end_with_different_compare_mode(self):
-        self._run_cli_test(["--compare_mode", "strict"])
-        self._run_cli_test(["--compare_mode", "abs_mean"])
+        for compare_mode in ["strict", "abs_mean"]:
+            with self.subTest(compare_mode=compare_mode):
+                overrides = {"COMPARE": {"compare_mode": compare_mode}}
+                self._create_config_file(overrides)
+                self._run_cli_test()
 
     def test_end_to_end_with_different_action(self):
-        self._run_cli_test(["--action_name", "loose_equal"])
+        overrides = {"COMPARE": {"action_name": "loose_equal"}}
+        self._create_config_file(overrides)
+        self._run_cli_test()
+
+    def test_end_to_end_with_command_line_override(self):
+        self._create_config_file()
+        extra_args = [
+            "--pt_cmd",
+            f"python {self.torch_script_path}".replace("run.py", "modified_run.py"),
+            "--log_dir",
+            os.path.join(self.test_dir, "overridden_log_dir"),
+        ]
+        self._run_cli_test(extra_args)
 
 
 if __name__ == "__main__":

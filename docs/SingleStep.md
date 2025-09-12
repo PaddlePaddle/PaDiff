@@ -1,6 +1,5 @@
 - [SingleStep 的工作原理](#singlestep-的工作原理)
 
-
 # SingleStep 的工作原理
 
 在 auto_diff 接口中传入 `single_step=True` 即可开启单步对齐功能，其原理如下图所示。

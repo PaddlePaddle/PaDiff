@@ -13,48 +13,28 @@ on:
       - '**.rst'
 
 jobs:
-  link-check:
-    name: Check Links
+  docs-check:
+    name: Validate Documentation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check Markdown Links
-        uses: gaurav0/markdown-link-check@v1
+      - name: Check Markdown Links (Rust)
+        uses: lycheeverse/lychee-action@v2.6.1
         with:
-          use-quiet-mode: 'yes'
-          use-verbose-mode: 'no'
+          args: --verbose docs/**/*.md *.md
 
-  spell-check:
-    name: Spell Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Spell Check
-        uses: streetsidesoftware/action-spellcheck@v0
+      - name: Run Spell Check (cspell)
+        uses: streetsidesoftware/cspell-action@v2
         with:
-          check-co-authored-commits: true
+          files: docs/**/*.md *.md
 
-  format-check:
-    name: Format Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Install Prettier
-        run: npm install --global prettier
-
-      - name: Check Markdown Format
+      - name: Cleanup temporary files
         run: |
-          # 使用 prettier 检查格式，但不自动修改
+          rm -rf lychee/
+
+      - name: Format Check with Prettier
+        run: |
+          npm install -g prettier
           npx prettier --check "docs/**/*.md" "**/*.md"
-          # 如果格式不正确，此命令会失败，CI 将标记为失败
