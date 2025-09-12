@@ -14,13 +14,14 @@
 
 import functools
 
-from ..tools import dump_grads
+from .log import logger
 
 
 def wrap_optimizer_step(optimizer):
     if hasattr(optimizer, "_original_step"):
         return
 
+    logger.debug("wrap_optimizer_step: wrap optimizer.step() in first call")
     original_step = optimizer.step
 
     @functools.wraps(original_step)
@@ -29,7 +30,8 @@ def wrap_optimizer_step(optimizer):
 
         proxy_model = getattr(optimizer, "_padiff_proxy_model", None)
         if proxy_model is not None:
-            dump_grads(proxy_model, proxy_model.dump_path)
+            logger.debug(f"wrap_optimizer_step: Dump grads after optimizer.step()")
+            proxy_model.dump_grads(proxy_model.dump_path)
 
     optimizer.step = wrapped_step
     optimizer._original_step = original_step

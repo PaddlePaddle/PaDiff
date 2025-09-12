@@ -288,7 +288,7 @@ def single_step_check(report, net_id, step_idx, current_name, node_type, bwd_ite
             warning_msg = (
                 f"\n   ⚠️ Single-step alignment WARNING: {node_type} with net_id={net_id} mismatch!\n"
                 f"   📌 Mismatch {node_type.capitalize()}: {base_report_node['name']}(base) vs {current_name}(raw)\n"
-                f"   💡 Suggestion: Models have different architectures or initialization order. "
+                "   💡 Suggestion: Models have different architectures or initialization order. "
                 "Please check the model implementation or decrease 'align_depth' to reduce the alignment "
                 "granularity, or add layers that do not require alignment to the blacklist."
             )

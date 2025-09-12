@@ -258,12 +258,31 @@ def PaDiffGuard(
         if load_init_weights:
             load_init_weights_from_dump(base_dump_path, proxy_model, keys_mapping)
 
+        if single_step_mode is not None:
+            logger.warning(
+                f"\n   ⚠️ Single-step alignment WARNING: 'single_step_mode={single_step_mode}'. "
+                "This halts real backpropagation, resulting in empty 'grads' directory and invalid 'loss.backward()'.\n"
+                "   📌 When 'single_step_mode' in ('backward', 'both'), instead, the grad of outputs to input"
+                "(but not param.grad) manually calculated and then dumped to the 'tensor' directory.\n"
+                "   💡 Set 'single_step_mode=None' if normal grad updates are needed."
+            )
+
         logger.debug(f"PaDiffGuard: depth of alignment is {align_depth}.")
         proxy_model.marker.update_black_list_with_depth(align_depth)
         proxy_model.update_black_list_with_name(black_list)
 
     else:
         proxy_model = model._padiff_proxy
+
+    def perform_final_dump():
+        try:
+            proxy_model.dump_report(proxy_model.dump_path)
+            proxy_model.dump_weights(proxy_model.dump_path)
+            if optimizer is None:
+                proxy_model.dump_grads(proxy_model.dump_path)
+            logger.info(f"PaDiffGuard: success to dump!")
+        except Exception as dump_e:
+            logger.error(f"PaDiffGuard: failed to dump! {dump_e}")
 
     try:
         # set hooks
@@ -286,18 +305,10 @@ def PaDiffGuard(
             yield model
 
     except _CallsComplete as e:
-        pass
+        perform_final_dump()
+        sys.exit(0)
 
     except Exception as e:
         logger.error(f"PaDiffGuard: failed! {e}")
-        raise
-
-    finally:
-        try:
-            proxy_model.dump_report(proxy_model.dump_path)
-            proxy_model.dump_weights(proxy_model.dump_path)
-            if optimizer is None:
-                proxy_model.dump_grads(proxy_model.dump_path)
-        except Exception as e:
-            logger.error(f"PaDiffGuard: failed to dump! {e}")
-        sys.exit(0)
+        perform_final_dump()
+        sys.exit(1)
