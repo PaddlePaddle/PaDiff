@@ -7,6 +7,7 @@
 ### 一键运行模式
 
 **example**
+
 ```python
 import os
 from padiff import cinn_diff
@@ -23,12 +24,14 @@ if __name__ == '__main__':
     run_script = "/root/workspace/PaddleNLP/model_zoo/bert/run_bert.sh"
     run(run_script, None, None)
 ```
+
 **run_script**
 模型运行脚本，使用时提供脚本路径，需在模型内部实现好动转静
 
 **base_env**
 模型基线运行的环境变量
 初始配置为
+
 ```python
 {
     "CUDA_VISIBLE_DEVICES" : "0",
@@ -45,6 +48,7 @@ if __name__ == '__main__':
 **cinn_env**
 模型接入编译器运行的环境变量
 初始配置为
+
 ```python
 {
     "FLAGS_use_cinn" : "1",
@@ -64,14 +68,17 @@ step1: 准备模型运行脚本，跑通动转静+组合算子+编译器
 step2: 手动运行动转静+组合算子的基线模型
 
 基线模型运行是需要配置如下环境变量
+
 ```
 "FLAGS_save_static_runtime_data" : "1",
 
 "FLAGS_static_runtime_data_save_path" : "./base",
 ```
+
 step3: 手动运行动转静+组合算子+编译器的模型
 
 接入编译器的模型运行需要配置如下环境变量
+
 ```
 "FLAGS_save_static_runtime_data" : "1",
 
@@ -79,6 +86,7 @@ step3: 手动运行动转静+组合算子+编译器的模型
 
 "FLAGS_cinn_pass_visualize_dir": "./cinn/cinn_pass",
 ```
+
 step4: 运行模型精度对齐脚本
 
 ```python
@@ -90,7 +98,8 @@ auto_diff(base_path, compare_path, atol=0, rtol=0)
 ```
 
 模型运行脚本环境变量配置例子
-``` shell
+
+```shell
 #!/bin/bash
 export CUDA_VISIBLE_DEVICES=5
 export NVIDIA_TF32_OVERRIDE=1
@@ -124,7 +133,7 @@ python run_pretrain.py \
 ```
 
 ## 运行结果
-![运行结果图](./img/run_ret.png)
 
+![运行结果图](./img/run_ret.png)
 
 更多功能正在研发中...

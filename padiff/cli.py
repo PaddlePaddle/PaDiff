@@ -31,9 +31,26 @@ def load_yaml_config(config_path):
 
     with open(config_path, "r") as f:
         if ext in [".yaml", ".yml"]:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
         else:
             raise ValueError(f"Unsupported config file format: {ext}")
+
+    if "CLI" not in config:
+        raise ValueError("Config file must contain a 'CLI' section.")
+
+    cli_cfg = {}
+    for k, v in config["CLI"].items():
+        cli_cfg[k] = v
+
+    guard_cfg = {}
+    for k, v in config.get("PaDiffGuard", {}).items():
+        guard_cfg[k] = v
+
+    compare_cfg = {}
+    for k, v in config.get("COMPARE", {}).items():
+        compare_cfg[k] = v
+
+    return cli_cfg, guard_cfg, compare_cfg
 
 
 def run_with_padiff(
@@ -43,7 +60,7 @@ def run_with_padiff(
     optim_name=None,
     mode="base",
     alignment_dir=None,
-    **kwargs,
+    guard_cfg=None,
 ):
     # parse command
     parts = cmd.split()
@@ -57,13 +74,35 @@ def run_with_padiff(
         logger.error(f"Script not found: {script_path}")
         sys.exit(1)
 
+    script_kwargs = guard_cfg.copy()
+    if mode == "base":
+        script_kwargs.pop("single_step_mode", None)
+        script_kwargs.pop("load_init_weights", None)
+        script_kwargs.pop("load_first_inputs", None)
+        script_kwargs.pop("base_dump_path", None)
+    elif mode == "align":
+        script_kwargs["base_dump_path"] = alignment_dir
+        logger.warning(
+            "The current injection only support 'keys_mapping' parameter of type dict 'dict' for loading "
+            "init weights. If you want to pass in Callable type which also supported by function "
+            "'load_init_weights_from_dump(...)', please manually modify the injected script "
+            f"'debug_inject_{framework}.py' and pass it to 'PaDiffGuard(...)'."
+        )
+    else:
+        logger.error(f"Invalid mode: {mode}. Must be 'base' or 'align'.")
+        sys.exit(1)
+
     if optim_name is not None:
-        kwargs["optimizer"] = optim_name
+        script_kwargs["optimizer"] = optim_name
 
     # run injected script
-    injected_script = create_injected_script(script_path, framework, model_name, mode, alignment_dir, **kwargs)
-    injected_filename = os.path.basename(injected_script)
+    try:
+        injected_script = create_injected_script(script_path, framework, model_name, mode, **script_kwargs)
+    except Exception as e:
+        logger.error(f"Failed to inject script: {e}")
+        sys.exit(1)
 
+    injected_filename = os.path.basename(injected_script)
     new_cmd = ["python", injected_filename] + parts[2:]
     logger.info(f"Running: {' '.join(new_cmd)}")
     script_dir = os.path.dirname(os.path.abspath(script_path))
@@ -83,238 +122,139 @@ def main():
         epilog="""
         === PaDiff 参数使用详解 ===
 
-        本工具通过静态代码注入（AST）自动分析您的模型。为确保注入成功，请正确设置以下参数。
-        注意，除了使用命令行外，您可以将所有参数写入一个文件，然后通过 --config 选项加载。
-           * 支持格式: .yaml, .yml
-           * .yaml 格式示例:
-                pt_cmd: python torch_model.py
-                pd_cmd: python paddle_model.py
-                align_depth: inf
-           * 使用方式: python -m padiff.cli --config config.yaml
-           * 命令行参数会覆盖配置文件中的同名参数。
+        本工具通过静态代码注入（AST）自动分析您的模型。
+           * 请将参数写入一个文件，然后通过 --config 选项加载
+           * 同时提供少量命令行参数，这些参数会覆盖配置文件中的同名参数
 
-        1. 命令参数 (--pt_cmd, --pd_cmd):
-           这些参数是您运行原始模型的完整命令。
-           * 通常以 'python' 开头。
-           * 必须指向包含您模型代码的 Python 脚本。
+        1. 配置文件路径 (--config):
+            * 必需 使用配置文件
+            * 支持格式: .yaml, .yml
+
+            示例：
+              --config "/path/to/your/config.yaml"
+
+        2. 命令参数 (--pt_cmd, --pd_cmd):
+           * 必需 被包含在 config 文件中，或 通过命令行传入
+           * 这些参数是您运行原始模型的完整命令
+           * 通常以 'python' 开头
+           * 必须指向包含您模型代码的 Python 脚本
 
            示例：
               --pt_cmd "python /path/to/your/torch_script.py"
               --pd_cmd "python /path/to/your/paddle_script.py"
 
-        2. 模型变量名参数 (--pt_model_name, --pd_model_name):
-           这些参数指定您在脚本中创建模型实例的**变量名**。
-           * 它们不是类名，也不是文件名。
-           * 它们是模型实例化时 `=` 左边的标识符。
-
-           示例：
-              如果您的 PyTorch 脚本中有：
-                my_torch_model = MyNet()
-                output = my_torch_model(input_tensor)
-              那么您应该使用：
-                --pt_model_name my_torch_model
-
-              如果您的 Paddle 脚本中有：
-                net = SimplePaddle()
-                out = net.generate(input_tensor)
-              那么您应该使用：
-                --pd_model_name net
-
-              如果您的 Paddle 脚本中有：
-                trainer = SFTTrainer(
-                    args=training_args,
-                    model="Qwen/Qwen2.5-0.5B-Instruct",
-                    train_dataset=dataset,
-                )
-                trainer.train()
-              那么您应该使用：
-                --pd_model_name trainer.model
-
-        3. 优化器名参数 (--pt_optim_name, --pd_optim_name):
-           这些参数指定您在脚本中创建优化器实例的**变量名**。
-           * 它们不是类名，也不是文件名。
-           * 它们是优化器实例化时 `=` 左边的标识符。
-           * 该参数为非必须参数，默认值: None (不传递优化器)
-
-           示例：
-              如果您的 PyTorch 脚本中有：
-                optim = torch.optim.Adam(
-                    transformer.parameters(),
-                    lr=1.0,
-                    betas=(0.9, 0.98),
-                    eps=1e-9,
-                )
-              那么您应该使用：
-                --pt_optim_name optim
-
-              如果您的 Paddle 脚本中有：
-                trainer = SFTTrainer(
-                    args=training_args,
-                    model="Qwen/Qwen2.5-0.5B-Instruct",
-                    train_dataset=dataset,
-                )
-                trainer.train()
-              由于 trainer.train() 中通常已经包含了完整的前反向过程，因此不需要传递此参数
-
-        4. 日志目录参数 (--log_dir):
-           指定生成报告和日志的目录。
+        3. 日志目录参数 (--log_dir):
+           * 可选参数
+           * 指定生成报告和日志的目录
            * 默认值: ./padiff_log
 
-        5. 对齐深度参数 (--align_depth):
-           控制对齐的粒度。通过指定一个深度值，可以忽略该深度以下的所有子模块。
-           * 值为整数: 指定一个具体的深度。例如，--align_depth 1 会忽略深度为1及以下的所有子模块。
-           * 默认值: 'inf' ，即无限深度，会对齐到最细粒度的层（如 Linear, ReLU）。
-           * 值为整数，当数值超过模型最大迭代深度时，相当于 'inf'。
-           * 示例：
-              --align_depth 0  # 只对齐顶层模块
-              --align_depth 1  # 对齐到第一层子模块
-              --align_depth inf # 对齐到最细粒度
-
-        6. 单步对齐模式参数 (--single_step_mode):
-           启用逐层对齐模式。
-           * 可选值: forward, backward, both
-           * 默认值: None (不启用)
-           * 当启用时，工具会从自动加载基准模型的输出，并用其替换对齐模型的相应层输出。
-
-        7. 结果对比参数:
-           控制模型输出结果的对比精度和模式。
-           * --atol: 绝对误差容忍度 (default: 1e-6)
-           * --rtol: 相对误差容忍度 (default: 1e-6)
-           * --compare_mode: 对比模式，具体内容请看对应文档。可选值: mean, strict, abs_mean, 默认值: "mean"
-           * --action_name: 对比逻辑，具体内容请看对应文档。可选值: equal, loose_equal, 默认值: "equal"
-           * 示例:
-              --atol 1e-4 --rtol 1e-5 --compare_mode mean --action_name equal
-
         使用示例:
-            padiff \\
-              --pt_cmd "python torch_model.py" \\
-              --pd_cmd "python paddle_model.py" \\
-              --pt_model_name "model" \\
-              --pd_model_name "model" \\
-              --pt_optim_name "optimizer" \\
-              --pd_optim_name "optimizer" \\
-              --log_dir "./my_alignment_results" \\
-              --align_depth 1 \\
-              --single_step_mode "forward" \\
-              --atol 1e-4 \\
-              --rtol 1e-5 \\
-              --compare_mode mean \\
-              --action_name equal
+            python -m padiff.cli --config config.yaml --pt_cmd xxx --pd_cmd xxx --log_dir xxx
+
+        配置文件示例：
+            CLI:
+                pt_cmd: "python torch_project/run.py"
+                pd_cmd: "python paddle_project/run.py"
+                pt_model_name: "pt_model"
+                pd_model_name: "pd_model"
+                pt_optim_name: "pt_optimizer"   # not required
+                pd_optim_name: "pd_optimizer"   # not required
+                log_dir: "./padiff_log"   # not required
+
+            PaDiffGuard:
+                align_depth: 1   # not required
+                single_step_mode: "forward"   # not required
+                max_calls: 1   # not required
+                load_init_weights: false   # not required
+                load_first_inputs: false   # not required
+                black_list: []   # not required
+                keys_mapping:   # not required, only support 'dict' now when using cli command
+                    "parm_name_of_paddle_model": "parm_name_of_torch_model"
+                    "model_pd.layers.0.input_layernorm.weight": "model_pt.layers.0.input_layernorm.weight"
+
+            COMPARE:   # not required
+                atol: 1.0e-06
+                rtol: 1.0e-06
+                compare_mode: "mean"
+                action_name: "equal"
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument("--config", type=str, help="Path to the config file")
-    parser.add_argument("--pt_cmd", type=str, help='PyTorch command, e.g., "python /torch_dir/torch_model.py"')
-    parser.add_argument("--pd_cmd", type=str, help='Paddle command, e.g., "python /paddle_dir/paddle_model.py"')
+    parser.add_argument("--config", type=str, required=True, help="Path to the YAML configuration file.")
     parser.add_argument(
-        "--pt_model_name",
+        "--pt_cmd",
         type=str,
-        default="model",
-        help="The model name that appears in the pytorch script's code (default: 'model')",
+        help="Override 'pt_cmd' (pyTorch command) in config, e.g., 'python /torch_dir/torch_model.py'",
     )
     parser.add_argument(
-        "--pd_model_name",
+        "--pd_cmd",
         type=str,
-        default="model",
-        help="The model name that appears in the paddle script's code (default: 'model')",
-    )
-    parser.add_argument(
-        "--pt_optim_name",
-        type=str,
-        default=None,
-        help="The model name that appears in the pytorch script's code (default: None)",
-    )
-    parser.add_argument(
-        "--pd_optim_name",
-        type=str,
-        default=None,
-        help="The model name that appears in the paddle script's code (default: None)",
+        help="Override 'pd_cmd' (paddle command) in config, e.g., 'python /paddle_dir/paddle_model.py'",
     )
     parser.add_argument(
         "--log_dir",
         type=str,
         default="./padiff_log",
-        help="Directory to save logs and reports (default: './padiff_log')",
+        help="Override 'log_dir' (directory to save logs and reports) in config. (default: './padiff_log')",
     )
-    parser.add_argument("--align_depth", type=str, default="inf", help="Depth of alignment (default: 'inf')")
-    parser.add_argument(
-        "--single_step_mode",
-        choices=["forward", "backward", "both"],
-        default=None,
-        help="Enable single-step alignment mode. Choices: forward, backward, both. (default: None, disabled)",
-    )
-    parser.add_argument(
-        "--black_list",
-        type=str,
-        nargs="*",
-        help="List of layer names to add to the black list.",
-    )
-    parser.add_argument(
-        "--atol", type=float, default=1e-6, help="Absolute tolerance for result comparison (default: 1e-6)"
-    )
-    parser.add_argument(
-        "--rtol", type=float, default=1e-6, help="Relative tolerance for result comparison (default: 1e-6)"
-    )
-    parser.add_argument(
-        "--compare_mode",
-        choices=["mean", "strict", "abs_mean"],
-        default="mean",
-        help="Comparison mode for result checking. Choices: mean, strict, abs_mean (default: mean)",
-    )
-    parser.add_argument(
-        "--action_name",
-        choices=["equal", "loose_equal"],
-        default="equal",
-        help="Activation function name for specific comparison logic. Choices: equal, loose_equal (default: equal)",
-    )
-
-    known_args, _ = parser.parse_known_args()
-    if known_args.config:
-        try:
-            config_args = load_yaml_config(known_args.config)
-            parser.set_defaults(**config_args)
-            args = parser.parse_args()
-        except Exception as e:
-            print(f"Error loading config file {known_args.config}: {e}")
-            sys.exit(1)
 
     args = parser.parse_args()
-    args_dict = vars(args)
-    config_path = args_dict.pop("config", None)
-    if config_path:
-        logger.info(f"Configuration loaded from: {config_path}")
 
-    pt_cmd = args_dict.pop("pt_cmd", None)
-    pd_cmd = args_dict.pop("pd_cmd", None)
-    if pt_cmd is None or pd_cmd is None:
-        logger.error("--pt_cmd and --pd_cmd are required. You must provide it via command line or in the config file.")
+    try:
+        cli_cfg, guard_cfg, compare_cfg = load_yaml_config(args.config)
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        sys.exit(1)
+
+    if args.pt_cmd:
+        cli_cfg["pt_cmd"] = args.pt_cmd
+    if args.pd_cmd:
+        cli_cfg["pd_cmd"] = args.pd_cmd
+    if args.log_dir:
+        cli_cfg["log_dir"] = args.log_dir
+
+    log_dir = cli_cfg.pop("log_dir", "./padiff_log")
+    logger.reset_dir(log_dir)
+
+    pt_cmd = cli_cfg.get("pt_cmd")
+    pd_cmd = cli_cfg.get("pd_cmd")
+    if not pt_cmd or not pd_cmd:
+        logger.error("Both 'pt_cmd' and 'pd_cmd' must be provided (via config or command line).")
         parser.print_help()
         sys.exit(1)
 
-    log_dir = args_dict.pop("log_dir", "./padiff_log")
-    logger.reset_dir(log_dir)
+    pt_model_name = cli_cfg.get("pt_model_name", "model")
+    pd_model_name = cli_cfg.get("pd_model_name", "model")
+    pt_optim_name = cli_cfg.get("pt_optim_name")
+    pd_optim_name = cli_cfg.get("pd_optim_name")
 
-    pt_model_name = args_dict.pop("pt_model_name", "model")
-    pd_model_name = args_dict.pop("pd_model_name", "model")
+    logger.info("Code injection and script execution...")
+    try:
+        pt_dump_path = run_with_padiff(
+            cmd=pt_cmd,
+            framework="torch",
+            model_name=pt_model_name,
+            optim_name=pt_optim_name,
+            mode="base",
+            alignment_dir=None,
+            guard_cfg=guard_cfg,
+        )
+        pd_dump_path = run_with_padiff(
+            cmd=pd_cmd,
+            framework="paddle",
+            model_name=pd_model_name,
+            optim_name=pd_optim_name,
+            mode="align",
+            alignment_dir=pt_dump_path,
+            guard_cfg=guard_cfg,
+        )
+    except Exception as e:
+        logger.error(f"An error occurred during execution: {type(e).__name__}: {str(e)}")
+        import traceback
 
-    single_step_mode_value = args_dict.pop("single_step_mode", None)
-    pd_kwargs = dict(args_dict)
-    if single_step_mode_value is not None:
-        pd_kwargs["single_step_mode"] = single_step_mode_value
-
-    compare_cfg = {
-        "atol": args_dict.pop("atol", 1.0e-4),
-        "rtol": args_dict.pop("rtol", 1.0e-6),
-        "compare_mode": args_dict.pop("compare_mode", "mean"),
-        "action_name": args_dict.pop("action_name", "equal"),
-    }
-
-    pt_optim_name = args_dict.pop("pt_optim_name", None)
-    pd_optim_name = args_dict.pop("pd_optim_name", None)
-
-    pt_dump_path = run_with_padiff(pt_cmd, "torch", pt_model_name, pt_optim_name, **args_dict)
-    pd_dump_path = run_with_padiff(pd_cmd, "paddle", pd_model_name, pd_optim_name, "align", pt_dump_path, **pd_kwargs)
+        traceback.print_exc()
+        sys.exit(1)
 
     logger.info("Running comparison...")
     try:

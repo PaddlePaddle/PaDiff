@@ -222,7 +222,7 @@ def PaDiffGuard(
     optimizer=None,
     name="model",
     align_depth="inf",
-    single_step_mode=None,  # None, "forward", "backward"
+    single_step_mode=None,  # None, "forward", "backward", "both"
     load_init_weights=False,
     load_first_inputs=False,
     base_dump_path=None,
