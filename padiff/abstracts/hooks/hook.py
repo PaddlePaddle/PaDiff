@@ -264,12 +264,14 @@ def replace_forward_output(node):
     cur_idx = 0
 
     def inner(input_):
+        nonlocal cur_idx
         if isinstance(input_, (paddle.Tensor, torch.Tensor)):
             if cur_idx >= len(numpy_file_list):
                 raise RuntimeError(
                     "In single step mode, try to replace tensor by dumpped numpy value, but the number of tensors and numpy is not equal. Maybe the models are not corresponded."
                 )
             value = np.load(numpy_file_list[cur_idx]["path"])
+            cur_idx += 1
             if isinstance(input_, paddle.Tensor):
                 return paddle.to_tensor(value, dtype=input_.dtype)
             else:
