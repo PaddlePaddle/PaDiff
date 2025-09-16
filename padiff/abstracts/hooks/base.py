@@ -14,6 +14,7 @@
 
 import contextvars
 from typing import Dict
+from ...utils import logger
 
 # --- Core state management class ---
 # This is an internal state shared by all Guards and should be placed first
@@ -154,3 +155,40 @@ def get_calls_context() -> _CallsContext:
     if _calls_context is None:
         _calls_context = _CallsContext()
     return _calls_context
+
+
+def check_configuration(single_step_mode, max_calls):
+    # check the impact of single_step_mode
+    if single_step_mode is not None:
+        logger.warning(
+            f"\n   ⚠️ Single-step alignment WARNING: 'single_step_mode={single_step_mode}'. "
+            "This halts real backpropagation, resulting in empty 'grads' directory and invalid 'loss.backward()'."
+            "\n   📌 When 'single_step_mode' in ('backward', 'both'), instead, the grad of outputs to input "
+            "(but not param.grad) manually calculated and then dumped to the 'tensor' directory."
+            "\n   💡 Set 'single_step_mode=None' if normal grad updates are needed."
+        )
+
+        # check compatibility of single_step_mode and max_calls
+        if max_calls != 1:
+            raise ValueError(
+                f"\n   ❌ Configuration Conflict: 'single_step_mode'={single_step_mode} is incompatible with 'max_calls={max_calls}' (must be 1)."
+                f"\n   📌 The 'single_step_mode' is designed to replace layer outputs with pre-saved values from a single forward/backward pass."
+                f"\n   📌 Using it with multiple calls will lead to undefined behavior, such as shape mismatches."
+                f"\n   💡 To resolve this:"
+                f"\n     - Set 'max_calls=1' for single-step alignment, or"
+                f"\n     - Set 'single_step_mode=None' for multi-call scenarios."
+            )
+
+    # check potential risks of max_calls
+    elif max_calls > 1:
+        logger.warning(
+            f"\n   ⚠️ Multi-call WARNING: 'max_calls={max_calls}' which > 1."
+            "\n   📌 This feature is intended for comparing multiple forward passes on the same input sequence."
+            "\n   📌 To ensure valid results, you MUST guarantee that the input data order is IDENTICAL "
+            "between the base and raw models, otherwise it may cause alignment failure, such as shape mismatch."
+            "\n   📌 This means(at least but not only):"
+            "\n     - The dataset should NOT be shuffled."
+            "\n     - The data loader should use a fixed seed."
+            "\n     - The input sequence must be strictly preserved."
+            "\n   💡 If your goal is to check alignment on a single input, consider setting 'max_calls=1'."
+        )

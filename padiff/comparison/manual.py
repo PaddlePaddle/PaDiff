@@ -37,7 +37,7 @@ def compare_dumps(dump_path1, dump_path2, cfg=None, diff_phase="both"):
     grads_success = None
     if os.path.exists(f"{dump_path1}/grads.json") and os.path.exists(f"{dump_path2}/grads.json"):
         if len(os.listdir(f"{dump_path1}/grads")) == 0 or len(os.listdir(f"{dump_path2}/grads")) == 0:
-            logger.warning(f" ⚠️ Grads dir is empty of {dump_path1} or/and {dump_path2}\n")
+            logger.warning(f"⚠️ Grads dir is empty of {dump_path1} or/and {dump_path2}\n")
         else:
             logger.info("🔍 Start comparison grads (check_grads)...")
             try:
@@ -54,7 +54,7 @@ def compare_dumps(dump_path1, dump_path2, cfg=None, diff_phase="both"):
     weights_success = None
     if os.path.exists(f"{dump_path1}/weights.json") and os.path.exists(f"{dump_path2}/weights.json"):
         if len(os.listdir(f"{dump_path1}/weights")) == 0 or len(os.listdir(f"{dump_path2}/weights")) == 0:
-            logger.warning(f" ⚠️ Weights dir is empty of {dump_path1} or/and {dump_path2}\n")
+            logger.warning(f"⚠️ Weights dir is empty of {dump_path1} or/and {dump_path2}\n")
         else:
             logger.info("🔍 Start comparison weights (check_weights)...")
             try:
@@ -71,7 +71,7 @@ def compare_dumps(dump_path1, dump_path2, cfg=None, diff_phase="both"):
     params_success = None
     if os.path.exists(f"{dump_path1}/params.json") and os.path.exists(f"{dump_path2}/params.json"):
         if len(os.listdir(f"{dump_path1}/params")) == 0 or len(os.listdir(f"{dump_path2}/params")) == 0:
-            logger.warning(f" ⚠️ Params dir is empty of {dump_path1} or/and {dump_path2}\n")
+            logger.warning(f"⚠️ Params dir is empty of {dump_path1} or/and {dump_path2}\n")
         else:
             logger.info("🔍 Start comparison all parameters (check_params)...")
             try:

@@ -21,6 +21,8 @@ from io import StringIO
 import numpy as np
 import yaml
 from padiff.cli import main as padiff_cli_main
+import tempfile
+import shutil
 
 
 PADDLE_SCRIPT_TEMPLATE = """
@@ -98,9 +100,8 @@ if __name__ == "__main__":
 
 class TestCliEndToEnd(unittest.TestCase):
     def setUp(self):
-        # self.test_dir = tempfile.mkdtemp()
-        # self.addCleanup(shutil.rmtree, self.test_dir)
-        self.test_dir = "./temp/"
+        self.test_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.test_dir)
 
         self.config_path = os.path.join(self.test_dir, "config.yaml")
         self.paddle_script_path = os.path.join(self.test_dir, "paddle_script.py")
@@ -168,7 +169,7 @@ class TestCliEndToEnd(unittest.TestCase):
         with open(self.config_path, "w") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
-    def _run_cli_test(self, extra_args=None):
+    def _run_cli_test(self, extra_args=None, expect_success=True):
         if extra_args is None:
             extra_args = []
 
@@ -179,11 +180,23 @@ class TestCliEndToEnd(unittest.TestCase):
                 with patch("sys.stderr", new=StringIO()) as fake_err:
                     try:
                         padiff_cli_main()
+
+                        if not expect_success:
+                            self.fail("CLI was expected to fail but it succeeded.")
+
                     except SystemExit as e:
-                        if e.code != 0:
+                        if expect_success and e.code != 0:
                             self.fail(f"CLI failed with exit code {e.code}: {fake_err.getvalue()}")
+                        elif not expect_success and e.code == 0:
+                            self.fail(f"CLI was expected to fail but exited with code 0.")
+                        if not expect_success and e.code != 0:
+                            raise
+
                     except Exception as e:
-                        self.fail(f"CLI raised an unexpected exception: {type(e).__name__}: {str(e)}")
+                        if not expect_success:
+                            raise
+                        else:
+                            self.fail(f"CLI raised an unexpected exception: {type(e).__name__}: {str(e)}")
 
     def test_end_to_end_basic(self):
         self._create_config_file()
@@ -237,6 +250,22 @@ class TestCliEndToEnd(unittest.TestCase):
             os.path.join(self.test_dir, "overridden_log_dir"),
         ]
         self._run_cli_test(extra_args)
+
+    def test_single_step_mode_with_max_calls_gt_1_raises_error(self):
+        overrides = {"PaDiffGuard": {"single_step_mode": "forward", "max_calls": 2}}
+        self._create_config_file(overrides)
+        with self.assertRaises(SystemExit) as cm:
+            self._run_cli_test(expect_success=False)
+
+    def test_single_step_mode_with_max_calls_1_only_emits_warning(self):
+        overrides = {"PaDiffGuard": {"single_step_mode": "both", "max_calls": 1}}
+        self._create_config_file(overrides)
+        self._run_cli_test()
+
+    def test_multi_call_without_single_step_issues_warning(self):
+        overrides = {"PaDiffGuard": {"max_calls": 3}}
+        self._create_config_file(overrides)
+        self._run_cli_test()
 
 
 if __name__ == "__main__":

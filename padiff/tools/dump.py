@@ -186,8 +186,9 @@ def dump_params(model, path):
     dump_param_prototype(model, _dump, f"{path}/params.json")
 
 
-def dump_weights(model, path):
+def dump_weights(model, path, exclude_blacklist=True):
     weight_dumper = numpy_dumper(path + "/weights", "weights")
+    model.update_unassigned_weights_list([], mode="all", include_black_list=exclude_blacklist)
 
     def _dump(param_name, param, param_info):
         file_name = weight_dumper(param.numpy())

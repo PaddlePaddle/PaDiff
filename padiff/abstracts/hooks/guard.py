@@ -22,7 +22,14 @@ import paddle
 import torch
 
 from ...utils import set_seed, logger, wrap_optimizer_step
-from .base import _context, _current_report, _CallsComplete, current_report, get_calls_context
+from .base import (
+    _context,
+    _current_report,
+    _CallsComplete,
+    current_report,
+    get_calls_context,
+    check_configuration,
+)
 from .hook import register_hooker
 from ..proxy import create_model
 from ...tools import load_first_input_from_dump, load_init_weights_from_dump
@@ -82,19 +89,19 @@ def SingleStepGuard(diff_phase, base_dump_path):
         if not os.path.exists(report_json_path):
             logger.error(f"report.json not found at '{report_json_path}'.")
 
-        _context.phase = diff_phase
         report_json_path = os.path.join(base_dump_path, "report.json")
         with open(report_json_path, "r") as f:
             base_report_data = json.load(f)
-        _context.base = _context._split_by_net_id(base_report_data)
+    except (FileNotFoundError, ValueError, json.JSONDecodeError) as e:
+        logger.error(f"SingleStepGuard failed to initialize: {type(e).__name__}: {str(e)}")
+        raise
 
+    _context.phase = diff_phase
+    _context.base = _context._split_by_net_id(base_report_data)
+
+    try:
         yield
 
-    except _CallsComplete:
-        raise
-    except Exception as e:
-        logger.error(f"SingleStepGuard failed to initialize: {e}")
-        raise
     finally:
         _context.phase = old_phase
         _context.base = old_base
@@ -244,6 +251,9 @@ def PaDiffGuard(
         model._padiff_proxy = proxy_model
         logger.debug(f"PaDiffGuard: creating proxy model.")
 
+        # check single step mode
+        check_configuration(single_step_mode, max_calls)
+
         if optimizer is not None and not hasattr(optimizer, "_padiff_proxy_model"):
             logger.debug(f"PaDiffGuard: wrapping optimizer.step().")
             optimizer._padiff_proxy_model = proxy_model
@@ -265,6 +275,15 @@ def PaDiffGuard(
     else:
         proxy_model = model._padiff_proxy
 
+    def perform_final_dump():
+        try:
+            proxy_model.dump_report(proxy_model.dump_path)
+            proxy_model.dump_weights(proxy_model.dump_path)
+            if optimizer is None:
+                proxy_model.dump_grads(proxy_model.dump_path)
+        except Exception as dump_e:
+            logger.error(f"PaDiffGuard: failed to dump! {dump_e}")
+
     try:
         # set hooks
         with contextlib.ExitStack() as stack:
@@ -285,19 +304,13 @@ def PaDiffGuard(
 
             yield model
 
+            perform_final_dump()
+
     except _CallsComplete as e:
-        pass
+        perform_final_dump()
+        sys.exit(0)
 
     except Exception as e:
         logger.error(f"PaDiffGuard: failed! {e}")
-        raise
-
-    finally:
-        try:
-            proxy_model.dump_report(proxy_model.dump_path)
-            proxy_model.dump_weights(proxy_model.dump_path)
-            if optimizer is None:
-                proxy_model.dump_grads(proxy_model.dump_path)
-        except Exception as e:
-            logger.error(f"PaDiffGuard: failed to dump! {e}")
-        sys.exit(0)
+        perform_final_dump()
+        sys.exit(1)
