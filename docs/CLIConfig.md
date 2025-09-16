@@ -26,27 +26,27 @@
 | 参数                | 类型         | 必需 | 默认值 | 说明                                                 |
 | ------------------- | ------------ | ---- | ------ | ---------------------------------------------------- |
 | `align_depth`       | int or "inf" | 否   | "inf"  | 对齐的深度。"inf" 表示最细粒度                       |
-| `single_step_mode`  | string       | 否   | null   | 单步对齐模式 ("forward", "backward", "both")         |
-| `load_init_weights` | bool         | 否   | false  | 是否自动对齐初始化权重，若已手动对齐，请设置为 false |
-| `load_first_inputs` | bool         | 否   | false  | 是否自动第一次的输入，若已手动对齐，请设置为 false   |
-| `max_calls`         | int          | 否   | 1      | 最大前反向调用次数                                   |
-| `black_list`        | list         | 否   | []     | 不参与对齐的层名列表，列表内元素为 str 类型          |
-| `keys_mapping`      | dict         | 否   | null   | 模型参数名映射字典                                   |
+| `single_step_mode`  | string       | 否   | null   | 单步对齐模式 ("forward", "backward", "both")       |
+| `load_init_weights` | bool         | 否   | false  | 是否自动对齐初始化权重，若已手动对齐，请设置为 false     |
+| `load_first_inputs` | bool         | 否   | false  | 是否自动第一次的输入，若已手动对齐，请设置为 false       |
+| `max_calls`         | int          | 否   | 1      | 最大前反向调用次数                                  |
+| `black_list`        | list         | 否   | []     | 不参与对齐的层名列表，列表内元素为 str 类型             |
+| `keys_mapping`      | dict         | 否   | null   | 模型参数名映射字典，键和值分别为 Paddle/PyTorch 参数名  |
 
 ## COMPARE 部分
 
 定义结果对比的精度和逻辑。
 
-| 参数           | 类型   | 必需 | 默认值  | 说明                                    |
+| 参数           | 类型   | 必需 | 默认值  | 说明                                      |
 | -------------- | ------ | ---- | ------- | --------------------------------------- |
-| `atol`         | float  | 否   | 1e-6    | 绝对误差容忍度                          |
-| `rtol`         | float  | 否   | 1e-6    | 相对误差容忍度                          |
+| `atol`         | float  | 否   | 1e-6    | 绝对误差容忍度                           |
+| `rtol`         | float  | 否   | 1e-6    | 相对误差容忍度                           |
 | `compare_mode` | string | 否   | "mean"  | 对比模式 ("mean", "strict", "abs_mean") |
 | `action_name`  | string | 否   | "equal" | 对比动作 ("equal", "loose_equal")       |
 
 ## 示例和详细说明
 
-#### 命令参数 (pt_cmd, --pd_cmd)
+#### 模型运行命令 (pt_cmd, pd_cmd)
 
 - 这些参数是您运行原始模型的完整命令
 - 通常以 'python' 开头
@@ -58,7 +58,7 @@ pt_cmd: "python torch_project/run.py"
 pd_cmd: "python paddle_project/run.py"
 ```
 
-#### 模型变量名参数 (pt_model_name, pd_model_name)
+#### 模型变量名 (pt_model_name, pd_model_name)
 
 - 这些参数指定您在脚本中创建模型实例的**变量名**
 - 它们不是类名，也不是文件名
@@ -88,7 +88,7 @@ trainer.train()
 pd_model_name: "trainer.model"
 ```
 
-#### 优化器名参数 (pt_optim_name, pd_optim_name)
+#### 优化器名 (pt_optim_name, pd_optim_name)
 
 - 这些参数指定您在脚本中创建优化器实例的**变量名**。
 - 它们不是类名，也不是文件名。
@@ -116,7 +116,7 @@ trainer.train()
 # 由于 trainer.train() 中通常已经包含了完整的前反向过程，因此不需要传递此参数
 ```
 
-#### 日志目录参数 (log_dir)
+#### 日志目录 (log_dir)
 
 - 指定生成报告和日志的目录
 - 默认值: ./padiff_log
@@ -125,11 +125,12 @@ trainer.train()
 log_dir: "./padiff_log"
 ```
 
-#### 对齐深度参数 (align_depth)
+#### 对齐深度 (align_depth)
 
 - 控制对齐的粒度。通过指定一个深度值，可以忽略该深度以下的所有子模块
-- 值为整数: 指定一个具体的深度。例如，--align_depth 1 会忽略深度为1及以下的所有子模块
-- 默认值: 'inf' ，即无限深度，会对齐到最细粒度的层（如 Linear, ReLU）
+- 适用于当某些层下具体子层细节实现不同，但此层本身输出相同的情况
+- 值为整数: 指定一个具体的深度。例如 align_depth 被设置为 1 时会忽略深度为 1 及以下的所有子模块
+- 默认值: 'inf'，即无限深度，会对齐到最细粒度的层（如 Linear, ReLU）
 - 值为整数，当数值超过模型最大迭代深度时，相当于 'inf'
 
 ```
@@ -138,12 +139,57 @@ align_depth: 1   # 对齐到第一层子模块
 align_depth: "inf" # 对齐到最细粒度
 ```
 
-#### 单步对齐模式参数 (single_step_mode)
+#### 单步对齐模式 (single_step_mode)
 
-- 启用逐层对齐模式
+- 启用逐层对齐模式，在这个模式下通常将 max_calls 设置为 1
 - 可选值: forward, backward, both
 - 默认值: None (不启用)
 - 当启用时，工具会从自动加载基准模型的输出，并用其替换对齐模型的相应层输出
+- 注意，这个模式会逐层替换输出，所以会阻断反向传播，这里的 backward 模式指的是逐层获取输出对输入的导数，而不是参数的 grad
+- 因此，当 max_calls > 1 时启用单步对齐模式时，可能会出现未知的错误，比如读取了错误的输出、获取不到 grad 等
+
+#### 自动初始化权重 (load_init_weights)
+
+- 是否自动加载初始化权重
+- 默认值: False (不加载)
+- 如果选择自动加载，可能会出现权重转化错误（由于权重名、形状不同）
+- 如果不自动加载，需要保证在运行本工具前，手动对齐初始化权重
+
+#### 自动加载模型输入 (load_first_inputs)
+
+- 是否自动加载第一层输入，包括 args 和 kwargs 类参数
+- 默认值: False (不加载)
+- 如果选择自动加载，可能会出现转化错误（由于输入参数名不同、形状不同）
+- 如果不自动加载，需要保证在运行本工具前，手动对齐模型输入
+
+#### 最大前反向调用次数 (max_calls)
+
+- 运行 max_calls 次前（反）向后强制退出脚本
+- 默认值: 1
+- 当脚本本身的运行次数超过 max_calls 时，会在第 max_calls+1 次的前向运行之前强制退出
+- 当脚本本身的运行次数不足 max_calls 时，max_calls 不会被触发
+
+#### 黑名单 (black_list)
+
+- 假如已知参与对齐的模型中，有一些层的实现并不完全相同，可以通过将这些层加入黑名单的方式，跳过对它们的检查
+- 当 align_depth 被设置时，深度超过 align_depth 的子层也会被加入黑名单中
+- 同时，黑名单中层的参数的权重也不会被对比
+
+#### 模型参数名映射 (keys_mapping)
+
+- 模型参数名的映射，仅当 load_init_weights 为 True 时可能需要此参数
+- 当前配置文件中仅支持以字典的形式给出，键和值分别为 Paddle/PyTorch 参数名
+- 该参数本身通过可调用函数给出，但需要手动修改脚本或源码，然后手动运行修改后的脚本并调用 `padiff.compare_dumps(...)` 进行对齐
+
+```
+# 在脚本中直接传入可调用函数
+with PaDiffGuard(model, keys_mapping=lambda name: name.replace('model_pt', 'model_pa')):
+    out = model(inp)
+
+# 分别运行脚本后手动对齐
+from padiff import compare_dumps
+compare_dumps(pt_dump_path, pd_dump_path, cfg)
+```
 
 #### 结果对比参数（COMPARE）
 

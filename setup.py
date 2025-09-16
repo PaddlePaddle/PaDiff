@@ -15,7 +15,7 @@
 
 from setuptools import find_packages, setup
 
-import padiff
+VERSION = "0.3.0"
 
 
 def read_requirements_file(filepath):
@@ -29,13 +29,18 @@ REQUIRED_PACKAGES = read_requirements_file("requirements.txt")
 
 setup(
     name="padiff",
-    version=padiff.__version__,
+    version=VERSION,
     description=("A tools to automatically diff precision between Paddle and Pytorch Model."),
     long_description="",
     url="https://github.com/PaddlePaddle/PaDiff",
     author="PaddlePaddle",
     author_email="",
     install_requires=REQUIRED_PACKAGES,
+    extras_require={
+        "paddle": ["paddlepaddle-gpu"],
+        "torch": ["torch", "torchvision"],
+        "full": ["paddlepaddle-gpu", "torch", "torchvision"],
+    },
     packages=find_packages(),
     include_package_data=True,
     package_data={
