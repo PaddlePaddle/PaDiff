@@ -1,5 +1,5 @@
-paddlepaddle-gpu
-torch
+# paddlepaddle-gpu>=3.0
+# torch>=2.6
 pre-commit
 pytest
 parameterized
