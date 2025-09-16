@@ -53,7 +53,7 @@ class Marker:
             self.white_list_recursively.update(set(layers))
         self.use_white_list = True
 
-    def update_unassigned_weights_list(self, layers, mode="all"):
+    def update_unassigned_weights_list(self, layers, mode="all", include_black_list=False):
         assert mode in ("self", "sublayers", "all")
         if isinstance(layers, (paddle.nn.Layer, torch.nn.Module)):
             layers = [layers]
@@ -61,6 +61,16 @@ class Marker:
             self.unassigned_weights_list.update(set(layers))
         if mode in ("sublayers", "all"):
             self.unassigned_weights_list_recursively.update(set(layers))
+
+        if include_black_list:
+            self.sync_unassigned_with_black_list(mode)
+
+    def sync_unassigned_with_black_list(self, mode="all"):
+        assert mode in ("self", "sublayers", "all")
+        if mode in ("self", "all"):
+            self.unassigned_weights_list.update(self.black_list)
+        if mode in ("sublayers", "all"):
+            self.unassigned_weights_list_recursively.update(self.black_list_recursively)
 
     def set_layer_map(self, layer_map):
         _layer_map = []

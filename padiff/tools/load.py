@@ -168,7 +168,7 @@ def load_init_weights_from_dump(
                     param_key = param_name
 
                 if param_key not in loaded_weights:
-                    logger.warning(f"param {param_key}({param_name}) not found, skip it.")
+                    logger.debug(f"param {param_key}({param_name}) not found, skip it.")
                     continue
                 np_value = loaded_weights[param_key]
 
@@ -204,7 +204,7 @@ def load_init_weights_from_dump(
         if success_count == all_count:
             logger.info(f"Loading success: all {all_count} init_weights loaded. ")
         else:
-            logger.warning(f"Loading might fail! {all_count} init_weights in total but only {success_count} loaded!")
+            logger.warning(f"Loading might FAILED! {all_count} init_weights in total but only {success_count} loaded!")
         return True
     except Exception as e:
         logger.error(f"{type(e).__name__}: {e}")
