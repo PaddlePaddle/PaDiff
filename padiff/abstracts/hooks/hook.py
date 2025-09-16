@@ -176,9 +176,10 @@ def info_hook(model, input, output, net_id):
     # if under single step forward guard
     if single_step_state() in ("forward", "both") and net_id != -1:
         # two report_item with same id, the step_idx should be corresponded
+        model_name = _model.__class__.__name__
         step_idx = len(list(filter(lambda x: x.type == "forward" and x.net_id == net_id, report.items))) - 1
-        base_report_node = single_step_check(report, net_id, step_idx, _model.__class__.__name__, "forward")
-        retval = map_structure(replace_forward_output(base_report_node), output)
+        base_report_node = single_step_check(report, net_id, step_idx, model_name, "forward")
+        retval = map_structure(replace_forward_output(base_report_node, model_name), output)
         __in_info_hook__ = False
         return retval
     else:
@@ -259,7 +260,7 @@ class TorchModuleStr(torch.nn.Module):
         self.__api__ = net.__api__
 
 
-def replace_forward_output(node):
+def replace_forward_output(node, current_name=None):
     numpy_file_list = node["fwd_outputs"]
     cur_idx = 0
 
@@ -268,7 +269,15 @@ def replace_forward_output(node):
         if isinstance(input_, (paddle.Tensor, torch.Tensor)):
             if cur_idx >= len(numpy_file_list):
                 raise RuntimeError(
-                    "In single step mode, try to replace tensor by dumpped numpy value, but the number of tensors and numpy is not equal. Maybe the models are not corresponded."
+                    f"\n   ⚠️ Single-step alignment FAILED: the {cur_idx + 1}st output is requested, "
+                    f"but only {len(numpy_file_list)} pre-saved numpy files are available."
+                    f"\n   📌 Layer Name: {current_name}(raw)"
+                    "\n   💡 Possible Causes and Solutions:"
+                    "\n     - The number of outputs from the current layer in the raw model does not match "
+                    "that of its corresponding layer in the base model."
+                    "\n     - Verify that both models have identical architectures for this layer."
+                    "\n     - If the corresponding relationship of the current layer is correct, "
+                    "please disable single step mode, or add the layer to blacklist to skip the check of this layer."
                 )
             value = np.load(numpy_file_list[cur_idx]["path"])
             cur_idx += 1
