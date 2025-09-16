@@ -6,11 +6,15 @@ on:
       - 'docs/**'
       - '**.md'
       - '**.rst'
+    paths-ignore:
+      - 'PULL_REQUEST_TEMPLATE.md'
   pull_request:
     paths:
       - 'docs/**'
       - '**.md'
       - '**.rst'
+    paths-ignore:
+      - 'PULL_REQUEST_TEMPLATE.md'
 
 jobs:
   docs-check:
