@@ -25,10 +25,10 @@
 
 | 参数                | 类型         | 必需 | 默认值 | 说明                                                 |
 | ------------------- | ------------ | ---- | ------ | ---------------------------------------------------- |
-| `align_depth`       | int or "inf" | 否   | "inf"  | 对齐的深度。"inf" 表示最细粒度                       |
+| `align_depth`       | int or "inf" | 否   | "inf"  | 对齐的深度。"inf" 表示检查所有层                      |
 | `single_step_mode`  | string       | 否   | null   | 单步对齐模式 ("forward", "backward", "both")       |
-| `load_init_weights` | bool         | 否   | false  | 是否自动对齐初始化权重，若已手动对齐，请设置为 false     |
-| `load_first_inputs` | bool         | 否   | false  | 是否自动第一次的输入，若已手动对齐，请设置为 false       |
+| `load_init_weights` | bool         | 否   | false  | 是否对齐对齐初始化权重，若已手动对齐，请设置为 false     |
+| `load_first_inputs` | bool         | 否   | false  | 是否自动第一轮输入，若已手动对齐，请设置为 false        |
 | `max_calls`         | int          | 否   | 1      | 最大前反向调用次数                                  |
 | `black_list`        | list         | 否   | []     | 不参与对齐的层名列表，列表内元素为 str 类型             |
 | `keys_mapping`      | dict         | 否   | null   | 模型参数名映射字典，键和值分别为 Paddle/PyTorch 参数名  |
@@ -196,8 +196,13 @@ compare_dumps(pt_dump_path, pd_dump_path, cfg)
 - 控制模型输出结果的对比精度和模式
 - atol: 绝对误差容忍度 (default: 1e-6)
 - rtol: 相对误差容忍度 (default: 1e-6)
-- compare_mode: 对比模式，具体内容请看对应文档。可选值: mean, strict, abs_mean, 默认值: "mean"
-- action_name: 对比行为，具体内容请看对应文档。可选值: equal, loose_equal, 默认值: "equal"
+- compare_mode: 对比模式，可选值: mean, strict, abs_mean, 默认值: "mean"
+    - mean: 比较传入数据的均值
+    - strict: 直接比较传入数据
+    - abs_mean: 比较传入数据的绝对值的均值
+- action_name: 对比行为，可选值: equal, loose_equal, 默认值: "equal"
+    - equal: 进行严格的对比，比如会对输出的个数、shape 都进行检查
+    - loose_equal: 较为宽松的对比，会尝试尽可能多的匹配数据，比如两个模型某层的输出数量分别为 1 和 3 ，会对第一个输出进行比较，同时在两个数据的形状不匹配时会尝试 transpose 或 reshape。仅在该层所有数据都无法匹配时报错。
 
 ```
 COMPARE:

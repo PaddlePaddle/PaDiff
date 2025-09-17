@@ -1,12 +1,12 @@
 # paddlepaddle-gpu>=3.0
 # torch>=2.6
+# torchvision
 pre-commit
 pytest
 parameterized
 pytest-cov
 regex
 pytest-xdist
-torchvision
 graphviz
 numpy
 coverage
