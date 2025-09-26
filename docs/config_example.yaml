@@ -8,6 +8,7 @@ CLI:
   pd_model_name: "pd_model"                           # PaddlePaddle 模型变量名
   pt_optim_name: "pt_optimizer"                       # (可选) PyTorch 优化器变量名
   pd_optim_name: "pd_optimizer"                       # (可选) PaddlePaddle 优化器变量名
+  base_framework: "torch"                             # (可选) 设置作为 base 的框架
   log_dir: "./padiff_log"                             # (可选) 日志目录
 
 # --- COMPARE 部分 ---

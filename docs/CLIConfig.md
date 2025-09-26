@@ -17,6 +17,7 @@
 | `pd_model_name` | string | 否   | "model"        | PaddlePaddle 模型实例的变量名    |
 | `pt_optim_name` | string | 否   | null           | PyTorch 优化器实例的变量名       |
 | `pd_optim_name` | string | 否   | null           | PaddlePaddle 优化器实例的变量名  |
+| `base_framework`| string | 否   | "torch"        | 设置作为 base 的框架            |
 | `log_dir`       | string | 否   | "./padiff_log" | 日志和报告的输出目录             |
 
 ## PaDiffGuard 部分
@@ -114,6 +115,16 @@ trainer = SFTTrainer(
 )
 trainer.train()
 # 由于 trainer.train() 中通常已经包含了完整的前反向过程，因此不需要传递此参数
+```
+
+#### base 框架 (base_framework)
+
+- 设置对齐方向，默认值 'troch'，即 paddle 代码向 torch 代码对齐
+- 默认值: "torch"，此时在逐层对齐时，会在运行 torch 代码时保存各层输出，并在运行 paddle 代码时读取并替换
+- 当 base 模型的输出个数少于 raw 模型时，会找不到输出而报错，此时可以修改此参数，交换二者的顺序
+
+```
+base_framework: "torch"
 ```
 
 #### 日志目录 (log_dir)

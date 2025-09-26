@@ -13,7 +13,7 @@ PaDiff 是基于 PaddlePaddle 与 PyTorch 的模型精度对齐工具。传入 P
 
 - 手动修改 Paddle 和 PyTorch 脚本，并在**分别**运行（不需要同时）这两个脚本，根据脚本 PaDiff 会分别监控运行过程并 dump 数据，最后手动调用 API 接口对比数据，得到对齐结果。两次运行可以在**两个环境**中，但每个环境中都需要同时存在 `paddlepaddle` 和 `torch` 包
 
-- 参考[旧版本特性（v0.2版本）](#旧版本特性（v0.2版本）) 使用 auto_diff 接口进行对齐，这种方法需要将 Paddle 和 PyTorch 放在同一个文件中，同时将 `paddlepaddle` 和 `torch` 包安装在同一环境中，不仅两个模型的运行过程耦合，代码修改量也比较大，因此**不推荐**此用法
+- 参考[旧版本特性（v0.2版本）](#readme-v02) 使用 auto_diff 接口进行对齐，这种方法需要将 Paddle 和 PyTorch 放在同一个文件中，同时将 `paddlepaddle` 和 `torch` 包安装在同一环境中，不仅两个模型的运行过程耦合，代码修改量也比较大，因此**不推荐**此用法
 
 
 ## 安装
@@ -79,6 +79,7 @@ if __name__ == "__main__":
 
 为了保持控制台信息简洁，可以设置环境变量 `PADIFF_SILENT=1`，此模式下仅保存 log 文件，不在控制台输出 log 信息
 
+<a id="readme-v02"></a>
 ## 旧版本特性（v0.2版本）
 
 ### 使用 auto_diff 接口和其它方法
