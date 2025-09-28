@@ -26,6 +26,8 @@ python -m pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 ## 快速开始
 
+**注意：当前暂不支持分布式**
+
 ### 使用单行命令对齐
 
 将命令写入配置文件后，通过如下命令运行
@@ -61,6 +63,7 @@ if __name__ == "__main__":
         "rtol": 1e-4,
         "compare_mode": "abs_mean",
         "action_name": "loose_equal",
+        "check_mode": "fast",
     }
 
     pt_dump_path = "torch_proj/padiff_dump/model_torch"

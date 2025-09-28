@@ -21,6 +21,7 @@ global_compare_configs = {
     "rtol": 1e-7,
     "compare_mode": "mean",
     "action_name": "equal",
+    "check_mode": "fast",
 }
 
 

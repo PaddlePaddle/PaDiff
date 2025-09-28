@@ -18,7 +18,7 @@ from ...utils import (
     clone_dict_tree,
     get_all_valid_path,
     load_json,
-    print_report_info,
+    print_multi_report_info,
     reorder_and_match_sublayers,
     logger,
     struct_info_log,
@@ -75,78 +75,101 @@ def _check_report_impl(report_path_0, report_path_1, cfg=None, diff_phase="both"
 
 
 def check_forward(nodes, reports, cfg):
-    logger.debug(f"Checking forward of {nodes[0]['name']}")
-    action_name = cfg.get("action_name", None)
-    act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=action_name)
-    try:
-        act(nodes[0]["fwd_outputs"], nodes[1]["fwd_outputs"], cfg)
-        return True
-    except Exception as e:
-        compare_info = e
-        if len(nodes[0]["children"]) == 0 or len(nodes[1]["children"]) == 0:
-            print_report_info(nodes, reports, e, "Forward")
-            return False
-
-    # reorder current level
-    try:
-        if not nodes[1]["reordered"]:
-            reorder_and_match_sublayers(nodes, reports)
-    except Exception as e:
-        msg = f"While checking forward, diff found at {nodes[0]['name']}(base) vs {nodes[1]['name']}(raw)\n"
-        msg += "Call `reorder_and_match_sublayers` for more detailed infos, but error occurs again:\n"
-        msg += f"{type(e).__name__}:  {str(e)}"
-        logger.error(msg)
-        # print_report_info(nodes, reports, compare_info, "Forward", msg)
-        # return False
-
-    for child_0, child_1 in zip(nodes[0]["children"], nodes[1]["children"]):
-        res = check_forward((child_0, child_1), reports, cfg)
-        if res == False:
-            return False
-
-    # sublayers is compared ok, but diff found at father layer
-    msg = (
-        f"\n   ⚠️ Sublayers of {nodes[0]['name']} and {nodes[1]['name']} are corresponded, but diff found at their output! "
-        "\n   💡 This might be reasonable since errors accumulate if single_step mode is enabled."
+    failures = _check_node(
+        nodes=nodes,
+        reports=reports,
+        cfg=cfg,
+        data_key="fwd_outputs",
+        direction="forward",
     )
-    print_report_info(nodes, reports, compare_info, "Forward", msg)
-    return False
+    success = print_multi_report_info(failures, stage="Forward")
+    return success
 
 
 def check_backward(nodes, reports, cfg):
-    logger.debug(f"Checking backward of {nodes[0]['name']}")
+    failures = _check_node(nodes=nodes, reports=reports, cfg=cfg, data_key="bwd_grads", direction="backward")
+    success = print_multi_report_info(failures, stage="Backward")
+    return success
+
+
+def _check_node(nodes, reports, cfg, data_key, direction):
+    """
+    Generic function to check forward or backward outputs.
+
+    Args:
+        nodes: (node_base, node_raw)
+        reports: (report_base, report_raw)
+        cfg: config dict
+        data_key: "fwd_outputs" or "bwd_grads"
+        direction: "forward" or "backward"
+    """
+    logger.debug(f"Checking {direction.lower()} of {nodes[0]['name']}")
+
+    check_mode = cfg.get("check_mode", "fast").lower()
     action_name = cfg.get("action_name", None)
     act = get_action(reports[0], nodes[0], reports[1], nodes[1], name=action_name)
-    try:
-        act(nodes[0]["bwd_grads"], nodes[1]["bwd_grads"], cfg)
-        return True
-    except Exception as e:
-        compare_info = e
-        if len(nodes[0]["children"]) == 0 or len(nodes[1]["children"]) == 0:
-            print_report_info(nodes, reports, e, "Backward")
-            return False
 
-    # reorder current level
+    parent_error = None
+    failures = []
+
+    # Step 1: Compare current layer
+    try:
+        act(nodes[0][data_key], nodes[1][data_key], cfg)
+    except Exception as e:
+        parent_error = e
+        if len(nodes[0]["children"]) == 0 or len(nodes[1]["children"]) == 0:
+            failures.append({"nodes": nodes, "reports": reports, "exc": e, "msg": None, "direction": direction})
+            return failures
+        logger.debug(f"{direction} mismatch at {nodes[0]['name']} -> will check children (check_mode={check_mode})")
+
+    # Step 2: Early return if should not check sublayer
+    if check_mode == "fast" and parent_error is None:
+        logger.debug(f"{direction} PASSED -> skip children (check_mode=fast)")
+        return []
+
+    # Step 3: Try to reorder current level
     try:
         if not nodes[1]["reordered"]:
             reorder_and_match_sublayers(nodes, reports)
     except Exception as e:
-        msg = f"While checking backward, diff found at {nodes[0]['name']}(base) vs {nodes[1]['name']}(raw)\n"
-        msg += "Call `reorder_and_match_sublayers` for more detailed infos, but error occurs again:\n"
-        msg += f"{type(e).__name__}:  {str(e)}"
-        logger.error(msg)
-        # print_report_info(nodes, reports, compare_info, "Backward", msg)
-        # return False
+        # some mismatches are allowed when action_name='loose_equal', so no error is returned here, only print it
+        logger.error(
+            f"While checking {direction.lower()}, diff found at {nodes[0]['name']}(base) vs {nodes[1]['name']}(raw)\n"
+            "Call `reorder_and_match_sublayers` for more detailed infos, but error occurs again:\n"
+            f"{type(e).__name__}: {str(e)}"
+        )
 
-    for child_0, child_1 in zip(reversed(nodes[0]["children"]), reversed(nodes[1]["children"])):
-        res = check_backward((child_0, child_1), reports, cfg)
-        if res == False:
-            return False
+    # Step 4: Recursively check all sublayers
+    # Note: Backward often checks in reverse order
+    children_zip = (
+        zip(reversed(nodes[0]["children"]), reversed(nodes[1]["children"]))
+        if direction.lower() == "backward"
+        else zip(nodes[0]["children"], nodes[1]["children"])
+    )
 
-    # sublayers is compared ok, but diff found at father layer
-    msg = f"Grad of sublayer {nodes[0]['name']} and {nodes[1]['name']} are corresponded, but current grad found diff!"
-    print_report_info(nodes, reports, compare_info, "Backward", msg)
-    return False
+    for child_0, child_1 in children_zip:
+        child_failures = _check_node(
+            (child_0, child_1),
+            reports,
+            cfg,
+            data_key=data_key,
+            direction=direction,
+        )
+        if child_failures:
+            failures.extend(child_failures)
+            if check_mode == "fast":
+                return failures
+
+    # Step 5: All children passed, but parent failed
+    if parent_error is not None and not failures:
+        msg = (
+            f"\n   ⚠️ Grad of sublayer '{nodes[0]['name']}' and '{nodes[1]['name']}' are corresponded, "
+            f"but current {direction.lower()} output found diff!"
+            "\n   💡 This might be reasonable since errors accumulate if single_step mode is enabled."
+        )
+        failures.append({"nodes": nodes, "reports": reports, "exc": parent_error, "msg": msg, "direction": direction})
+
+    return failures
 
 
 def check_layer_map(reports):
