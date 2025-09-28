@@ -32,6 +32,9 @@ from ...utils import (
 from .base import current_report, find_base_report_node, single_step_state
 
 
+_seen_warnings = set()
+
+
 @contextlib.contextmanager
 def register_hooker(model):
     marker = model.marker
@@ -266,27 +269,63 @@ def replace_forward_output(node, current_name=None):
 
     def inner(input_):
         nonlocal cur_idx
-        if isinstance(input_, (paddle.Tensor, torch.Tensor)):
-            if cur_idx >= len(numpy_file_list):
-                raise RuntimeError(
-                    f"\n   ⚠️ Single-step alignment FAILED: the {cur_idx + 1}st output is requested, "
-                    f"but only {len(numpy_file_list)} pre-saved numpy files are available."
+        if not isinstance(input_, (paddle.Tensor, torch.Tensor)):
+            return input_
+
+        if cur_idx >= len(numpy_file_list):
+            warning_key = ("single-step: output_count_mismatch", current_name)
+            if warning_key not in _seen_warnings:
+                logger.warning(
+                    f"\n   ⚠️ Single-step alignment SKIPPED: the {cur_idx + 1}st output is requested, "
+                    f"but only {len(numpy_file_list)} pre-saved from base model, skip the current output."
+                    "\n   ⚠️ This warning will not repeat for this layer."
                     f"\n   📌 Layer Name: {current_name}(raw)"
                     "\n   💡 Possible Causes and Solutions:"
-                    "\n     - The number of outputs from the current layer in the raw model does not match "
+                    "\n     - The number of outputs from the current layer in the raw model is bigger than"
                     "that of its corresponding layer in the base model."
                     "\n     - Verify that both models have identical architectures for this layer."
                     "\n     - If the corresponding relationship of the current layer is correct, "
                     "please disable single step mode, or add the layer to blacklist to skip the check of this layer."
+                    "\n     - Or when you are sure that the extra output does not need to be compared, "
+                    "you can swap the execution order of the base model and the raw model."
                 )
-            value = np.load(numpy_file_list[cur_idx]["path"])
-            cur_idx += 1
-            if isinstance(input_, paddle.Tensor):
-                return paddle.to_tensor(value, dtype=input_.dtype)
-            else:
-                return torch.as_tensor(value, dtype=input_.dtype, device=input_.device)
-        else:
+                _seen_warnings.add(warning_key)
             return input_
+
+        value = np.load(numpy_file_list[cur_idx]["path"])
+        cur_idx += 1
+        base_shape = tuple(value.shape)
+        raw_shape = tuple(input_.shape)
+
+        if base_shape == raw_shape:
+            pass
+
+        elif np.prod(base_shape) != np.prod(raw_shape):
+            warning_key = ("single-step: shape_mismatch", current_name)
+            if warning_key not in _seen_warnings:
+                logger.warning(
+                    f"\n   ⚠️ Single-step alignment SKIPPED: shape mismatch."
+                    "\n   ⚠️ This warning will not repeat for this layer."
+                    f"\n   📌 Layer Name: {current_name}(raw)"
+                    f"\n   📌 Shape: {base_shape}(base) vs {raw_shape}(raw)"
+                )
+                _seen_warnings.add(warning_key)
+            return input_
+        else:
+            value = value.reshape(input_.shape)
+            debug_key = ("single-step: reshape_used", current_name)
+            if debug_key not in _seen_warnings:
+                logger.debug(
+                    f"\n   ⚠️ Try to reshape loaded value to input's shape of layer {current_name}(raw). "
+                    "This may lead to numerical errors even if reshape succeeds."
+                    "\n   ⚠️ This warning will not repeat for this layer."
+                )
+                _seen_warnings.add(debug_key)
+
+        if isinstance(input_, paddle.Tensor):
+            return paddle.to_tensor(value, dtype=input_.dtype)
+        else:
+            return torch.as_tensor(value, dtype=input_.dtype, device=input_.device)
 
     return inner
 
@@ -296,14 +335,17 @@ def single_step_check(report, net_id, step_idx, current_name, node_type, bwd_ite
     try:
         base_report_node = find_base_report_node(net_id, step_idx)
         if base_report_node["name"] != current_name:
-            warning_msg = (
-                f"\n   ⚠️ Single-step alignment WARNING: {node_type} with net_id={net_id} mismatch!\n"
-                f"   📌 Mismatch {node_type.capitalize()}: {base_report_node['name']}(base) vs {current_name}(raw)\n"
-                "   💡 Suggestion: Models have different architectures or initialization order. "
-                "Please check the model implementation or decrease 'align_depth' to reduce the alignment "
-                "granularity, or add layers that do not require alignment to the blacklist."
-            )
-            logger.warning(warning_msg)
+            warning_key = ("single-step: name_mismatch", current_name)
+            if warning_key not in _seen_warnings:
+                logger.warning(
+                    f"\n   ⚠️ Single-step alignment WARNING: {node_type} with net_id={net_id} mismatch!"
+                    "\n   ⚠️ This warning will not repeat for this layer."
+                    f"\n   📌 Mismatch {node_type.capitalize()}: {base_report_node['name']}(base) vs {current_name}(raw)"
+                    "\n   💡 Suggestion: Models have different architectures or class name or initialization order. "
+                    "Please check the model implementation or decrease 'align_depth' to reduce the alignment "
+                    "granularity, or add layers that do not require alignment to the blacklist."
+                )
+                _seen_warnings.add(warning_key)
         else:
             logger.debug(f"Single Step: {current_name}(net_id={net_id})")
 

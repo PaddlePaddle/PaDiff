@@ -143,7 +143,15 @@ def main():
               --pt_cmd "python /path/to/your/torch_script.py"
               --pd_cmd "python /path/to/your/paddle_script.py"
 
-        3. 日志目录参数 (--log_dir):
+        3. base 框架设置参数 (--base_framework):
+           * 非必需 被包含在 config 文件中，或 通过命令行传入
+           * 设置对齐方向，默认值 'troch'，即 paddle 代码向 torch 代码对齐
+           * 影响逐层对齐时，是读取哪个框架下保存的数据
+
+           示例：
+              --base_framework "torch"
+
+        4. 日志目录参数 (--log_dir):
            * 可选参数
            * 指定生成报告和日志的目录
            * 默认值: ./padiff_log
@@ -159,6 +167,7 @@ def main():
                 pd_model_name: "pd_model"
                 pt_optim_name: "pt_optimizer"   # not required
                 pd_optim_name: "pd_optimizer"   # not required
+                base_framework: "torch"   # not required
                 log_dir: "./padiff_log"   # not required
 
             PaDiffGuard:
@@ -193,6 +202,12 @@ def main():
         help="Override 'pd_cmd' (paddle command) in config, e.g., 'python /paddle_dir/paddle_model.py'",
     )
     parser.add_argument(
+        "--base_framework",
+        type=str,
+        choices=["torch", "paddle"],
+        help="Which framework's output should be used as the base framework (base). The other will align to it. Options: 'torch' or 'paddle'.",
+    )
+    parser.add_argument(
         "--log_dir",
         type=str,
         default="./padiff_log",
@@ -213,6 +228,8 @@ def main():
         cli_cfg["pd_cmd"] = args.pd_cmd
     if args.log_dir:
         cli_cfg["log_dir"] = args.log_dir
+    if args.base_framework:
+        cli_cfg["base_framework"] = args.base_framework
 
     log_dir = cli_cfg.pop("log_dir", "./padiff_log")
     logger.reset_dir(log_dir)
@@ -229,26 +246,23 @@ def main():
     pt_optim_name = cli_cfg.get("pt_optim_name")
     pd_optim_name = cli_cfg.get("pd_optim_name")
 
+    tasks = {
+        "torch": {"cmd": pt_cmd, "framework": "torch", "model_name": pt_model_name, "optim_name": pt_optim_name},
+        "paddle": {"cmd": pd_cmd, "framework": "paddle", "model_name": pd_model_name, "optim_name": pd_optim_name},
+    }
+    base_fw = cli_cfg.pop("base_framework", "torch")
+    align_fw = "paddle" if base_fw == "torch" else "torch"
+
     logger.info("Code injection and script execution...")
     try:
-        pt_dump_path = run_with_padiff(
-            cmd=pt_cmd,
-            framework="torch",
-            model_name=pt_model_name,
-            optim_name=pt_optim_name,
-            mode="base",
-            alignment_dir=None,
-            guard_cfg=guard_cfg,
-        )
-        pd_dump_path = run_with_padiff(
-            cmd=pd_cmd,
-            framework="paddle",
-            model_name=pd_model_name,
-            optim_name=pd_optim_name,
-            mode="align",
-            alignment_dir=pt_dump_path,
-            guard_cfg=guard_cfg,
-        )
+        logger.info(f"Running {base_fw.upper()} as BASE")
+        base_path = run_with_padiff(mode="base", alignment_dir=None, guard_cfg=guard_cfg, **tasks[base_fw])
+
+        logger.info(f"Running {align_fw.upper()} in ALIGN mode")
+        align_path = run_with_padiff(mode="align", alignment_dir=base_path, guard_cfg=guard_cfg, **tasks[align_fw])
+
+        pt_dump_path = base_path if base_fw == "torch" else align_path
+        pd_dump_path = base_path if base_fw == "paddle" else align_path
     except Exception as e:
         logger.error(f"An error occurred during execution: {type(e).__name__}: {str(e)}")
         import traceback
