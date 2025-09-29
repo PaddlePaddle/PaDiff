@@ -137,7 +137,12 @@ def print_report_info(nodes, reports, exc, stage, msg=None):
     logger.info(retstr)
 
 
-def tree_print(node, mark=None, prefix=[]):
+def tree_print(node, marks=None, prefix=[]):
+    if marks is None:
+        marks = []
+    elif not isinstance(marks, (list, tuple)):
+        marks = [marks]
+
     cur_str = ""
     for i, s in enumerate(prefix):
         if i == len(prefix) - 1:
@@ -153,9 +158,9 @@ def tree_print(node, mark=None, prefix=[]):
     cur_str += node["name"]
     if "available" in node and node["available"] == False:
         cur_str += " (skip)"
-    if os.getenv("PADIFF_PATH_LOG") == "ON":
+    if os.getenv("PADIFF_PATH_LOG") == "ON" or os.getenv("PADIFF_LOG_LEVEL") == "DEBUG":
         cur_str += "  (" + node["route"] + ")"
-    if mark is node:
+    if node in marks:
         cur_str += "    <---  *** HERE ***"
 
     ret_strs = [cur_str]
@@ -164,7 +169,7 @@ def tree_print(node, mark=None, prefix=[]):
         if i == len(node["children"]) - 1:
             pre = " +--- "
         prefix.append(pre)
-        retval = tree_print(child, mark, prefix)
+        retval = tree_print(child, marks, prefix)
         ret_strs.extend(retval)
         prefix.pop()
 
@@ -179,23 +184,34 @@ def build_file_name(report, file_name):
     return file_name + ".log"
 
 
-def struct_info(report, node, file_prefix):
+def struct_info(report, mark, file_prefix):
     file_name = build_file_name(report, file_prefix + "_" + report["model_name"])
     title = f"{report['model_name']}(without layers in blacklist)\n" + "=" * 40 + "\n"
+
+    if not isinstance(mark, (list, tuple)):
+        marks = [mark]
+    else:
+        marks = mark
+
     retval = []
     for tree in report["tree"]:
-        retval.extend(tree_print(tree, mark=node, prefix=[" " * 4]))
+        retval.extend(tree_print(tree, marks=marks, prefix=[" " * 4]))
+
     info = title + "\n".join(retval)
     logger.log_file(file_name, "w", info)
     return file_name
 
 
 def struct_info_log(reports, nodes, file_prefix):
+    if isinstance(nodes, (list, tuple)):
+        if len(nodes) == 0:
+            return ""
+    else:
+        nodes = [nodes]
+
     file_names = []
-    for idx in range(2):
-        node = nodes[idx]
-        report = reports[idx]
-        file_name = struct_info(report, node, file_prefix)
+    for idx, report in enumerate(reports):
+        file_name = struct_info(report, nodes[idx], file_prefix)
         file_names.append(file_name)
     retval = (
         f"Model struct files saved in: '{logger.log_path}/{file_names[0]}' vs '{logger.log_path}/{file_names[1]}'\n"
@@ -206,3 +222,32 @@ def struct_info_log(reports, nodes, file_prefix):
 def save_model_struct(report, file_prefix="arch"):
     file_name = struct_info(report, None, file_prefix)
     logger.info(f"Model struct saved in: '{logger.log_path}/{file_name}' without layers in blacklist\n")
+
+
+def print_multi_report_info(failure_list, stage="Forward"):
+    if not failure_list:
+        return True
+
+    logger.error(f"FAILED !!! '{stage}' Stage Mismatch! Found {len(failure_list)} mismatched layers.")
+
+    marked_nodes = [[], []]
+    for failure in failure_list:
+        exc = failure["exc"]
+        nodes = failure["nodes"]
+        logger.error(
+            f"\n  Layer: {nodes[0]['name']} vs {nodes[1]['name']}"
+            f"\n  Route: {nodes[0]['route']} vs {nodes[1]['route']}"
+            f"\nError({type(exc).__name__}): {str(exc)} \n"
+        )
+        if failure["msg"] is not None:
+            logger.warning("ADDITIONAL MESSAGE:")
+            logger.warning(failure["msg"] + " \n")
+
+        marked_nodes[0].append(nodes[0]["origin_node"])
+        marked_nodes[1].append(nodes[1]["origin_node"])
+
+    reports = failure_list[0]["reports"]
+    retstr = struct_info_log(reports, marked_nodes, "report")
+    logger.info(retstr)
+
+    return False

@@ -38,12 +38,13 @@
 
 定义结果对比的精度和逻辑。
 
-| 参数           | 类型   | 必需 | 默认值  | 说明                                      |
-| -------------- | ------ | ---- | ------- | --------------------------------------- |
-| `atol`         | float  | 否   | 1e-6    | 绝对误差容忍度                           |
-| `rtol`         | float  | 否   | 1e-6    | 相对误差容忍度                           |
-| `compare_mode` | string | 否   | "mean"  | 对比模式 ("mean", "strict", "abs_mean") |
-| `action_name`  | string | 否   | "equal" | 对比动作 ("equal", "loose_equal")       |
+| 参数           | 类型   | 必需 | 默认值  | 说明                                         |
+| -------------- | ------ | ---- | ------- | ---------------------------------------- |
+| `atol`         | float  | 否   | 1e-6    | 绝对误差容忍度                              |
+| `rtol`         | float  | 否   | 1e-6    | 相对误差容忍度                              |
+| `compare_mode` | string | 否   | "mean"  | 数值对比模式 ("mean", "strict", "abs_mean") |
+| `action_name`  | string | 否   | "equal" | 层对比策略 ("equal", "loose_equal")        |
+| `check_mode`   | string | 否   | "fast"  | 模型对比策略 ("fast", "deep")               |
 
 ## 示例和详细说明
 
@@ -207,13 +208,16 @@ compare_dumps(pt_dump_path, pd_dump_path, cfg)
 - 控制模型输出结果的对比精度和模式
 - atol: 绝对误差容忍度 (default: 1e-6)
 - rtol: 相对误差容忍度 (default: 1e-6)
-- compare_mode: 对比模式，可选值: mean, strict, abs_mean, 默认值: "mean"
+- compare_mode: 数值对比模式，可选值: mean, strict, abs_mean, 默认值: "mean"
     - mean: 比较传入数据的均值
     - strict: 直接比较传入数据
     - abs_mean: 比较传入数据的绝对值的均值
-- action_name: 对比行为，可选值: equal, loose_equal, 默认值: "equal"
+- action_name: 层对比策略，可选值: equal, loose_equal, 默认值: "equal"
     - equal: 进行严格的对比，比如会对输出的个数、shape 都进行检查
     - loose_equal: 较为宽松的对比，会尝试尽可能多的匹配数据，比如两个模型某层的输出数量分别为 1 和 3 ，会对第一个输出进行比较，同时在两个数据的形状不匹配时会尝试 transpose 或 reshape。仅在该层所有数据都无法匹配时报错。
+- check_mode: 模型对比策略，可选值: fast, deep, 默认值: "fast"
+    - fast: 进行自顶向下的对比，当上层模型精度检查成功时，不会再进入子层检查，一旦检查到错误就会报错退出
+    - deep: 强制检查所有层，即使上层模型精度检查成功，也进入子层进行检查，所有检查结束后才会报错退出
 
 ```
 COMPARE:
@@ -221,4 +225,5 @@ COMPARE:
     rtol: 1e-5
     compare_mode: "mean"
     action_name: "loose_equal"
+    check_mode: "fast"
 ```
