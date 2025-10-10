@@ -24,6 +24,9 @@ import traceback
 from .log import logger
 
 
+_bf16_warning_shown = False
+
+
 def set_seed(seed=42):
     np.random.seed(seed)
     paddle.seed(seed)
@@ -33,12 +36,28 @@ def set_seed(seed=42):
 
 
 def get_numpy_from_tensor(tensor):
+    global _bf16_warning_shown
+
+    bf16_warning = False
     if tensor.dtype == torch.bfloat16:
-        np_array = tensor.cpu().detach().float().numpy()
+        tensor = tensor.to(torch.float32)
+        bf16_warning = not _bf16_warning_shown
     elif tensor.dtype == paddle.bfloat16:
-        np_array = tensor.cpu().detach().astype("float32").numpy()
-    else:
-        np_array = tensor.cpu().detach().numpy()
+        tensor = tensor.astype("float32")
+        bf16_warning = not _bf16_warning_shown
+
+    if isinstance(tensor, torch.Tensor):
+        tensor = tensor.detach().cpu()
+
+    np_array = tensor.numpy()
+    if bf16_warning:
+        logger.warning(
+            "Precision Warning: The model contains 'bfloat16' tensors. "
+            "Due to the inherent lower precision of bfloat16 and potential differences in conversion "
+            "between PyTorch and PaddlePaddle, numerical comparisons may show larger-than-expected differences. "
+            "Consider using 'float32' for critical alignment checks or adjusting 'atol'/'rtol' accordingly."
+        )
+        _bf16_warning_shown = True
     return np_array
 
 
@@ -73,14 +92,9 @@ def set_require_grad(x):
         x.stop_gradient = False
 
 
-def _clone_tensor(inp):  # to cpu
+def _clone_tensor(inp):  # no device changes
     if isinstance(inp, (torch.Tensor, paddle.Tensor)):
-        if inp.numel() == 0:
-            if isinstance(inp, torch.Tensor):
-                return torch.tensor([], dtype=inp.dtype)
-            else:
-                return paddle.to_tensor([], dtype=inp.dtype)
-        new_t = inp.detach().cpu().clone()
+        new_t = inp.detach().clone()
         if is_require_grad(inp):
             set_require_grad(new_t)
         return new_t
