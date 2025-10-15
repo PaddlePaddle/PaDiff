@@ -8,7 +8,7 @@ CLI:
   pd_model_name: "pd_model"                           # PaddlePaddle 模型变量名
   pt_optim_name: "pt_optimizer"                       # (可选) PyTorch 优化器变量名
   pd_optim_name: "pd_optimizer"                       # (可选) PaddlePaddle 优化器变量名
-  base_framework: "torch"                             # (可选) 设置作为 base 的框架
+  base_framework: "torch"                             # (可选) 设置作为基准的框架名
   log_dir: "./padiff_log"                             # (可选) 日志目录
 
 # --- COMPARE 部分 ---
@@ -16,8 +16,9 @@ CLI:
 COMPARE:
   atol: 1.0e-06                                        # (可选) 绝对误差
   rtol: 1.0e-06                                        # (可选) 相对误差
-  compare_mode: "mean"                                 # (可选) 对比模式
-  action_name: "equal"                                 # (可选) 对比动作
+  compare_mode: "mean"                                 # (可选) 数值对比模式
+  action_name: "equal"                                 # (可选) 层对比策略
+  check_mode: "fast"                                   # (可选) 模型对比策略
 
 # --- PaDiffGuard 部分 ---
 # 定义模型对齐行为

@@ -14,6 +14,7 @@
 
 import json
 import collections.abc
+import hashlib
 
 import numpy as np
 import paddle
@@ -22,9 +23,6 @@ import torch
 import os.path as osp
 import traceback
 from .log import logger
-
-
-_bf16_warning_shown = False
 
 
 def set_seed(seed=42):
@@ -36,28 +34,26 @@ def set_seed(seed=42):
 
 
 def get_numpy_from_tensor(tensor):
-    global _bf16_warning_shown
+    bf16_warning = True
 
-    bf16_warning = False
     if tensor.dtype == torch.bfloat16:
         tensor = tensor.to(torch.float32)
-        bf16_warning = not _bf16_warning_shown
     elif tensor.dtype == paddle.bfloat16:
         tensor = tensor.astype("float32")
-        bf16_warning = not _bf16_warning_shown
+    else:
+        bf16_warning = False
 
-    if isinstance(tensor, torch.Tensor):
-        tensor = tensor.detach().cpu()
+    tensor = tensor.detach().cpu()
 
     np_array = tensor.numpy()
+
     if bf16_warning:
-        logger.warning(
+        logger.warning_once(
             "Precision Warning: The model contains 'bfloat16' tensors. "
             "Due to the inherent lower precision of bfloat16 and potential differences in conversion "
             "between PyTorch and PaddlePaddle, numerical comparisons may show larger-than-expected differences. "
             "Consider using 'float32' for critical alignment checks or adjusting 'atol'/'rtol' accordingly."
         )
-        _bf16_warning_shown = True
     return np_array
 
 
@@ -285,8 +281,15 @@ def assert_tensor_equal(tensor1, tensor2, cfg):
         np.testing.assert_allclose(tensor1.mean(), tensor2.mean(), atol=atol, rtol=rtol)
     elif compare_mode == "strict":
         np.testing.assert_allclose(tensor1, tensor2, atol=atol, rtol=rtol)
+    elif compare_mode == "abs_strict":
+        np.testing.assert_allclose(abs(tensor1), abs(tensor2), atol=atol, rtol=rtol)
     elif compare_mode == "abs_mean":
         np.testing.assert_allclose(abs(tensor1).mean(), abs(tensor2).mean(), atol=atol, rtol=rtol)
+    elif compare_mode == "md5":
+        md5_hash1 = hashlib.md5(tensor1.tobytes()).hexdigest()
+        md5_hash2 = hashlib.md5(tensor2.tobytes()).hexdigest()
+        if md5_hash1 != md5_hash2:
+            raise ValueError(f"MD5 diff: {md5_hash1} vs {md5_hash2}")
     else:
         raise RuntimeError(f"Invalid compare_mode {compare_mode}")
 
