@@ -16,6 +16,7 @@ import os
 import shutil
 import logging
 import colorlog
+import functools
 
 
 log_config = {
@@ -87,6 +88,10 @@ class Logger:
         else:
             print(f"[AutoDiff] [WARNING] {' '.join(map(str, args))}")
 
+    @functools.lru_cache(maxsize=None)
+    def warning_once(self, *args):
+        self.warning(*args)
+
     def error(self, *args):
         if self._logger is not None:
             self._logger.error(" ".join(map(str, args)))
@@ -98,6 +103,10 @@ class Logger:
             self._logger.debug(" ".join(map(str, args)))
         else:
             print(f"[AutoDiff] [DEBUG] {' '.join(map(str, args))}")
+
+    @functools.lru_cache(maxsize=None)
+    def debug_once(self, *args):
+        self.debug(*args)
 
     def reset_dir(self, path):
         if os.path.exists(path):

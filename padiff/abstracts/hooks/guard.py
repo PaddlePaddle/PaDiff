@@ -112,7 +112,6 @@ def SingleStepGuard(diff_phase, base_dump_path):
 def AlignmentGuard(model, seed=42):
     """Prepare the model environment for accuracy alignment."""
     logger.debug(f"AlignmentGuard: Initializing for {model}")
-    model.model.train()
     model.toggle_dropout(enable=False)
     set_seed(seed)
     try:

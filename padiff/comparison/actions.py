@@ -110,7 +110,7 @@ class LooseEqualAction(Action):
     def __call__(self, file_list_0, file_list_1, cfg):
         len_fl_0, len_fl_1 = len(file_list_0), len(file_list_1)
         if len_fl_0 != len_fl_1:
-            logger.warning(f"number of tensors for compare is not equal, {len_fl_0} vs {len_fl_1}")
+            logger.warning_once(f"number of tensors for compare is not equal, {len_fl_0} vs {len_fl_1}")
 
         min_len = min(len_fl_0, len_fl_1)
 
@@ -123,7 +123,7 @@ class LooseEqualAction(Action):
                 tensor_1 = np.transpose(tensor_1)
 
             if tensor_0.size == 0 or tensor_1.size == 0:
-                logger.debug("Found empty tensor, compare skipped!")
+                logger.debug_once("Found empty tensor, compare skipped!")
                 continue
 
             if tensor_0.shape != tensor_1.shape:
@@ -140,10 +140,10 @@ class LooseEqualAction(Action):
                     tensor_1 = np.reshape(tensor_1, tensor_0.shape)
                 else:
                     debug_msg += "however tensors cannot be converted to each other, skip!"
-                    logger.debug(debug_msg)
+                    logger.debug_once(debug_msg)
                     continue
 
-                logger.debug(debug_msg)
+                logger.debug_once(debug_msg)
 
             assert_tensor_equal(tensor_0, tensor_1, cfg)
             num_success += 1
