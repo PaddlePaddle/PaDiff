@@ -42,13 +42,8 @@ def load_yaml_config(config_path):
     for k, v in config["CLI"].items():
         cli_cfg[k] = v
 
-    guard_cfg = {}
-    for k, v in config.get("PaDiffGuard", {}).items():
-        guard_cfg[k] = v
-
-    compare_cfg = {}
-    for k, v in config.get("COMPARE", {}).items():
-        compare_cfg[k] = v
+    guard_cfg = dict(config.get("PaDiffGuard") or {})
+    compare_cfg = dict(config.get("COMPARE") or {})
 
     return cli_cfg, guard_cfg, compare_cfg
 
@@ -186,6 +181,7 @@ def main():
                 rtol: 1.0e-06
                 compare_mode: "mean"
                 action_name: "equal"
+                check_mode: "fast"
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

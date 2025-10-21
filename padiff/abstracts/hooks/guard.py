@@ -191,13 +191,15 @@ def InputCaptureGuard(model, base_dump_path=None, framework=None, load_first_inp
 
         return original_forward(*corrected_args, **kwargs)
 
-    model.forward = tracked_forward
+    # model.forward = tracked_forward
+    model.__dict__["forward"] = tracked_forward
     model._padiff_input_captured = True
 
     try:
         yield
     finally:
-        model.forward = original_forward
+        # model.forward = original_forward
+        model.__dict__["forward"] = original_forward
 
 
 @contextlib.contextmanager
