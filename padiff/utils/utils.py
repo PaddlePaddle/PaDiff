@@ -144,6 +144,13 @@ def traverse(structure, on_leaf, on_container=None):
     if isinstance(structure, (paddle.Tensor, torch.Tensor)):
         return on_leaf(structure)
 
+    # namedtuple
+    if hasattr(structure, "_fields"):
+        result = type(structure)(
+            *[traverse(getattr(structure, field), on_leaf, on_container) for field in structure._fields]
+        )
+        return on_container(result) if on_container else result
+
     # dict
     if isinstance(structure, dict):
         new_dict = type(structure)()
@@ -154,7 +161,7 @@ def traverse(structure, on_leaf, on_container=None):
     # list or tuple
     if isinstance(structure, (list, tuple)):
         result = [traverse(item, on_leaf, on_container) for item in structure]
-        return on_container(result) if on_container else result
+        return on_container(result) if on_container else type(structure)(result)
 
     # Sequence-like objects (e.g., DynamicCache, ModelOutput)
     if hasattr(structure, "__getitem__") and hasattr(structure, "__len__"):
@@ -168,13 +175,6 @@ def traverse(structure, on_leaf, on_container=None):
             return structure
         except Exception:
             pass
-
-    # namedtuple
-    if hasattr(structure, "_fields"):
-        result = type(structure)(
-            *[traverse(getattr(structure, field), on_leaf, on_container) for field in structure._fields]
-        )
-        return on_container(result) if on_container else result
 
     # object with __dict__
     if hasattr(structure, "__dict__"):
