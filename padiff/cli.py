@@ -228,7 +228,7 @@ def main():
         cli_cfg["base_framework"] = args.base_framework
 
     log_dir = cli_cfg.pop("log_dir", "./padiff_log")
-    logger.reset_dir(log_dir)
+    logger.setup(log_dir)
 
     pt_cmd = cli_cfg.get("pt_cmd")
     pd_cmd = cli_cfg.get("pd_cmd")

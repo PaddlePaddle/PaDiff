@@ -57,6 +57,15 @@ def get_numpy_from_tensor(tensor):
     return np_array
 
 
+def get_rank(framework: str):
+    rank = 0
+    if framework == "paddle" and paddle.distributed.is_initialized():
+        rank = paddle.distributed.get_rank()
+    elif framework == "torch" and torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+    return rank
+
+
 """
     clone tensor
 """
