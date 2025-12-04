@@ -144,6 +144,10 @@ def traverse(structure, on_leaf, on_container=None):
     if isinstance(structure, (paddle.Tensor, torch.Tensor)):
         return on_leaf(structure)
 
+    # numpy
+    if isinstance(structure, np.ndarray):
+        return on_leaf(structure)
+
     # namedtuple
     if hasattr(structure, "_fields"):
         result = type(structure)(

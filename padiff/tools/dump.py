@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import defaultdict
 import json
 import os
 import sys
@@ -130,6 +131,8 @@ def dump_report_node(wrap_node, tensor_dumper):
 
 
 def dump_param_prototype(model, dump_fn, file_path):
+    skiped_layers = defaultdict(list)
+
     def dump_param_with_fn(model, fn, target_models):
         param_info = {
             "name": model.class_name,
@@ -150,7 +153,7 @@ def dump_param_prototype(model, dump_fn, file_path):
                 if buffer_name not in params_found:
                     fn(buffer_name, buffer, param_info)
         else:
-            logger.debug(f"Layer {model.class_name} ({model.route}) is NOT in target_models. Skipping.")
+            skiped_layers[model.class_name].append(model.route)
 
         for name, child in model.named_children():
             param_info["children"].append(dump_param_with_fn(child, fn, target_models))
@@ -158,6 +161,11 @@ def dump_param_prototype(model, dump_fn, file_path):
 
     target_models = [layer.model for layer in model.marker.traversal_for_assign_weight()]
     param_info = dump_param_with_fn(model, dump_fn, target_models)
+
+    logger.debug_once("Params dump SKIPPED: Some layers have no available parameters(like weights).\n")
+    for model_name, routes in skiped_layers.items():
+        routes_str = "\n".join([f"    {route}" for route in routes])
+        logger.debug(f"Params dump SKIPPED: {model_name}.\nIncluded routes:\n{routes_str}")
 
     model_info = {
         "model_name": model.name,

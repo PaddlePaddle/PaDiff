@@ -139,6 +139,9 @@ def info_hook(model, input, output, net_id):
 
     # if this api is not processing tensors, do not create report
     if output is None or all([not isinstance(x, (paddle.Tensor, torch.Tensor)) for x in flatten(output)]):
+        logger.warning_once(
+            f"All outputs of {model.__class__.__name__} are not tensors. Skip capturing these outputs."
+        )
         return None
 
     # if an api under black_list_recursively, do not create report
