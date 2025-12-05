@@ -60,42 +60,52 @@ _global_report = None
 
 class _CallsContext:
     """
-    A global context for managing forward call counts across multiple PaDiffGuard invocations.
-    This ensures that max_calls is respected even when PaDiffGuard is re-entered.
+    A context for managing forward call counts for PaDiffGuard invocations.
+    Each model instance will have its own independent call count state.
+    Different files always use independent counters.
     """
 
-    _state = contextvars.ContextVar("_calls_context_state", default=None)
-
     def __init__(self):
-        self._state.set({"count": 0, "limit": 0, "active": False})
+        self._model_states = {}  # model_id -> state dict
 
-    @property
-    def state(self) -> Dict:
-        s = self._state.get()
-        if s is None:
-            s = {"count": 0, "limit": 0, "active": False}
-            self._state.set(s)
-        return s
+    def _get_model_id(self, model):
+        """Get a unique identifier for the model in current context"""
+        # Simple object identity is sufficient since we don't need cross-file compatibility
+        return str(id(model))
 
-    def set_limit(self, limit: int):
-        self.state["limit"] = limit
-        self.state["active"] = True
+    def get_state(self, model) -> Dict:
+        """Get the state for a specific model"""
+        model_id = self._get_model_id(model)
+        if model_id not in self._model_states:
+            self._model_states[model_id] = {"count": 0, "limit": 0, "active": False}
+        return self._model_states[model_id]
 
-    def increment(self) -> int:
-        if not self.state["active"]:
+    def set_limit(self, model, limit: int):
+        """Set the call limit for a specific model"""
+        state = self.get_state(model)
+        state["limit"] = limit
+        state["active"] = True
+
+    def increment(self, model) -> int:
+        """Increment the call count for a specific model"""
+        state = self.get_state(model)
+        if not state["active"]:
             return 0
-        self.state["count"] += 1
-        return self.state["count"]
+        state["count"] += 1
+        return state["count"]
 
-    def is_exceeded(self) -> bool:
-        if not self.state["active"]:
+    def is_exceeded(self, model) -> bool:
+        """Check if the call limit is exceeded for a specific model"""
+        state = self.get_state(model)
+        if not state["active"]:
             return False
-        return self.state["count"] >= self.state["limit"]
+        return state["count"] >= state["limit"]
 
-    def reset(self):
-        self.state["count"] = 0
-        self.state["limit"] = 0
-        self.state["active"] = False
+    def reset(self, model):
+        """Reset the state for a specific model"""
+        model_id = self._get_model_id(model)
+        if model_id in self._model_states:
+            del self._model_states[model_id]
 
     @classmethod
     def get_current(cls) -> "_CallsContext":

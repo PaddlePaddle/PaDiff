@@ -211,10 +211,10 @@ def MaxCallsGuard(max_calls: int, model):
     calls_context = get_calls_context()
 
     def pre_hook(m, input):
-        if calls_context.is_exceeded():
+        if calls_context.is_exceeded(model):
             logger.warning(f"PaDiffGuard: max_calls={max_calls} reached, raising _CallsComplete")
             raise _CallsComplete()
-        count = calls_context.increment()
+        count = calls_context.increment(model)
         logger.info(f"MaxCallsGuard: forward start calling #{count}")
 
     handle = model.register_forward_pre_hook(pre_hook)
@@ -240,13 +240,14 @@ def PaDiffGuard(
     black_list=None,
     keys_mapping=None,
 ):
-    # moniter number of calls
+    # get the global calls context
     calls_context = get_calls_context()
-    reset_flag = calls_context.state["count"] == 0
+    # check if this is the first call for this specific model
+    reset_flag = calls_context.get_state(model)["count"] == 0
 
     if reset_flag:
-        # set max calls
-        calls_context.set_limit(max_calls)
+        # set max calls for this model
+        calls_context.set_limit(model, max_calls)
 
         proxy_model = create_model(model, name=name, reset_dir=reset_flag)
         model._padiff_proxy = proxy_model
