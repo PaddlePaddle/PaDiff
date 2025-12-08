@@ -14,8 +14,9 @@
 
 # this folder is just used to support assign_weight interface
 
+import os
 import paddle
-from ...utils import logger
+from ...utils import logger, reset_dir
 from .model import ProxyModel
 
 
@@ -42,14 +43,15 @@ def remove_inplace(model):
             submodel.inplace = False
 
 
-def create_model(model, name=None, dump_freq=1, reset_dir=True):
+def create_model(model, name=None, dump_freq=1, reset=True):
     retval = ProxyModel.create_from(model, name, dump_freq)
     init_route(retval)
-    if retval.framework == "paddle" and paddle.distributed.get_rank() % 8 == 0 and reset_dir:
+    if retval.framework == "paddle" and retval.rank // 8 == 0 and reset:
         # Only reset the root path once for each machine, here we assume each machine has 8 GPUs
-        logger.reset_dir(retval.dump_path)
+        reset_dir(retval.dump_path)
     if retval.framework == "torch":
-        if reset_dir:
-            logger.reset_dir(retval.dump_path)
+        if reset:
+            reset_dir(retval.dump_path)
         remove_inplace(retval)
+    logger.setup(retval.dump_path)
     return retval

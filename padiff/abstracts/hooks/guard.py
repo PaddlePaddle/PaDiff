@@ -249,7 +249,7 @@ def PaDiffGuard(
         # set max calls for this model
         calls_context.set_limit(model, max_calls)
 
-        proxy_model = create_model(model, name=name, reset_dir=reset_flag)
+        proxy_model = create_model(model, name=name, reset=reset_flag)
         model._padiff_proxy = proxy_model
         logger.debug(f"PaDiffGuard: creating proxy model.")
 

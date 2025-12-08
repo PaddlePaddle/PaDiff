@@ -20,7 +20,7 @@ import torch
 from ..marker import Marker
 from ..report import Report
 from ...tools import dump_grads, dump_params, dump_report, dump_weights, get_dump_root_path
-from ...utils import deco_iter, logger
+from ...utils import deco_iter, logger, get_rank, reset_dir
 from .params import ProxyParam
 
 
@@ -34,7 +34,8 @@ class ProxyModel:
         self.report = Report(self.marker)
         self.step = 0
 
-        self.dump_path = get_dump_root_path() + "/" + self.name
+        self.rank = get_rank(framework)
+        self.dump_path = f"{get_dump_root_path()}/{self.name}/rank_{self.rank}"
 
         self.dump_freq = dump_freq
         if self.dump_freq > 1:
@@ -190,31 +191,27 @@ class ProxyModel:
     def try_dump(self, dump_path=None):
         if self.step % self.dump_freq == 0:
             if dump_path is None:
-                dump_path = f"{self.dump_path}/step_{self.step}/rank_{paddle.distributed.get_rank()}"
-            logger.reset_dir(dump_path)
+                dump_path = f"{self.dump_path}/step_{self.step}/rank_{self.rank}"
+            reset_dir(dump_path)
             self.dump_params(dump_path)
             self.dump_report(dump_path)
         self.clear_report()
         self.step += 1
 
     def dump_report(self, dump_path=None):
-        if dump_path is None:
-            dump_path = f"{self.dump_path}/rank_{paddle.distributed.get_rank()}"
+        dump_path = self.dump_path if dump_path is None else dump_path
         dump_report(self, dump_path)
 
     def dump_params(self, dump_path=None):
-        if dump_path is None:
-            dump_path = f"{self.dump_path}/rank_{paddle.distributed.get_rank()}"
+        dump_path = self.dump_path if dump_path is None else dump_path
         dump_params(self, dump_path)
 
     def dump_weights(self, dump_path=None):
-        if dump_path is None:
-            dump_path = f"{self.dump_path}/rank_{paddle.distributed.get_rank()}"
+        dump_path = self.dump_path if dump_path is None else dump_path
         dump_weights(self, dump_path)
 
     def dump_grads(self, dump_path=None):
-        if dump_path is None:
-            dump_path = f"{self.dump_path}/rank_{paddle.distributed.get_rank()}"
+        dump_path = self.dump_path if dump_path is None else dump_path
         dump_grads(self, dump_path)
 
     """

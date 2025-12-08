@@ -30,7 +30,6 @@ log_config = {
 class Logger:
     def __init__(self):
         self._logger = None
-        self._is_initialized = False
         self.log_path = "padiff_log"
 
         for key, conf in log_config.items():
@@ -41,26 +40,25 @@ class Logger:
             log_colors={key: conf["color"] for key, conf in log_config.items()},
         )
 
-    def setup(self, log_parent_dir):
-        if self._is_initialized:
-            return
-
-        self._logger = logging.getLogger("padiff")
+    def setup(self, log_root_dir):
+        os.makedirs(log_root_dir, exist_ok=True)
 
         silent_flag = os.getenv("PADIFF_SILENT")
         log_level_flag = os.getenv("PADIFF_LOG_LEVEL")
-
         if log_level_flag and log_level_flag.upper() in ("DEBUG", "INFO", "WARNING", "ERROR"):
             log_level = getattr(logging, log_level_flag.upper())
         else:
             log_level = logging.INFO
-        self._logger.setLevel(log_level)
-        self._logger.propagate = False
 
-        if self._logger.handlers:
-            self._logger.handlers.clear()
+        if self._logger is None:
+            self._logger = logging.getLogger("padiff")
+            self._logger.setLevel(log_level)
+            self._logger.propagate = False
 
-        log_file_path = os.path.join(log_parent_dir, "padiff.log")
+            if self._logger.handlers:
+                self._logger.handlers.clear()
+
+        log_file_path = os.path.join(log_root_dir, "padiff.log")
         file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
         file_formatter = logging.Formatter("[AutoDiff] [%(levelname)s] %(message)s")
         file_handler.setFormatter(file_formatter)
@@ -74,7 +72,7 @@ class Logger:
             self._logger.info(f"Logging initialized. Log file: {log_file_path}")
 
         self._is_initialized = True
-        self.log_path = log_parent_dir
+        self.log_path = log_root_dir
 
     def info(self, *args):
         if self._logger is not None:
@@ -108,14 +106,10 @@ class Logger:
     def debug_once(self, *args):
         self.debug(*args)
 
-    def reset_dir(self, path):
-        if os.path.exists(path):
-            shutil.rmtree(path)
-        os.makedirs(path)
-        self.setup(path)
-
-    def log_file(self, filename, mode, info):
-        filepath = os.path.join(self.log_path, filename)
+    def log_file(self, filename, mode, info, root_dir=None):
+        if root_dir is None:
+            root_dir = self.log_path
+        filepath = os.path.join(root_dir, filename)
         with open(filepath, mode) as f:
             f.write(info)
         return filepath
@@ -127,6 +121,12 @@ logger = Logger()
 """
     other prints
 """
+
+
+def reset_dir(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path)
 
 
 def print_report_info(nodes, reports, exc, stage, msg=None):

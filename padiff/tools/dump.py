@@ -20,7 +20,7 @@ import sys
 import numpy
 import paddle
 
-from ..utils import Counter, frames_to_string, logger, save_model_struct, get_numpy_from_tensor
+from ..utils import Counter, frames_to_string, logger, save_model_struct, get_numpy_from_tensor, reset_dir
 
 dump_root_path = os.path.join(sys.path[0], "padiff_dump")
 
@@ -35,7 +35,7 @@ def get_dump_root_path():
 
 
 def numpy_dumper(path, prefix):
-    logger.reset_dir(path)
+    reset_dir(path)
     counter = Counter()
 
     def dumper(value):
@@ -52,8 +52,30 @@ def numpy_dumper(path, prefix):
 """
 
 
+def report_deduplicate(report):
+    """
+    In some cases, it is necessary to deduplicate report (e.g., when pipeline parallelism > 1
+    and gradient accumulation steps > 1).
+    """
+    if not report.stack.root:
+        return report
+
+    base_root_str = report.stack.root[0].net_str
+    idx_repeat = len(report.stack.root)
+    for i in range(1, len(report.stack.root)):
+        if report.stack.root[i].net_str == base_root_str:
+            idx_repeat = i
+            break
+    report.stack.root = report.stack.root[:idx_repeat]
+    logger.warning_once(
+        "The report contains duplications, which might occur when pipeline parallelism > 1 and gradient accumulation > 1. "
+        "The report is automatically deduplicated, please note if this deduplication was incorrect."
+    )
+    return report
+
+
 def dump_report(model, dump_path):
-    report = model.report
+    report = report_deduplicate(model.report)
     tensor_path = dump_path + "/tensors"
     tensor_dumper = numpy_dumper(tensor_path, "tensor")
 

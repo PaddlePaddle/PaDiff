@@ -56,7 +56,7 @@ from padiff.utils import logger
 from padiff import compare_dumps
 
 if __name__ == "__main__":
-    logger.reset_dir( "./padiff_log")
+    logger.setup( "./padiff_log")
 
     cfg = {
         "atol": 1e-6,
